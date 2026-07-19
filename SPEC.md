@@ -164,7 +164,7 @@ Each task ≈ one 1-hour session. Finish = builds cleanly, works in the browser,
 
 **Phase 0 — Foundation**
 - [x] T1. Scaffold Next.js + TypeScript + Tailwind; git init; push to GitHub; `.env.local` in `.gitignore`.
-- [ ] T2. Supabase project connection: env vars, browser + server clients per `@supabase/ssr` docs; health-check page proving connection.
+- [x] T2. Supabase project connection: env vars, browser + server clients per `@supabase/ssr` docs; health-check page proving connection.
 - [ ] T3. Auth: sign up / log in / log out / password reset pages; middleware protecting all app routes; auto-create `preferences` row on first login.
 
 **Phase 1 — Schema + Engine (the product's heart)**
