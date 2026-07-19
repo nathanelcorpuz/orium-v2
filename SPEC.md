@@ -163,7 +163,7 @@ Type colors (match old Orium): income green, debt orange, savings blue, extra pu
 Each task ≈ one 1-hour session. Finish = builds cleanly, works in the browser, tests pass, committed to git.
 
 **Phase 0 — Foundation**
-- [ ] T1. Scaffold Next.js + TypeScript + Tailwind; git init; push to GitHub; `.env.local` in `.gitignore`.
+- [x] T1. Scaffold Next.js + TypeScript + Tailwind; git init; push to GitHub; `.env.local` in `.gitignore`.
 - [ ] T2. Supabase project connection: env vars, browser + server clients per `@supabase/ssr` docs; health-check page proving connection.
 - [ ] T3. Auth: sign up / log in / log out / password reset pages; middleware protecting all app routes; auto-create `preferences` row on first login.
 
