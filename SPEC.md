@@ -181,7 +181,7 @@ Each task ≈ one 1-hour session. Finish = builds cleanly, works in the browser,
 - [x] T12. Extras page.
 
 **Phase 3 — Forecast, History, Dashboard**
-- [ ] T13. Forecast page: fetch data, run engine, render color-coded list + balance chips.
+- [x] T13. Forecast page: fetch data, run engine, render color-coded list + balance chips.
 - [ ] T14. Edit/Settle modal → overrides + settlements; balance chip editing.
 - [ ] T15. History page + Reminders sidebar.
 - [ ] T16. Dashboard cards + Peaks and Drops grid.
