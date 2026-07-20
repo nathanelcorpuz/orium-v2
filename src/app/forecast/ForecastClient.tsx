@@ -7,6 +7,7 @@ import { balanceRangeColorClass } from "@/lib/balanceColor";
 import { BalanceModal, type BalanceRow } from "@/app/balances/BalanceModal";
 import type { ForecastRow } from "@/lib/engine/types";
 import { EditSettleModal } from "./EditSettleModal";
+import { RemindersPanel, type ReminderRow } from "./RemindersPanel";
 
 const TYPE_COLOR: Record<ForecastRow["type"], string> = {
   income: "text-green-700",
@@ -21,11 +22,13 @@ export function ForecastClient({
   balances,
   currency,
   balanceRanges,
+  reminders,
 }: {
   forecast: ForecastRow[];
   balances: BalanceRow[];
   currency: string;
   balanceRanges: number[];
+  reminders: ReminderRow[];
 }) {
   const [editingBalance, setEditingBalance] = useState<BalanceRow | null>(null);
   const [selectedRow, setSelectedRow] = useState<ForecastRow | null>(null);
@@ -34,72 +37,78 @@ export function ForecastClient({
 
   return (
     <main className="min-h-screen bg-slate-50 p-8">
-      <div className="mx-auto max-w-4xl">
+      <div className="mx-auto max-w-6xl">
         <Link href="/" className="text-sm text-slate-500 underline">
           &larr; Home
         </Link>
 
-        <div className="mb-6 mt-2">
-          <h1 className="text-xl font-semibold">Forecast</h1>
-          <p className="text-slate-600">
-            Total balance: {formatCentavos(totalBalance, currency)}
-          </p>
-          <div className="mt-2 flex flex-wrap gap-2">
-            {balances.map((balance) => (
-              <button
-                key={balance.id}
-                type="button"
-                onClick={() => setEditingBalance(balance)}
-                className="rounded-full bg-white px-3 py-1 text-sm shadow hover:bg-slate-100"
-              >
-                {balance.name}: {formatCentavos(balance.amount, currency)}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {forecast.length === 0 ? (
-          <p className="text-slate-500">No upcoming transactions yet.</p>
-        ) : (
-          <div className="overflow-x-auto rounded-xl bg-white shadow">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-slate-200 text-left text-slate-500">
-                  <th className="p-3">Date</th>
-                  <th className="p-3">Name</th>
-                  <th className="p-3">Type</th>
-                  <th className="p-3 text-right">Amount</th>
-                  <th className="p-3 text-right">Balance</th>
-                </tr>
-              </thead>
-              <tbody>
-                {forecast.map((row, index) => (
-                  <tr
-                    key={`${row.sourceType}-${row.sourceId}-${row.originalDate}-${index}`}
-                    role="button"
-                    tabIndex={0}
-                    onClick={() => setSelectedRow(row)}
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter" || event.key === " ") {
-                        event.preventDefault();
-                        setSelectedRow(row);
-                      }
-                    }}
-                    className={`cursor-pointer hover:opacity-80 ${balanceRangeColorClass(row.runningBalance, balanceRanges)}`}
+        <div className="mt-2 flex flex-col gap-6 lg:flex-row lg:items-start">
+          <div className="min-w-0 flex-1">
+            <div className="mb-6">
+              <h1 className="text-xl font-semibold">Forecast</h1>
+              <p className="text-slate-600">
+                Total balance: {formatCentavos(totalBalance, currency)}
+              </p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {balances.map((balance) => (
+                  <button
+                    key={balance.id}
+                    type="button"
+                    onClick={() => setEditingBalance(balance)}
+                    className="rounded-full bg-white px-3 py-1 text-sm shadow hover:bg-slate-100"
                   >
-                    <td className="p-3">{row.dueDate}</td>
-                    <td className="p-3">{row.name}</td>
-                    <td className={`p-3 ${TYPE_COLOR[row.type]}`}>{row.type}</td>
-                    <td className="p-3 text-right">{formatCentavos(row.amount, currency)}</td>
-                    <td className="p-3 text-right font-medium">
-                      {formatCentavos(row.runningBalance, currency)}
-                    </td>
-                  </tr>
+                    {balance.name}: {formatCentavos(balance.amount, currency)}
+                  </button>
                 ))}
-              </tbody>
-            </table>
+              </div>
+            </div>
+
+            {forecast.length === 0 ? (
+              <p className="text-slate-500">No upcoming transactions yet.</p>
+            ) : (
+              <div className="overflow-x-auto rounded-xl bg-white shadow">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-slate-200 text-left text-slate-500">
+                      <th className="p-3">Date</th>
+                      <th className="p-3">Name</th>
+                      <th className="p-3">Type</th>
+                      <th className="p-3 text-right">Amount</th>
+                      <th className="p-3 text-right">Balance</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {forecast.map((row, index) => (
+                      <tr
+                        key={`${row.sourceType}-${row.sourceId}-${row.originalDate}-${index}`}
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => setSelectedRow(row)}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter" || event.key === " ") {
+                            event.preventDefault();
+                            setSelectedRow(row);
+                          }
+                        }}
+                        className={`cursor-pointer hover:opacity-80 ${balanceRangeColorClass(row.runningBalance, balanceRanges)}`}
+                      >
+                        <td className="p-3">{row.dueDate}</td>
+                        <td className="p-3">{row.name}</td>
+                        <td className={`p-3 ${TYPE_COLOR[row.type]}`}>{row.type}</td>
+                        <td className="p-3 text-right">{formatCentavos(row.amount, currency)}</td>
+                        <td className="p-3 text-right font-medium">
+                          {formatCentavos(row.runningBalance, currency)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
-        )}
+
+          <RemindersPanel reminders={reminders} />
+        </div>
       </div>
 
       {editingBalance && (
