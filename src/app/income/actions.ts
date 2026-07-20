@@ -80,6 +80,7 @@ export async function createIncome(
   if (error) return { error: error.message };
 
   revalidatePath("/income");
+  revalidatePath("/");
   return { error: null };
 }
 
@@ -107,6 +108,7 @@ export async function updateIncome(
   if (error) return { error: error.message };
 
   revalidatePath("/income");
+  revalidatePath("/");
   return { error: null };
 }
 
@@ -115,4 +117,5 @@ export async function deleteIncome(formData: FormData) {
   const supabase = await createClient();
   await supabase.from("recurring_items").delete().eq("id", id);
   revalidatePath("/income");
+  revalidatePath("/");
 }

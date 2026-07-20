@@ -48,6 +48,7 @@ export async function editRecurringOccurrence(
   if (error) return { error: error.message };
 
   revalidatePath("/forecast");
+  revalidatePath("/");
   return { error: null };
 }
 
@@ -67,6 +68,7 @@ export async function editOneOff(
   if (error) return { error: error.message };
 
   revalidatePath("/forecast");
+  revalidatePath("/");
   revalidatePath("/extra");
   return { error: null };
 }
@@ -138,5 +140,6 @@ export async function settleOccurrence(
   }
 
   revalidatePath("/forecast");
+  revalidatePath("/");
   return { error: null };
 }

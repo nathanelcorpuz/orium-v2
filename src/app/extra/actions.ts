@@ -54,6 +54,7 @@ export async function createExtra(
   if (error) return { error: error.message };
 
   revalidatePath("/extra");
+  revalidatePath("/");
   return { error: null };
 }
 
@@ -78,6 +79,7 @@ export async function updateExtra(
   if (error) return { error: error.message };
 
   revalidatePath("/extra");
+  revalidatePath("/");
   return { error: null };
 }
 
@@ -86,4 +88,5 @@ export async function deleteExtra(formData: FormData) {
   const supabase = await createClient();
   await supabase.from("one_off_items").delete().eq("id", id);
   revalidatePath("/extra");
+  revalidatePath("/");
 }

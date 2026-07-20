@@ -64,6 +64,7 @@ export async function createMonthlyGoal(
   if (error) return { error: error.message };
 
   revalidatePath(path);
+  revalidatePath("/");
   return { error: null };
 }
 
@@ -90,6 +91,7 @@ export async function updateMonthlyGoal(
   if (error) return { error: error.message };
 
   revalidatePath(path);
+  revalidatePath("/");
   return { error: null };
 }
 
@@ -98,4 +100,5 @@ export async function deleteMonthlyGoal(path: string, formData: FormData) {
   const supabase = await createClient();
   await supabase.from("recurring_items").delete().eq("id", id);
   revalidatePath(path);
+  revalidatePath("/");
 }

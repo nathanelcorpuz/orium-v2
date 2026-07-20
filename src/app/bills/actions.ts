@@ -61,6 +61,7 @@ export async function createBill(
   if (error) return { error: error.message };
 
   revalidatePath("/bills");
+  revalidatePath("/");
   return { error: null };
 }
 
@@ -86,6 +87,7 @@ export async function updateBill(
   if (error) return { error: error.message };
 
   revalidatePath("/bills");
+  revalidatePath("/");
   return { error: null };
 }
 
@@ -94,4 +96,5 @@ export async function deleteBill(formData: FormData) {
   const supabase = await createClient();
   await supabase.from("recurring_items").delete().eq("id", id);
   revalidatePath("/bills");
+  revalidatePath("/");
 }

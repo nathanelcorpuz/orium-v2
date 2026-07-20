@@ -27,9 +27,11 @@ function addYears(dateStr: string, years: number): string {
 export type ForecastData = {
   forecast: ForecastRow[];
   balances: ForecastBalance[];
+  recurringItems: RecurringItem[];
   currency: string;
   balanceRanges: number[];
   today: string;
+  horizon: string;
 };
 
 export async function loadForecast(): Promise<ForecastData> {
@@ -85,8 +87,10 @@ export async function loadForecast(): Promise<ForecastData> {
   return {
     forecast: generateForecast(input),
     balances,
+    recurringItems,
     currency: preferencesRes.data?.currency ?? DEFAULT_CURRENCY,
     balanceRanges: preferencesRes.data?.balance_ranges ?? DEFAULT_BALANCE_RANGES,
     today,
+    horizon,
   };
 }
