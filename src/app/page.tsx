@@ -18,6 +18,9 @@ export default async function Home() {
         <Link href="/bills" className="mb-4 block underline">
           Bills
         </Link>
+        <Link href="/income" className="mb-4 block underline">
+          Income
+        </Link>
         <form action={logout}>
           <button type="submit" className="rounded bg-slate-900 px-4 py-2 text-white">
             Log out
