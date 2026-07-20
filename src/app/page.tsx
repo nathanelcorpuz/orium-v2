@@ -95,6 +95,9 @@ export default async function Home() {
           <Link href="/history" className="underline">
             History
           </Link>
+          <Link href="/settings" className="underline">
+            Settings
+          </Link>
         </nav>
 
         <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">

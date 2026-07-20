@@ -185,7 +185,7 @@ Each task ≈ one 1-hour session. Finish = builds cleanly, works in the browser,
 - [x] T14. Edit/Settle modal → overrides + settlements; balance chip editing.
 - [x] T15. History page + Reminders sidebar.
 - [x] T16. Dashboard cards + Peaks and Drops grid.
-- [ ] T17. Settings page: preferences (currency, balance ranges), profile, delete account.
+- [x] T17. Settings page: preferences (currency, balance ranges), profile, delete account.
 
 **Phase 4 — Polish & ship**
 - [ ] T18. Responsive pass (usable on a phone browser).
