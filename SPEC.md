@@ -165,7 +165,7 @@ Each task ≈ one 1-hour session. Finish = builds cleanly, works in the browser,
 **Phase 0 — Foundation**
 - [x] T1. Scaffold Next.js + TypeScript + Tailwind; git init; push to GitHub; `.env.local` in `.gitignore`.
 - [x] T2. Supabase project connection: env vars, browser + server clients per `@supabase/ssr` docs; health-check page proving connection.
-- [ ] T3. Auth: sign up / log in / log out / password reset pages; middleware protecting all app routes; auto-create `preferences` row on first login.
+- [x] T3. Auth: sign up / log in / log out / password reset pages; middleware protecting all app routes; auto-create `preferences` row on first login.
 
 **Phase 1 — Schema + Engine (the product's heart)**
 - [ ] T4. SQL migration: all tables above + RLS policies (owner-only) + enums + constraints. Run in Supabase SQL editor; save the SQL in `supabase/migrations/`.
