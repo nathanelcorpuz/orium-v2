@@ -1,14 +1,9 @@
 import type { RecurringItem } from "./types";
-
-function daysInMonth(year: number, month: number): number {
-  // Date.UTC's day-0 trick returns the last day of the *previous* month,
-  // so passing `month` (1-indexed) gives the last day of `month`.
-  return new Date(Date.UTC(year, month, 0)).getUTCDate();
-}
+import { daysInMonth, formatDate } from "./date-utils";
 
 function clampedMonthlyDate(year: number, month: number, dayOfMonth: number): string {
   const day = Math.min(dayOfMonth, daysInMonth(year, month));
-  return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+  return formatDate(year, month, day);
 }
 
 /**

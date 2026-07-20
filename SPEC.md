@@ -170,7 +170,7 @@ Each task ≈ one 1-hour session. Finish = builds cleanly, works in the browser,
 **Phase 1 — Schema + Engine (the product's heart)**
 - [x] T4. SQL migration: all tables above + RLS policies (owner-only) + enums + constraints. Run in Supabase SQL editor; save the SQL in `supabase/migrations/`.
 - [x] T5. Engine: types + monthly expansion incl. clamping; Vitest setup; tests green.
-- [ ] T6. Engine: weekly, biweekly, semi_monthly_15_30 + February cases; tests.
+- [x] T6. Engine: weekly, biweekly, semi_monthly_15_30 + February cases; tests.
 - [ ] T7. Engine: overrides (move/change/skip), one-offs merge, running balance; tests.
 
 **Phase 2 — CRUD pages**
