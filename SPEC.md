@@ -175,7 +175,7 @@ Each task ≈ one 1-hour session. Finish = builds cleanly, works in the browser,
 
 **Phase 2 — CRUD pages**
 - [x] T8. Balances page (list, add, edit, delete) + shared modal/form components.
-- [ ] T9. Bills page.
+- [x] T9. Bills page.
 - [ ] T10. Income page (frequency-dependent form fields).
 - [ ] T11. Debt page + Savings page (same pattern).
 - [ ] T12. Extras page.
