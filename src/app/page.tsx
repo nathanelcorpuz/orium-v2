@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { logout } from "@/app/auth/actions";
 
@@ -11,6 +12,9 @@ export default async function Home() {
     <main className="flex min-h-screen items-center justify-center bg-slate-50 p-8">
       <div className="rounded-xl bg-white p-8 text-center shadow">
         <p className="mb-4 text-slate-700">Welcome, {user?.email}</p>
+        <Link href="/balances" className="mb-4 block underline">
+          Balances
+        </Link>
         <form action={logout}>
           <button type="submit" className="rounded bg-slate-900 px-4 py-2 text-white">
             Log out
