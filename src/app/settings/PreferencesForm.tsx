@@ -49,8 +49,8 @@ export function PreferencesForm({
           </p>
           <div className="space-y-2">
             {THRESHOLDS.map((threshold, index) => (
-              <div key={threshold.key} className="flex items-center gap-2">
-                <label className="w-64 text-sm text-slate-600" htmlFor={threshold.key}>
+              <div key={threshold.key} className="flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-2">
+                <label className="text-sm text-slate-600 sm:w-64" htmlFor={threshold.key}>
                   {threshold.label}
                 </label>
                 <input

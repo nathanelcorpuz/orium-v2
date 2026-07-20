@@ -188,7 +188,7 @@ Each task ≈ one 1-hour session. Finish = builds cleanly, works in the browser,
 - [x] T17. Settings page: preferences (currency, balance ranges), profile, delete account.
 
 **Phase 4 — Polish & ship**
-- [ ] T18. Responsive pass (usable on a phone browser).
+- [x] T18. Responsive pass (usable on a phone browser).
 - [ ] T19. Loading, empty, and error states everywhere; form validation.
 - [ ] T20. Privacy Policy + Terms pages (static; content provided by user).
 - [ ] T21. Deploy to Vercel; production Supabase env vars; smoke test.

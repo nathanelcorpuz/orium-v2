@@ -57,7 +57,7 @@ export function ExtraModal({ extra, onClose }: { extra: ExtraRow | null; onClose
         </div>
         <fieldset>
           <legend className="block text-sm text-slate-600">Direction</legend>
-          <div className="mt-1 flex gap-4">
+          <div className="mt-1 flex flex-col gap-2 sm:flex-row sm:gap-4">
             <label className="flex items-center gap-1 text-sm">
               <input
                 type="radio"
