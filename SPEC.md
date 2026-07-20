@@ -178,7 +178,7 @@ Each task ≈ one 1-hour session. Finish = builds cleanly, works in the browser,
 - [x] T9. Bills page.
 - [x] T10. Income page (frequency-dependent form fields).
 - [x] T11. Debt page + Savings page (same pattern).
-- [ ] T12. Extras page.
+- [x] T12. Extras page.
 
 **Phase 3 — Forecast, History, Dashboard**
 - [ ] T13. Forecast page: fetch data, run engine, render color-coded list + balance chips.
