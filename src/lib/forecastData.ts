@@ -51,6 +51,15 @@ export async function loadForecast(): Promise<ForecastData> {
     supabase.from("preferences").select("currency, balance_ranges").single(),
   ]);
 
+  // These four queries determine the forecast's correctness - silently treating
+  // a failed one as empty would show a wrong forecast with no indication anything
+  // failed. Preferences failure is left as a graceful fallback below (formatting only).
+  const criticalError =
+    balancesRes.error ?? recurringRes.error ?? overridesRes.error ?? oneOffsRes.error;
+  if (criticalError) {
+    throw new Error(`Failed to load forecast data: ${criticalError.message}`);
+  }
+
   const balances: ForecastBalance[] = balancesRes.data ?? [];
 
   const recurringItems: RecurringItem[] = (recurringRes.data ?? []).map((row) => ({
