@@ -14,6 +14,10 @@ import type {
 const DEFAULT_BALANCE_RANGES = [0, 500000, 2000000, 5000000, 10000000];
 const DEFAULT_CURRENCY = "₱";
 
+// Balance plus `comments`, since the Forecast page reuses the Balances
+// page's edit modal (which needs it), unlike the engine's minimal Balance.
+export type ForecastBalance = Balance & { comments: string | null };
+
 function addYears(dateStr: string, years: number): string {
   const [year, month, day] = dateStr.split("-").map(Number);
   const date = new Date(Date.UTC(year + years, month - 1, day));
@@ -22,7 +26,7 @@ function addYears(dateStr: string, years: number): string {
 
 export type ForecastData = {
   forecast: ForecastRow[];
-  balances: Balance[];
+  balances: ForecastBalance[];
   currency: string;
   balanceRanges: number[];
   today: string;
@@ -34,7 +38,7 @@ export async function loadForecast(): Promise<ForecastData> {
   const horizon = addYears(today, 3);
 
   const [balancesRes, recurringRes, overridesRes, oneOffsRes, preferencesRes] = await Promise.all([
-    supabase.from("balances").select("id, name, amount"),
+    supabase.from("balances").select("id, name, amount, comments"),
     supabase
       .from("recurring_items")
       .select("id, name, type, amount, frequency, day_of_month, weekday, start_date, end_date"),
@@ -45,7 +49,7 @@ export async function loadForecast(): Promise<ForecastData> {
     supabase.from("preferences").select("currency, balance_ranges").single(),
   ]);
 
-  const balances: Balance[] = balancesRes.data ?? [];
+  const balances: ForecastBalance[] = balancesRes.data ?? [];
 
   const recurringItems: RecurringItem[] = (recurringRes.data ?? []).map((row) => ({
     id: row.id,

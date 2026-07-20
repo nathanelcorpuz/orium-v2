@@ -32,6 +32,7 @@ export async function createBalance(
   if (error) return { error: error.message };
 
   revalidatePath("/balances");
+  revalidatePath("/forecast");
   return { error: null };
 }
 
@@ -52,6 +53,7 @@ export async function updateBalance(
   if (error) return { error: error.message };
 
   revalidatePath("/balances");
+  revalidatePath("/forecast");
   return { error: null };
 }
 
@@ -60,4 +62,5 @@ export async function deleteBalance(formData: FormData) {
   const supabase = await createClient();
   await supabase.from("balances").delete().eq("id", id);
   revalidatePath("/balances");
+  revalidatePath("/forecast");
 }

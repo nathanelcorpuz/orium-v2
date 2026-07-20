@@ -1,0 +1,118 @@
+"use client";
+
+import { useState } from "react";
+import Link from "next/link";
+import { formatCentavos } from "@/lib/money";
+import { balanceRangeColorClass } from "@/lib/balanceColor";
+import { BalanceModal, type BalanceRow } from "@/app/balances/BalanceModal";
+import type { ForecastRow } from "@/lib/engine/types";
+import { EditSettleModal } from "./EditSettleModal";
+
+const TYPE_COLOR: Record<ForecastRow["type"], string> = {
+  income: "text-green-700",
+  debt: "text-orange-700",
+  savings: "text-blue-700",
+  extra: "text-purple-700",
+  bill: "text-slate-900",
+};
+
+export function ForecastClient({
+  forecast,
+  balances,
+  currency,
+  balanceRanges,
+}: {
+  forecast: ForecastRow[];
+  balances: BalanceRow[];
+  currency: string;
+  balanceRanges: number[];
+}) {
+  const [editingBalance, setEditingBalance] = useState<BalanceRow | null>(null);
+  const [selectedRow, setSelectedRow] = useState<ForecastRow | null>(null);
+
+  const totalBalance = balances.reduce((sum, balance) => sum + balance.amount, 0);
+
+  return (
+    <main className="min-h-screen bg-slate-50 p-8">
+      <div className="mx-auto max-w-4xl">
+        <Link href="/" className="text-sm text-slate-500 underline">
+          &larr; Home
+        </Link>
+
+        <div className="mb-6 mt-2">
+          <h1 className="text-xl font-semibold">Forecast</h1>
+          <p className="text-slate-600">
+            Total balance: {formatCentavos(totalBalance, currency)}
+          </p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {balances.map((balance) => (
+              <button
+                key={balance.id}
+                type="button"
+                onClick={() => setEditingBalance(balance)}
+                className="rounded-full bg-white px-3 py-1 text-sm shadow hover:bg-slate-100"
+              >
+                {balance.name}: {formatCentavos(balance.amount, currency)}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {forecast.length === 0 ? (
+          <p className="text-slate-500">No upcoming transactions yet.</p>
+        ) : (
+          <div className="overflow-x-auto rounded-xl bg-white shadow">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-slate-200 text-left text-slate-500">
+                  <th className="p-3">Date</th>
+                  <th className="p-3">Name</th>
+                  <th className="p-3">Type</th>
+                  <th className="p-3 text-right">Amount</th>
+                  <th className="p-3 text-right">Balance</th>
+                </tr>
+              </thead>
+              <tbody>
+                {forecast.map((row, index) => (
+                  <tr
+                    key={`${row.sourceType}-${row.sourceId}-${row.originalDate}-${index}`}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => setSelectedRow(row)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        setSelectedRow(row);
+                      }
+                    }}
+                    className={`cursor-pointer hover:opacity-80 ${balanceRangeColorClass(row.runningBalance, balanceRanges)}`}
+                  >
+                    <td className="p-3">{row.dueDate}</td>
+                    <td className="p-3">{row.name}</td>
+                    <td className={`p-3 ${TYPE_COLOR[row.type]}`}>{row.type}</td>
+                    <td className="p-3 text-right">{formatCentavos(row.amount, currency)}</td>
+                    <td className="p-3 text-right font-medium">
+                      {formatCentavos(row.runningBalance, currency)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {editingBalance && (
+        <BalanceModal balance={editingBalance} onClose={() => setEditingBalance(null)} />
+      )}
+
+      {selectedRow && (
+        <EditSettleModal
+          row={selectedRow}
+          currency={currency}
+          onClose={() => setSelectedRow(null)}
+        />
+      )}
+    </main>
+  );
+}
