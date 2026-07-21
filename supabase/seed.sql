@@ -8,9 +8,10 @@
 --      columns too, and fails fast with a clear message if 0004 hasn't
 --      been applied). Do NOT run 0005 yet — see its header.
 --   2. Make sure you've signed up / logged into the app at least once (an
---      auth user must exist). With a single account the seed finds it
---      automatically, whatever its email; with several accounts it seeds
---      the one matching v_email below and lists the options if none match.
+--      auth user must exist). The seed targets whichever account signed in
+--      most recently — the one you actually use — no matter its email; the
+--      result grid at the end shows which account got the data. To force a
+--      specific account instead, set v_email below.
 --   3. Paste this whole file into the Supabase SQL editor and run it.
 --
 -- Re-runnable: every row has a fixed id and inserts use
@@ -25,29 +26,32 @@
 
 do $$
 declare
-  -- Preferred account to seed. If no user has this exact email but the
-  -- project has exactly one user, that user is seeded instead — so in the
-  -- normal single-account case this "just works" regardless of which email
-  -- the account was created with.
-  v_email text := 'nathanelcorpuz@gmail.com';
+  -- Leave null to seed the account that most recently signed in — i.e. the
+  -- one you actually use. Set to a specific email only to force a
+  -- different account.
+  v_email text := null;
   v_user uuid;
-  v_count int;
+  v_seeded_email text;
 begin
-  select id into v_user from auth.users where email = v_email;
-
-  if v_user is null then
-    select count(*) into v_count from auth.users;
-    if v_count = 1 then
-      select id into v_user from auth.users;
-      raise notice 'No user with email %; seeding the project''s only user instead', v_email;
-    elsif v_count = 0 then
-      raise exception 'auth.users is empty — sign up / log into the app once, then re-run this seed';
-    else
-      raise exception 'No user with email % and the project has % users — edit v_email at the top of seed.sql to one of: %',
-        v_email, v_count,
+  if v_email is not null then
+    select id, email into v_user, v_seeded_email
+    from auth.users where email = v_email;
+    if v_user is null then
+      raise exception 'No user with email % — existing users: %',
+        v_email,
         (select string_agg(email, ', ' order by created_at) from auth.users);
     end if;
+  else
+    select id, email into v_user, v_seeded_email
+    from auth.users
+    order by last_sign_in_at desc nulls last, created_at desc
+    limit 1;
+    if v_user is null then
+      raise exception 'auth.users is empty — sign up / log into the app once, then re-run this seed';
+    end if;
   end if;
+
+  raise notice 'Seeding account: %', v_seeded_email;
 
   if not exists (
     select 1 from information_schema.columns
@@ -177,3 +181,17 @@ begin
     ('00000000-0000-4000-a000-000000000092', v_user, 'Ask HR about SSS loan balance')
   on conflict (id) do nothing;
 end $$;
+
+-- Confirmation (shown as the result grid): which account now holds the
+-- sample data, and how much of it. Log into the app with THIS account.
+select u.email as seeded_account,
+       (select count(*) from public.balances b where b.user_id = u.id) as balances,
+       (select count(*) from public.recurring_items r where r.user_id = u.id) as recurring_items,
+       (select count(*) from public.one_off_items o where o.user_id = u.id) as extras,
+       (select count(*) from public.budgets g where g.user_id = u.id) as budgets,
+       (select count(*) from public.settlements s where s.user_id = u.id) as settlements
+from auth.users u
+where exists (
+  select 1 from public.balances b
+  where b.user_id = u.id and b.id::text like '00000000-0000-4000-a000-%'
+);
