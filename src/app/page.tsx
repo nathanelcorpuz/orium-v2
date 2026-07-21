@@ -2,7 +2,8 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { logout } from "@/app/auth/actions";
 import { loadForecast } from "@/lib/forecastData";
-import { formatCentavos, monthlyEquivalentCentavos } from "@/lib/money";
+import { formatCentavos } from "@/lib/money";
+import { monthlyEquivalent } from "@/lib/engine/monthlyTotals";
 import { remainingMonthlyTotal } from "@/lib/engine/remaining";
 import { computeMonthlyPeaksAndDrops } from "@/lib/engine/peaksAndDrops";
 import { daysBetween } from "@/lib/engine/date-utils";
@@ -36,11 +37,11 @@ export default async function Home() {
 
   const totalMonthlyBills = recurringItems
     .filter((item) => item.type === "bill")
-    .reduce((sum, item) => sum + Math.abs(item.amount), 0);
+    .reduce((sum, item) => sum + Math.abs(monthlyEquivalent(item)), 0);
 
   const totalMonthlyIncome = recurringItems
     .filter((item) => item.type === "income")
-    .reduce((sum, item) => sum + monthlyEquivalentCentavos(item.amount, item.frequency), 0);
+    .reduce((sum, item) => sum + monthlyEquivalent(item), 0);
 
   const debtItems = recurringItems.filter((item) => item.type === "debt");
   const remainingDebt = debtItems.reduce(

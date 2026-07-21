@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { formatCentavos, monthlyEquivalentCentavos } from "@/lib/money";
+import { formatCentavos } from "@/lib/money";
+import { monthlyEquivalent } from "@/lib/engine/monthlyTotals";
 import { deleteIncome } from "./actions";
 import { IncomeModal, type IncomeRow } from "./IncomeModal";
 
@@ -17,10 +18,7 @@ export function IncomeClient({ incomes }: { incomes: IncomeRow[] }) {
   const [modalState, setModalState] = useState<null | "new" | IncomeRow>(null);
   const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null);
 
-  const totalMonthly = incomes.reduce(
-    (sum, income) => sum + monthlyEquivalentCentavos(income.amount, income.frequency),
-    0,
-  );
+  const totalMonthly = incomes.reduce((sum, income) => sum + monthlyEquivalent(income), 0);
 
   return (
     <main className="min-h-screen bg-slate-50 p-8">

@@ -1,19 +1,3 @@
-import type { RecurringFrequency } from "@/lib/engine/types";
-
-const MONTHLY_MULTIPLIER: Record<RecurringFrequency, number> = {
-  monthly: 1,
-  semi_monthly_15_30: 2,
-  weekly: 52 / 12,
-  biweekly: 26 / 12,
-};
-
-// Display-only estimate for aggregating recurring amounts of different
-// frequencies into a single "per month" figure (e.g. a weekly paycheck
-// alongside a monthly one). Never used by the forecast engine itself.
-export function monthlyEquivalentCentavos(amount: number, frequency: RecurringFrequency): number {
-  return Math.round(amount * MONTHLY_MULTIPLIER[frequency]);
-}
-
 export function formatCentavos(centavos: number, currency = "₱"): string {
   const sign = centavos < 0 ? "-" : "";
   const abs = Math.abs(centavos);
