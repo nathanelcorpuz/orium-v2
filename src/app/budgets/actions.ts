@@ -4,19 +4,80 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { parseCentavos } from "@/lib/money";
 import { todayInManila } from "@/lib/date";
+import { readRecurrenceRuleForm } from "@/lib/recurrenceForm";
+import type { RecurrenceEndsType, RecurrenceUnit } from "@/lib/engine/types";
 
 export type BudgetActionState = { error: string | null };
 
-function readBudgetForm(formData: FormData) {
-  const name = (formData.get("name") as string).trim();
-  const monthlyAllocation = parseCentavos(formData.get("monthlyAllocationPesos") as string);
+type BudgetFields = {
+  name: string;
+  allocation: number;
+  carryoverEnabled: boolean;
+  linkedIncomeId: string | null;
+  startDate: string | null;
+  interval: number | null;
+  unit: RecurrenceUnit | null;
+  weekdays: number[] | null;
+  daysOfMonth: number[] | null;
+  ordinal: number | null;
+  ordinalWeekday: number | null;
+  endsType: RecurrenceEndsType | null;
+  endDate: string | null;
+  occurrenceCount: number | null;
+};
 
-  if (!name) return { error: "Name is required." } as const;
-  if (monthlyAllocation === null || monthlyAllocation < 0) {
-    return { error: "Enter a valid monthly allocation." } as const;
+// A budget's replenish source (SPEC.md T38) is one of two complete shapes -
+// linked income (just an id) or its own schedule (the full recurrence rule,
+// same fields RecurrencePicker/readRecurrenceRuleForm already produce for
+// Bills/Income/Debt/Savings). Whichever isn't chosen is written as all-null,
+// matching migration 0006's "complete rule or nothing" constraints.
+function readBudgetForm(formData: FormData): { error: string } | ({ error: null } & BudgetFields) {
+  const name = (formData.get("name") as string).trim();
+  const allocation = parseCentavos(formData.get("allocationPesos") as string);
+  const carryoverEnabled = formData.get("carryoverEnabled") === "on";
+  const replenishSource = formData.get("replenishSource") as string;
+
+  if (!name) return { error: "Name is required." };
+  if (allocation === null || allocation < 0) return { error: "Enter a valid allocation." };
+
+  if (replenishSource === "income") {
+    const linkedIncomeId = (formData.get("linkedIncomeId") as string) || "";
+    if (!linkedIncomeId) return { error: "Choose an income source." };
+    return {
+      error: null,
+      name,
+      allocation,
+      carryoverEnabled,
+      linkedIncomeId,
+      startDate: null,
+      interval: null,
+      unit: null,
+      weekdays: null,
+      daysOfMonth: null,
+      ordinal: null,
+      ordinalWeekday: null,
+      endsType: null,
+      endDate: null,
+      occurrenceCount: null,
+    };
   }
 
-  return { error: null, name, monthlyAllocation } as const;
+  if (replenishSource === "schedule") {
+    const startDate = formData.get("startDate") as string;
+    if (!startDate) return { error: "Start date is required." };
+    const rule = readRecurrenceRuleForm(formData);
+    if (rule.error !== null) return { error: rule.error };
+    return {
+      name,
+      allocation,
+      carryoverEnabled,
+      linkedIncomeId: null,
+      startDate,
+      ...rule,
+    };
+  }
+
+  return { error: "Choose how this budget replenishes." };
 }
 
 export async function createBudget(
@@ -24,7 +85,7 @@ export async function createBudget(
   formData: FormData,
 ): Promise<BudgetActionState> {
   const fields = readBudgetForm(formData);
-  if (fields.error) return { error: fields.error };
+  if (fields.error !== null) return { error: fields.error };
 
   const supabase = await createClient();
   const {
@@ -35,7 +96,22 @@ export async function createBudget(
   const { error } = await supabase.from("budgets").insert({
     user_id: user.id,
     name: fields.name,
-    monthly_allocation: fields.monthlyAllocation,
+    allocation: fields.allocation,
+    // Mirrors `allocation` - monthly_allocation is still NOT NULL until
+    // migration 0007 drops it (deferred until nothing reads it; see SPEC.md).
+    monthly_allocation: fields.allocation,
+    carryover_enabled: fields.carryoverEnabled,
+    linked_income_id: fields.linkedIncomeId,
+    start_date: fields.startDate,
+    interval: fields.interval,
+    unit: fields.unit,
+    weekdays: fields.weekdays,
+    days_of_month: fields.daysOfMonth,
+    ordinal: fields.ordinal,
+    ordinal_weekday: fields.ordinalWeekday,
+    ends_type: fields.endsType,
+    end_date: fields.endDate,
+    occurrence_count: fields.occurrenceCount,
   });
   if (error) return { error: error.message };
 
@@ -50,12 +126,28 @@ export async function updateBudget(
 ): Promise<BudgetActionState> {
   const id = formData.get("id") as string;
   const fields = readBudgetForm(formData);
-  if (fields.error) return { error: fields.error };
+  if (fields.error !== null) return { error: fields.error };
 
   const supabase = await createClient();
   const { error } = await supabase
     .from("budgets")
-    .update({ name: fields.name, monthly_allocation: fields.monthlyAllocation })
+    .update({
+      name: fields.name,
+      allocation: fields.allocation,
+      monthly_allocation: fields.allocation,
+      carryover_enabled: fields.carryoverEnabled,
+      linked_income_id: fields.linkedIncomeId,
+      start_date: fields.startDate,
+      interval: fields.interval,
+      unit: fields.unit,
+      weekdays: fields.weekdays,
+      days_of_month: fields.daysOfMonth,
+      ordinal: fields.ordinal,
+      ordinal_weekday: fields.ordinalWeekday,
+      ends_type: fields.endsType,
+      end_date: fields.endDate,
+      occurrence_count: fields.occurrenceCount,
+    })
     .eq("id", id);
   if (error) return { error: error.message };
 
@@ -130,4 +222,35 @@ export async function logSpend(
   revalidatePath("/history");
   revalidatePath("/");
   return { error: null };
+}
+
+// budget_entries has no FK back from settlements, so a deleted entry's
+// settlement row is found by matching the same fields logSpend wrote it
+// with (source_type/source_id/actual_date/actual_amount) rather than an id -
+// otherwise deleting an entry would leave a phantom "spend" in History.
+export async function deleteBudgetEntry(formData: FormData) {
+  const id = formData.get("id") as string;
+  const supabase = await createClient();
+
+  const { data: entry } = await supabase
+    .from("budget_entries")
+    .select("budget_id, entry_date, amount")
+    .eq("id", id)
+    .single();
+
+  await supabase.from("budget_entries").delete().eq("id", id);
+
+  if (entry) {
+    await supabase
+      .from("settlements")
+      .delete()
+      .eq("source_type", "budget")
+      .eq("source_id", entry.budget_id)
+      .eq("actual_date", entry.entry_date)
+      .eq("actual_amount", -entry.amount);
+  }
+
+  revalidatePath("/budgets");
+  revalidatePath("/history");
+  revalidatePath("/");
 }

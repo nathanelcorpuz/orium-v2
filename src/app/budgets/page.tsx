@@ -1,29 +1,36 @@
 import { createClient } from "@/lib/supabase/server";
-import { todayInManila } from "@/lib/date";
-import { daysInMonth } from "@/lib/engine/date-utils";
 import { BudgetsClient } from "./BudgetsClient";
-import type { BudgetEntryRow } from "./BudgetCard";
+import type { BudgetEntryRow, IncomeItemRow, OverrideRow } from "./BudgetCard";
 import type { BudgetRow } from "./BudgetModal";
 
 export default async function BudgetsPage() {
   const supabase = await createClient();
-  const today = todayInManila();
-  const [year, month] = today.split("-").map(Number);
-  const pad = (n: number) => String(n).padStart(2, "0");
-  const monthStart = `${year}-${pad(month)}-01`;
-  const monthEnd = `${year}-${pad(month)}-${pad(daysInMonth(year, month))}`;
 
-  const [budgetsRes, entriesRes] = await Promise.all([
+  const [budgetsRes, entriesRes, incomesRes, overridesRes] = await Promise.all([
     supabase
       .from("budgets")
-      .select("id, name, monthly_allocation")
+      .select(
+        "id, name, monthly_allocation, allocation, carryover_enabled, created_at, linked_income_id, start_date, interval, unit, weekdays, days_of_month, ordinal, ordinal_weekday, ends_type, end_date, occurrence_count",
+      )
       .order("name", { ascending: true }),
+    // Not bounded to the current calendar month: a budget's cycle boundary
+    // (linked income, own schedule, or fallback) rarely lines up with the
+    // 1st, so computeBudgetCycleStatus needs every entry to walk carryover
+    // correctly from the budget's first cycle.
     supabase
       .from("budget_entries")
       .select("id, budget_id, entry_date, amount, note")
-      .gte("entry_date", monthStart)
-      .lte("entry_date", monthEnd)
       .order("entry_date", { ascending: true }),
+    supabase
+      .from("recurring_items")
+      .select(
+        "id, name, type, amount, start_date, interval, unit, weekdays, days_of_month, ordinal, ordinal_weekday, ends_type, end_date, occurrence_count",
+      )
+      .eq("type", "income")
+      .order("name", { ascending: true }),
+    supabase
+      .from("occurrence_overrides")
+      .select("id, recurring_item_id, original_date, new_date, new_amount, new_name, skipped"),
   ]);
 
   if (budgetsRes.error) {
@@ -33,6 +40,12 @@ export default async function BudgetsPage() {
     return (
       <p className="p-8 text-red-600">Could not load budget entries: {entriesRes.error.message}</p>
     );
+  }
+  if (incomesRes.error) {
+    return <p className="p-8 text-red-600">Could not load income sources: {incomesRes.error.message}</p>;
+  }
+  if (overridesRes.error) {
+    return <p className="p-8 text-red-600">Could not load overrides: {overridesRes.error.message}</p>;
   }
 
   const budgets: BudgetRow[] = budgetsRes.data ?? [];
@@ -49,5 +62,15 @@ export default async function BudgetsPage() {
     entriesByBudgetId[entry.budget_id] = list;
   }
 
-  return <BudgetsClient budgets={budgets} entriesByBudgetId={entriesByBudgetId} />;
+  const incomes: IncomeItemRow[] = incomesRes.data ?? [];
+  const overrides: OverrideRow[] = overridesRes.data ?? [];
+
+  return (
+    <BudgetsClient
+      budgets={budgets}
+      entriesByBudgetId={entriesByBudgetId}
+      incomes={incomes}
+      overrides={overrides}
+    />
+  );
 }

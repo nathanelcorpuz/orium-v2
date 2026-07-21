@@ -127,6 +127,20 @@ describe("computeBudgetCycleStatus - linked income boundaries", () => {
     const status = computeBudgetCycleStatus(b, [], [], [], "2026-02-15");
     expect(status.source).toBe("own_schedule");
   });
+
+  it("a budget linked to an income with months of prior history doesn't carry over phantom allowance from before it existed", () => {
+    // Income has boundaries on the 1st since January; the budget wasn't
+    // created until June, with nothing ever spent. Without clipping to
+    // createdAt, the carryover walk would treat Jan-May as five real
+    // unspent cycles and inflate `available` to 3,000,000 (allocation x6).
+    const b = budget({ linkedIncomeId: "income-1", allocation: 500000, carryoverEnabled: true, createdAt: "2026-06-15" });
+    const inc = income({});
+
+    const status = computeBudgetCycleStatus(b, [], [inc], [], "2026-06-20");
+    expect(status.currentCycleStart).toBe("2026-06-01");
+    expect(status.carriedIn).toBe(0);
+    expect(status.remaining).toBe(500000);
+  });
 });
 
 describe("computeBudgetCycleStatus - own schedule", () => {

@@ -119,6 +119,25 @@ function linkedIncomeBoundaries(income: RecurringItem, overrides: OccurrenceOver
   return dates.sort();
 }
 
+// A linked income or own-schedule budget reuses that schedule's occurrences
+// verbatim, which can start long before the budget itself existed (e.g. a
+// budget linked today to an income running since January). Without this,
+// computeBudgetCycleStatus would walk every one of those pre-existence
+// cycles with zero spend against them, and with carryover enabled each
+// contributes its full allocation - the same "phantom accumulated
+// allowance" bug fallbackBoundaries was anchored to createdAt to avoid
+// (SPEC.md T37), just via a different boundary source. Fix: drop every
+// boundary before the most recent one at-or-before the budget's createdAt,
+// so cycle 0 starts there instead of at the schedule's own origin.
+// fallbackBoundaries doesn't need this - it already starts at createdAt.
+function clipToCreation(boundaries: string[], createdAt: string): string[] {
+  let anchorIndex = -1;
+  for (let i = 0; i < boundaries.length; i++) {
+    if (boundaries[i] <= createdAt) anchorIndex = i;
+  }
+  return anchorIndex <= 0 ? boundaries : boundaries.slice(anchorIndex);
+}
+
 // Resolves which schedule source governs a budget's cycle boundaries, per
 // SPEC.md: linked income (if set and still a real income item) > the
 // budget's own schedule (if configured) > fallback (monthly on the 1st).
@@ -135,12 +154,14 @@ function resolveBoundaries(
   if (budget.linkedIncomeId !== null) {
     const income = recurringItems.find((item) => item.id === budget.linkedIncomeId && item.type === "income");
     if (income) {
-      return { boundaries: linkedIncomeBoundaries(income, overrides, through), source: "linked_income" };
+      const boundaries = clipToCreation(linkedIncomeBoundaries(income, overrides, through), budget.createdAt);
+      return { boundaries, source: "linked_income" };
     }
     // linked_income_id points at a deleted/non-income item - fall through.
   }
   if (budget.unit !== null) {
-    return { boundaries: ownScheduleBoundaries(budget, through), source: "own_schedule" };
+    const boundaries = clipToCreation(ownScheduleBoundaries(budget, through), budget.createdAt);
+    return { boundaries, source: "own_schedule" };
   }
   return { boundaries: fallbackBoundaries(budget.createdAt, through), source: "fallback" };
 }

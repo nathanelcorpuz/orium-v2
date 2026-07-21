@@ -2,15 +2,19 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { BudgetCard, type BudgetEntryRow } from "./BudgetCard";
+import { BudgetCard, type BudgetEntryRow, type IncomeItemRow, type OverrideRow } from "./BudgetCard";
 import { BudgetModal, type BudgetRow } from "./BudgetModal";
 
 export function BudgetsClient({
   budgets,
   entriesByBudgetId,
+  incomes,
+  overrides,
 }: {
   budgets: BudgetRow[];
   entriesByBudgetId: Record<string, BudgetEntryRow[]>;
+  incomes: IncomeItemRow[];
+  overrides: OverrideRow[];
 }) {
   const [modalState, setModalState] = useState<null | "new" | BudgetRow>(null);
 
@@ -24,7 +28,7 @@ export function BudgetsClient({
         <div className="mb-6 mt-2 flex items-center justify-between">
           <div>
             <h1 className="text-xl font-semibold">Budgets</h1>
-            <p className="text-slate-600">Monthly allocations for variable spending.</p>
+            <p className="text-slate-600">Replenishing allocations for variable spending.</p>
           </div>
           <button
             type="button"
@@ -44,6 +48,8 @@ export function BudgetsClient({
                 key={budget.id}
                 budget={budget}
                 entries={entriesByBudgetId[budget.id] ?? []}
+                incomes={incomes}
+                overrides={overrides}
                 onEdit={() => setModalState(budget)}
               />
             ))}
@@ -53,6 +59,7 @@ export function BudgetsClient({
         {modalState !== null && (
           <BudgetModal
             budget={modalState === "new" ? null : modalState}
+            incomes={incomes}
             onClose={() => setModalState(null)}
           />
         )}
