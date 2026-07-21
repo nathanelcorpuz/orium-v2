@@ -6,20 +6,20 @@
 --
 -- HOW TO RUN (manual, per CLAUDE.md — never run destructive DB commands
 -- automatically):
---   1. Back up first. The Supabase dashboard's "Database > Backups" page is
---      Pro-plan only — the free tier has no managed backup feature. Instead,
---      run a manual pg_dump via the Supabase CLI (works on any plan):
---        npx supabase db dump --db-url "<connection string>" -f orium-backup-YYYY-MM-DD.sql
---      Get the connection string from the project dashboard (not Settings):
---      click the "Connect" button near the top of the page, choose "Direct
---      connection" (not a pooler — pg_dump needs a direct connection), and
---      copy the URI. It looks like
+--   1. Back up first, but only if the database holds real data you can't
+--      quickly recreate (as of 2026-07-20 it doesn't — skip this step while
+--      that's true). When it applies: the Supabase dashboard's "Database >
+--      Backups" page is Pro-plan only — the free tier has no managed backup
+--      feature. Instead, run a manual pg_dump via the Supabase CLI (works on
+--      any plan): `npx supabase db dump --db-url "<connection string>" -f
+--      orium-backup-YYYY-MM-DD.sql`. Get the connection string from the
+--      project dashboard (not Settings): click the "Connect" button near the
+--      top of the page, choose "Direct connection" (not a pooler — pg_dump
+--      needs a direct connection), and copy the URI. It looks like
 --      postgresql://postgres:[YOUR-PASSWORD]@db.<project-ref>.supabase.co:5432/postgres
 --      — swap in the database password (set at project creation; resettable
---      from Project Settings > Database if forgotten). Keep the .sql file
---      somewhere safe; it's a full logical backup you can replay with psql
---      if something goes wrong. See CLAUDE.md "Hard rules" for this project's
---      standing backup convention.
+--      from Project Settings > Database if forgotten). See CLAUDE.md "Hard
+--      rules" for this project's standing backup convention.
 --   2. Run PART 1 now in the Supabase SQL editor. It only adds columns and
 --      backfills them from existing data — nothing old is removed, so the
 --      live app keeps working unchanged (it doesn't read the new columns
