@@ -84,7 +84,7 @@ function readLogSpendForm(formData: FormData) {
 }
 
 // Logging a spend writes both a budget_entries row and a settlement row
-// (SPEC2 Phase 6 rule 4) so History stays a complete record of actual
+// (SPEC.md budget spend-logging rule) so History stays a complete record of actual
 // money movement. There's no forecast row being settled here (budgets
 // don't go through the Edit/Settle modal), so forecasted_amount and
 // forecasted_balance have no meaningful value - both are 0.

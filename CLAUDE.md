@@ -1,14 +1,14 @@
 # CLAUDE.md — Orium project instructions
 
 ## About this project
-Orium is a family cash-flow forecasting app (Next.js + Supabase). The full product definition, data model, engine rules, and task list live in **SPEC.md — read it before doing anything.** Phases 5–7 (bug fixes, budgets, redesign) are defined in **SPEC2.md**. Active bugs are tracked in **BUGS.md** — read both before starting work.
+Orium is a family cash-flow forecasting app (Next.js + Supabase). The full product definition, data model, engine rules, and roadmap live in **SPEC.md — the single spec file; read it before doing anything.** Active bugs are tracked in **BUGS.md** — read it before starting work.
 
 ## About the user
 - Beginner coder with ~1 hour per day. Explain what you're doing in plain, non-technical language as you go.
 - The user is the product owner: ask before making product or architecture decisions not covered by SPEC.md.
 
 ## Session workflow (always follow)
-1. At session start, check `git log` and the Phase checklists in SPEC.md and SPEC2.md (and BUGS.md for open bugs) to see where we left off.
+1. At session start, check `git log` and the Roadmap checklists in SPEC.md (and BUGS.md for open bugs) to see where we left off.
 2. Work on **exactly one task** from SPEC.md per session unless told otherwise.
 3. Before writing code, state a short plan (3–6 bullets) and wait for approval.
 4. After building: run `npm run build` and `npm run test`; fix failures before finishing.

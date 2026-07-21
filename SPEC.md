@@ -1,196 +1,165 @@
-# Orium — Product Spec (v1 Rebuild)
+# Orium — Product Spec
+
+**The single source of truth.** Product definition, data model, engine rules, and the full roadmap live here. Working rules for Claude live in CLAUDE.md; open bugs in BUGS.md. (This file absorbed and replaced SPEC2.md in July 2026; task numbers are continuous across both.)
 
 ## What Orium is
 
-Orium is a family cash-flow forecasting app. Users manually enter their account balances, recurring bills, income, debt payments, savings goals, and one-off expenses. Orium projects every upcoming transaction in chronological order and shows the **running future balance** at each date, color-coded by safety level. The core promise: *know exactly how much money you'll have on any future date, and never miss a bill.*
+Orium is a family cash-flow forecasting app. Users manually enter their account balances, recurring bills, income, debt payments, savings goals, one-off expenses, and spending budgets. Orium projects every upcoming transaction in chronological order and shows the **running future balance** at each date, color-coded by safety level. The core promise: *know exactly how much money you'll have on any future date, and never miss a bill.*
 
-v1 goal: feature parity with the original Orium (github.com/nathanelcorpuz/orium reference), rebuilt on a cleaner engine and modern stack. Subscriptions and mobile come later — do not build them in v1.
+v1 (shipped) rebuilt the original Orium (github.com/nathanelcorpuz/orium) on a cleaner engine. The current work replaces its fixed 4-frequency recurrence with calendar-style rules (Phase 6A), converts budgets to replenishing cycles (Phase 6B), and restyles everything Notion-like (Phase 7).
 
 ## Tech stack (fixed — do not add alternatives)
 
-- Next.js (latest stable, App Router) + TypeScript + Tailwind CSS
+- Next.js (App Router) + TypeScript + Tailwind CSS
 - Supabase: Postgres, Auth (email/password), Row Level Security
-- `@supabase/supabase-js` + `@supabase/ssr` for Next.js integration (follow official Supabase Next.js quickstart patterns)
+- `@supabase/supabase-js` + `@supabase/ssr` per official Next.js patterns
 - Vitest for unit tests (engine only)
 - No other dependencies without asking the user first
 
 ## Core design rules (non-negotiable)
 
-1. **Money is stored as integer centavos.** Never floats. `₱1,500.00` = `150000`. Format for display only at the UI layer. Default currency symbol: `₱` (user-configurable in preferences).
-2. **Due dates are calendar dates**, stored and passed as `YYYY-MM-DD` strings (Postgres `date` type). Never UTC timestamps for due dates — this avoids timezone drift bugs.
-3. **Recurrence rules, not pre-generated rows.** The old Orium inserted every future transaction as a database row, which made edits cascade painfully. The rebuild stores *rules* and computes occurrences on the fly (see Engine below).
-4. **The forecast engine is a pure TypeScript module** in `src/lib/engine/`. No database or network calls inside it. Fully unit-tested. UI and API layers call it with plain data.
-5. **Every table has `user_id`** referencing `auth.users`, with RLS policies so users can only read/write their own rows.
+1. **Money is integer centavos.** Never floats. `₱1,500.00` = `150000`. Format only at the UI layer. Default currency `₱`, user-configurable.
+2. **Due dates are calendar dates** — `YYYY-MM-DD` strings / Postgres `date`. Never UTC timestamps for due dates.
+3. **Rules, not pre-generated rows.** Recurrence is stored as rules; occurrences are computed on the fly.
+4. **The forecast engine is pure TypeScript** in `src/lib/engine/` — no database or network calls, fully unit-tested.
+5. **Every table has `user_id`** with owner-only RLS.
 
-## Data model (Postgres)
+## Data model (Postgres — migrations in `supabase/migrations/`)
 
 ### `balances`
-Real money accounts (cash, bank, e-wallets).
-| column | type | notes |
-|---|---|---|
-| id | uuid pk | |
-| user_id | uuid | RLS |
-| name | text | e.g. "UB nanay", "cash", "wise" |
-| amount | bigint | centavos |
-| comments | text nullable | |
-| created_at / updated_at | timestamptz | |
+Real money accounts. `id, user_id, name, amount (bigint centavos), comments, created_at, updated_at`.
 
 ### `recurring_items`
-One row per recurring rule. Replaces the old Bill / Income / Debt / Savings collections.
+One row per recurring rule (bills, income, debt, savings). Amount sign convention: income positive; bills/debt/savings negative (DB-enforced).
+
+Identity: `id, user_id, name, type (bill|income|debt|savings), amount, comments`.
+
+**Recurrence rule (new model, live from migration 0004):**
 | column | type | notes |
 |---|---|---|
-| id | uuid pk | |
-| user_id | uuid | |
-| name | text | |
-| type | text enum | `bill` \| `income` \| `debt` \| `savings` |
-| amount | bigint | centavos; sign convention: bills/debt/savings negative, income positive |
-| frequency | text enum | `monthly` \| `weekly` \| `biweekly` \| `semi_monthly_15_30` |
-| day_of_month | int nullable | 1–31, for `monthly` |
-| weekday | int nullable | 0–6 (Sun–Sat), for `weekly`/`biweekly` |
-| start_date | date | when the rule begins; also anchors biweekly cadence |
-| end_date | date | last date occurrences are generated (debt payoff date, savings goal date, or tracking horizon) |
-| comments | text nullable | |
+| `interval` | int ≥ 1 | repeat every N units |
+| `unit` | enum | `day` \| `week` \| `month` \| `year` |
+| `weekdays` | int[] nullable | 0=Sun…6=Sat; required when unit=week (multi-select) |
+| `days_of_month` | int[] nullable | 1–31 for unit=month; days beyond a month's length clamp to its last day |
+| `ordinal` + `ordinal_weekday` | int nullable pair | nth-weekday monthly rules: ordinal 1–4 or −1 (last); (3,2)=third Tuesday, (−1,5)=last Friday. unit=month uses **either** `days_of_month` **or** the ordinal pair |
+| `start_date` | date | anchor; first possible occurrence |
+| `ends_type` | enum | `never` \| `on_date` \| `after_count` |
+| `end_date` | date nullable | set iff ends_type=on_date |
+| `occurrence_count` | int nullable | set iff ends_type=after_count |
+
+**Legacy columns during the 6A rollout:** `frequency (monthly|weekly|biweekly|semi_monthly_15_30), day_of_month, weekday` — still read/written by the deployed app until T35 ships, then dropped by migration 0004 **Part 2**. Backfill mapping (already encoded in the migration): monthly → (1, month, days=[day_of_month]) · weekly → (1, week, weekdays=[weekday]) · biweekly → (2, week, weekdays=[weekday]) · semi_monthly_15_30 → (1, month, days=[15,30]); existing rows get `ends_type='on_date'` + their current end_date.
 
 ### `occurrence_overrides`
-Per-instance edits to a recurring rule (like calendar app exceptions).
-| column | type | notes |
-|---|---|---|
-| id | uuid pk | |
-| user_id | uuid | |
-| recurring_item_id | uuid fk | |
-| original_date | date | identifies which occurrence is overridden |
-| new_date | date nullable | moved due date |
-| new_amount | bigint nullable | changed amount, centavos |
-| new_name | text nullable | |
-| skipped | boolean default false | occurrence removed from forecast |
-
-Unique constraint on (`recurring_item_id`, `original_date`).
+Per-instance edits to a recurring rule (calendar-exception style). `id, user_id, recurring_item_id (fk), original_date, new_date, new_amount, new_name, skipped (bool)`. Unique on (`recurring_item_id`, `original_date`).
 
 ### `one_off_items`
-The old "Extras" — single dated transactions (birthdays, gifts, refunds).
-| column | type | notes |
-|---|---|---|
-| id, user_id | | |
-| name | text | |
-| amount | bigint | centavos, signed |
-| due_date | date | |
-| comments | text nullable | |
+"Extras" — single dated transactions. `id, user_id, name, amount (signed), due_date, comments`.
 
 ### `settlements`
-The old "History" — what actually happened. Created when the user settles an occurrence.
-| column | type | notes |
-|---|---|---|
-| id, user_id | | |
-| source_type | text | `recurring` \| `one_off` |
-| source_id | uuid nullable | original rule/item id |
-| name | text | |
-| type | text | bill/income/debt/savings/extra |
-| forecasted_amount | bigint | |
-| actual_amount | bigint | |
-| forecasted_date | date | |
-| actual_date | date | |
-| forecasted_balance | bigint | running balance at settle time |
+"History" — what actually happened, written when the user settles an occurrence or logs a budget spend. `id, user_id, source_type (recurring|one_off|budget), source_id, name, type (bill|income|debt|savings|extra|budget), forecasted_amount, actual_amount, forecasted_date, actual_date, forecasted_balance`. Settling a recurring occurrence also writes a `skipped` override so it leaves the forecast.
 
-Settling a recurring occurrence also writes a `skipped` override for that `original_date` so it disappears from the forecast.
+### `budgets` (current baseline; T36 converts)
+Today: `id, user_id, name, monthly_allocation (bigint ≥ 0), created_at`.
+**T36 (planned ALTER):** RENAME `monthly_allocation` → `allocation`; ADD `carryover_enabled` bool default true; ADD `linked_income_id` uuid nullable REFERENCES recurring_items ON DELETE SET NULL (app-level rule: must point at a type=income item); ADD the full recurrence column set above (all nullable).
+
+### `budget_entries`
+Logged spends. `id, user_id, budget_id (fk cascade), entry_date, amount (bigint > 0 = money spent), note, created_at`. Unchanged by 6B.
 
 ### `reminders`
-| id, user_id, text (text), created_at |
+`id, user_id, text, created_at`.
 
 ### `preferences`
-One row per user, created on signup.
-| column | type | notes |
-|---|---|---|
-| user_id | uuid pk | |
-| currency | text default '₱' | |
-| balance_ranges | bigint[] default | 5 ascending thresholds in centavos: [danger, low, medium, high, higher]. Balance ≤ ranges[0] = danger; above ranges[4] = highest. |
+One row per user, created on signup. `user_id pk, currency (default '₱'), balance_ranges (bigint[] — 5 ascending centavo thresholds: [danger, low, medium, high, higher]; balance ≤ ranges[0] = danger, above ranges[4] = highest)`.
 
 ## The forecast engine (`src/lib/engine/`)
 
-Pure functions. Signature sketch:
+Pure functions. `generateForecast({ balances, recurringItems, overrides, oneOffs, budgets?, budgetEntries?, today, horizon }) → ForecastRow[]` where each row is `{ sourceType, sourceId, originalDate, name, amount, dueDate, type, runningBalance }`.
 
-```ts
-generateForecast(input: {
-  balances: Balance[];
-  recurringItems: RecurringItem[];
-  overrides: OccurrenceOverride[];
-  oneOffs: OneOffItem[];
-  today: string;        // YYYY-MM-DD
-  horizon: string;      // YYYY-MM-DD, e.g. today + 3 years
-}): ForecastRow[]
-```
+Pipeline: expand each recurring rule from `max(today, start_date)` to the rule's end (capped at horizon) → apply overrides (move/change/skip) → merge one-offs dated today or later → merge budget rows (below) → sort by due date (stable, date only) → running balance = sum of `balances.amount` plus cumulative signed amounts, always integer centavos. Occurrences strictly before `today` are excluded (they belong in settlements).
 
-Each `ForecastRow`: `{ sourceType, sourceId, originalDate, name, amount, dueDate, type, runningBalance }`.
+### Recurrence expansion (target semantics, T33–T34)
+- **day**: start_date, then every `interval` days.
+- **week**: weeks anchored to the week containing start_date; every `interval` weeks emit each selected weekday; skip dates before start_date.
+- **month**: months anchored to start_date's month, stepping by `interval`; emit each clamped day in `days_of_month` (day > month length → last day of month), or the resolved nth-weekday date (`ordinal` 1–4 or −1=last + `ordinal_weekday`).
+- **year**: start_date's month/day every `interval` years; Feb 29 → Feb 28 in non-leap years.
+- **ends**: `never` → generate to horizon; `on_date` inclusive; `after_count` → stop after N emitted occurrences.
+- `ends_type=never` items are excluded from finite "remaining total" stats (e.g. total remaining debt).
 
-Behavior:
-1. Expand each recurring rule into occurrences from `max(today, start_date)` to `min(horizon, end_date)`.
-2. Apply overrides: replace date/amount/name; drop skipped occurrences.
-3. Merge with one-off items dated today or later.
-4. Sort by due date (stable: income before expenses on same date is NOT required — keep insertion-stable sort by date only).
-5. Running balance = sum of all `balances.amount`, then cumulative addition of each occurrence's signed amount, rounded to integer centavos.
+Legacy expansion (still live until T33): monthly clamps day to month length; weekly/biweekly step 7/14 days anchored on start_date; semi_monthly_15_30 = 15th + 30th (February: 15th + last day).
 
-Recurrence expansion rules:
-- `monthly` on `day_of_month`: if the month is shorter than the day (e.g. day 31 in April, day 29–31 in February), clamp to the **last day of that month**.
-- `weekly` / `biweekly`: occurrences every 7 / 14 days anchored on `start_date`.
-- `semi_monthly_15_30`: the 15th and 30th of each month; in February use the 15th and the **last day of February**.
-- Occurrences strictly before `today` are excluded (they belong in settlements).
+### Monthly-equivalent summary stat
+Summary cards ("Total Monthly Income/Bills") use integer multipliers, never fractional math (a displayed `86,666.7` means float leakage — bug). Generalized form: `occurrencesPerMonth = round(f)` where f = day: 30/interval · week: (4 × len(weekdays))/interval · month: (len(days_of_month) or 1)/interval · year: 1/(12 × interval); minimum 0. `monthlyEquivalent = amount × occurrencesPerMonth` (integer × integer). Old presets yield ×4 (weekly), ×2 (biweekly), ×2 (semi-monthly), ×1 (monthly). The *forecast* keeps real occurrence dates (a 5-Saturday month genuinely shows 5 incomes) — only summary stats use multipliers.
 
-Test cases that MUST exist (Vitest):
-- Day-31 monthly bill across Feb/Apr (clamping)
-- Leap year February (Feb 29)
-- semi_monthly_15_30 across February
-- Biweekly anchored mid-week across a month boundary
-- Override moves a date, changes amount, skips an occurrence
-- Running balance math with mixed positive/negative amounts
-- end_date cuts off generation; start_date in the future delays it
+### Budgets v2 engine (T37 — replaces the current monthly-only `budgets.ts`)
+A budget replenishes at each **cycle boundary**; everything derives from logged spends — no manual resets.
 
-## Pages & features (v1)
+**Boundary source:** linked income set → that income's *effective* occurrence dates (after overrides — moved dates move the boundary; skipped occurrences produce no reset, the cycle extends). Else own recurrence set → its occurrences. Else (e.g. linked income deleted) → fallback monthly on the 1st + a "needs a schedule" badge in the UI. After the final boundary, the last cycle extends to the horizon.
 
-All pages require auth; unauthenticated users go to `/login`.
+**Cycle math:** cycle k spans [boundaryₖ, boundaryₖ₊₁). Entries belong to the cycle containing entry_date; boundary-date entries belong to the **new** cycle; entries before the first boundary count toward the first cycle. `available₀ = allocation`; `availableₖ = allocation + (carryover_enabled ? availableₖ₋₁ − spentₖ₋₁ : 0)` — carryover may be negative. `remaining = max(available_current − spent_current, 0)`; `over = max(spent_current − available_current, 0)`.
 
-1. **Auth**: sign up (email verification via Supabase), log in, log out, password reset.
-2. **Dashboard** (`/`): cards for Total Balance, Total Monthly Bills, Total Monthly Income; per-balance breakdown; Remaining Debt + debt-free date (latest debt `end_date`) + days until; **Peaks and Drops** grid, formatted like the original Orium app — one row per year in the forecast horizon, one column per calendar month (Jan–Dec); each month's cell shows that month's max (peak) and min (drop) running balance, and each value is color-highlighted per the user's `balance_ranges` preference (same danger/low/medium/high/highest scheme used on the Forecast list, see below).
-3. **Forecast** (`/forecast`): total balance + editable balance chips; the full occurrence list (name, amount, due date, type, running balance) color-coded by `balance_ranges` (danger = dark, low = red tint, medium = white, high→highest = deepening green). Clicking a row opens an **Edit / Settle modal**: edit occurrence (writes override) or settle (enter actual amount + actual date → writes settlement). Right sidebar: reminders list with add/edit/delete.
-4. **Balances** (`/balances`): CRUD.
-5. **Bills / Income / Debt / Savings** (`/bills`, `/income`, `/debt`, `/savings`): CRUD over `recurring_items` filtered by type. Bills: monthly only (day + track-until date). Income: all four frequencies. Debt & Savings: monthly with start + end dates. Each page shows its total (monthly bills total, monthly income total, total remaining debt = sum of remaining occurrences).
-6. **Extras** (`/extra`): CRUD over `one_off_items`; shows total of remaining extras.
-7. **History** (`/history`): settlements table showing forecasted vs actual amount and date, forecasted balance, type.
-8. **Settings** (`/settings`): profile (name, email), preferences (currency, balance ranges), log out, delete account (deletes all user data — required later by app stores).
+**Forecast integration:** current cycle → one row per budget, "{name} — remaining this cycle", amount −remaining, dated today, omitted when remaining = 0. Each future boundary within the horizon → "{name} — allocation", amount −allocation, dated the boundary. Budget rows are type `budget` (teal), not editable, not settleable.
 
-Type colors (match old Orium): income green, debt orange, savings blue, extra purple, bill default text.
+**Logging a spend** writes a `budget_entries` row AND a settlement (source_type `budget`, type `budget`, name = budget name + note, actual_amount = −amount, actual_date = entry_date, forecasted fields mirror actuals, forecasted_balance = 0). History renders budget rows with a "budget" tag, no forecast-vs-actual comparison.
 
-## Phased task list
+### Peaks and Drops
+One row per year in the horizon, one column per calendar month (Jan–Dec); each cell shows that month's max (peak) and min (drop) running balance, color-coded by `balance_ranges`.
 
-Each task ≈ one 1-hour session. Finish = builds cleanly, works in the browser, tests pass, committed to git.
+### Required test coverage (Vitest, all must stay green)
+v1 core: day-31 monthly across Feb/Apr (clamping) · leap-year Feb 29 · semi-monthly across February · biweekly anchored mid-week across a month boundary · overrides move/change/skip · running balance with mixed signs · end_date cutoff and future start_date.
+6A (T33–T34): every-2-weeks multi-weekday · days=[15,30] in February · interval-3 months · after_count · never→horizon · nth-weekday incl. last-X · generalized monthlyEquivalent.
+6B (T37): linked-income boundaries incl. moved + skipped occurrence · own-schedule weekly cycles · fallback · income-ends extension · carryover on/off/negative · remaining/over · boundary-date entry · integer math.
 
-**Phase 0 — Foundation**
-- [x] T1. Scaffold Next.js + TypeScript + Tailwind; git init; push to GitHub; `.env.local` in `.gitignore`.
-- [x] T2. Supabase project connection: env vars, browser + server clients per `@supabase/ssr` docs; health-check page proving connection.
-- [x] T3. Auth: sign up / log in / log out / password reset pages; middleware protecting all app routes; auto-create `preferences` row on first login.
+## Pages & features
 
-**Phase 1 — Schema + Engine (the product's heart)**
-- [x] T4. SQL migration: all tables above + RLS policies (owner-only) + enums + constraints. Run in Supabase SQL editor; save the SQL in `supabase/migrations/`.
-- [x] T5. Engine: types + monthly expansion incl. clamping; Vitest setup; tests green.
-- [x] T6. Engine: weekly, biweekly, semi_monthly_15_30 + February cases; tests.
-- [x] T7. Engine: overrides (move/change/skip), one-offs merge, running balance; tests.
+All pages require auth; unauthenticated users go to `/login`. Type colors: income green, debt orange, savings blue, extra purple, budget teal, bill default text.
 
-**Phase 2 — CRUD pages**
-- [x] T8. Balances page (list, add, edit, delete) + shared modal/form components.
-- [x] T9. Bills page.
-- [x] T10. Income page (frequency-dependent form fields).
-- [x] T11. Debt page + Savings page (same pattern).
-- [x] T12. Extras page.
+1. **Auth**: sign up (email verification), log in, log out, password reset.
+2. **Dashboard** (`/`): Total Balance, Total Monthly Bills, Total Monthly Income cards; per-balance breakdown; Remaining Debt + debt-free date + days until; Peaks and Drops grid. Greeting shows profile name, else email local part. *Planned (T40): compact "Budgets this cycle" card (name + mini bar + remaining).*
+3. **Forecast** (`/forecast`): total balance + editable balance chips; the full occurrence list color-coded by `balance_ranges` (danger = dark, low = red tint, medium = white, high→highest = deepening green); row click opens Edit/Settle modal (edit → override; settle → actual amount/date → settlement). Right sidebar: reminders CRUD. *Planned (T39): Budgets panel above Reminders — per budget: name, carryover badge when nonzero carried in ("+₱700 carried over"), progress bar (spent vs available; over state = full red bar + "Over by ₱X · next cycle starts at ₱Y"), "₱X left · resets {date}" or "resets with {income name} · {date}", quick Log-spend (amount, date=today, note).*
+4. **Balances / Bills / Income / Debt / Savings / Extras** (`/balances`, `/bills`, `/income`, `/debt`, `/savings`, `/extra`): CRUD pages; each shows its summary total. *Planned (T35): all four recurring forms use the shared recurrence picker; each row shows a human-readable rule summary ("Every 2 weeks on Sat · until Apr 2030").*
+5. **Budgets** (`/budgets`): CRUD + per-budget current-month entries + log spend (current page is the pre-6B baseline). *Planned (T38): replenish-source UI — modal with Name, Allocation, "Replenishes" segmented control ("With an income" → select from income items, helper: resets each time it lands / "On a schedule" → recurrence picker), carryover checkbox; per-budget current-cycle entries with delete; "needs a schedule" badge state.*
+6. **History** (`/history`): settlements table — forecasted vs actual amount/date, forecasted balance, type. *Planned (T40): budget-tag rendering.*
+7. **Settings** (`/settings`): profile, preferences (currency, balance ranges), log out, delete account (removes all user data).
 
-**Phase 3 — Forecast, History, Dashboard**
-- [x] T13. Forecast page: fetch data, run engine, render color-coded list + balance chips.
-- [x] T14. Edit/Settle modal → overrides + settlements; balance chip editing.
-- [x] T15. History page + Reminders sidebar.
-- [x] T16. Dashboard cards + Peaks and Drops grid.
-- [x] T17. Settings page: preferences (currency, balance ranges), profile, delete account.
+### Recurrence picker (shared component, T35)
+Used by Bills, Income, Debt, Savings, Budgets. Select with contextual presets computed from the chosen start date — "Monthly on the 21st", "Weekly on Tuesday", "Every 2 weeks on Tuesday", "Every 15th and 30th", "Monthly on the third Tuesday", "Custom…". Custom panel: Repeat every [N] [unit]; weekday chips (week); day list or nth-weekday (month); Ends: Never / On [date] / After [N] occurrences.
 
-**Phase 4 — Polish & ship**
-- [x] T18. Responsive pass (usable on a phone browser).
-- [x] T19. Loading, empty, and error states everywhere; form validation.
-- [x] T20. Privacy Policy + Terms pages (static; content provided by user).
-- [x] T21. Deploy to Vercel; production Supabase env vars; smoke test.
+### Phase 7 — Notion-style redesign (restyle only, no behavior changes)
+Notion palette (`#37352F` text, `#E9E9E7` hairlines, `#2383E2` accent, soft pill backgrounds), Inter, 14px base, full-width shell with 240px sidebar, tables with hairline dividers and hover `#F1F1EF`. Budget teal `#0B6E99`. Peaks and Drops keeps the v1 year×month pill grid.
 
-**Out of scope for v1** (do not build yet): payments/subscriptions, Expo mobile app, bank sync, multi-user families, notifications/emails beyond auth.
+## Operations
+
+- **Migrations are applied manually by the user** in the Supabase SQL editor; SQL lives in `supabase/migrations/`. Back up first via `pg_dump` only when real data is at stake (see CLAUDE.md "Hard rules" — free tier has no dashboard Backups).
+- **Migration 0004 is two-part**: Part 1 (add recurrence columns + backfill, non-destructive, run now) and Part 2 (enforce NOT NULL + drop legacy columns, run only after T35 is deployed).
+- **Sample data**: `supabase/seed.sql` fills every feature with a realistic family dataset (run after 0004 Part 1; re-runnable; all seed rows share the id prefix `00000000-0000-4000-a000-` for easy wiping).
+
+## Roadmap
+
+### Done
+- **Phases 0–4 (T1–T21)**: v1 built and deployed to Vercel — schema, pure engine + tests, all CRUD pages, Forecast/History/Dashboard, settings, responsive/polish, legal pages.
+- **Phase 5 (T22–T23)**: integer-multiplier monthly totals (Bug #1); greeting name fallback (Bug #2).
+- **T24–T25**: budgets v1 tables + engine (monthly-only, no rollover) — the baseline Phase 6B converts.
+- **T41**: sample data seed (`supabase/seed.sql`).
+- ~~T26–T27~~ **cancelled** — superseded by Phase 6B; never build them.
+
+### Phase 6A — Flexible recurrence (in progress)
+- [ ] **T32.** Migration 0004: recurrence columns + enums + constraints + backfill; legacy-column drop deferred to Part 2. *Status: file written and reviewed; Part 1 awaiting the user to run in the SQL editor.*
+- [ ] **T33.** Engine: day/week/month(days)/year expansion + ends rules; port existing tests; add 6A cases (list above).
+- [ ] **T34.** Engine: nth-weekday resolution (incl. last-X) + generalized `monthlyEquivalent`; tests.
+- [ ] **T35.** Recurrence picker wired into all four CRUD forms; human-readable rule summary per row. *After deploy: user runs migration 0004 Part 2.*
+
+### Phase 6B — Budgets v2 (after 6A)
+- [ ] **T36.** ALTER migration on budgets (rename/allocation, carryover, linked income, recurrence columns). Existing rows keep working via fallback until edited.
+- [ ] **T37.** Engine rework: boundary/cycle/carryover model + tests (list above).
+- [ ] **T38.** Budgets page: CRUD + replenish-source UI + entries + log spend.
+- [ ] **T39.** Forecast: budgets panel + budget rows + quick log-spend.
+- [ ] **T40.** Dashboard card + History budget tags + empty states; verify summary stats ignore budgets except through forecast rows.
+
+### Phase 7 — Notion-style redesign (last)
+- [ ] **T28.** Foundation: tokens, Inter, full-width shell, sidebar, base components — incl. recurrence picker, segmented control, progress bars.
+- [ ] **T29.** Restyle Dashboard + Forecast (list, chips, modals, reminders, budgets panel).
+- [ ] **T30.** Restyle all CRUD pages (Balances, Bills, Income, Debt, Savings, Extras, Budgets).
+- [ ] **T31.** Restyle Auth, Settings, History; consistency pass; screenshot review with the user before closing.
+
+### Out of scope
+Payments/subscriptions, mobile app, notifications, bank sync, multi-user families.

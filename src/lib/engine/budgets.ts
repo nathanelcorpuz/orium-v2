@@ -19,7 +19,7 @@ export interface BudgetMonthStatus {
   overBy: number; // centavos, >= 0 (> 0 when spends exceeded the allocation)
 }
 
-// Rule 1 (SPEC2 Phase 6): remaining = max(allocation - spent, 0); overBy = max(spent - allocation, 0).
+// Pre-6B baseline rule (SPEC.md T24-T25): remaining = max(allocation - spent, 0); overBy = max(spent - allocation, 0).
 // Only entries dated within `today`'s calendar month count toward "spent".
 export function currentMonthBudgetStatus(
   budget: Pick<Budget, "id" | "monthlyAllocation">,
@@ -39,7 +39,8 @@ export interface BudgetOccurrence {
 }
 
 /**
- * Expands one budget into forecast occurrences per SPEC2 Phase 6:
+ * Expands one budget into forecast occurrences per the pre-6B baseline
+ * (SPEC.md T24-T25; T37 replaces this with the cycle/carryover model):
  * - current month: one row dated `today`, amount = -remaining (rule 1)
  * - future months: one row per month dated the 1st, amount = -full allocation (rule 2),
  *   with no rollover from prior months (rule 3)

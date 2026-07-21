@@ -1,7 +1,7 @@
 -- Budgets: monthly allocations for variable spending, plus logged spends
--- against them. See SPEC2.md "Phase 6 - Budgets" for the full design.
+-- against them. See SPEC.md (budgets baseline, T24-T25) for the design.
 
--- Logging a spend also writes a settlement row (SPEC2 behavior rule 4), so
+-- Logging a spend also writes a settlement row (SPEC.md spend-logging rule), so
 -- the existing settlement enums need a 'budget' member ahead of that work.
 alter type settlement_source_type add value if not exists 'budget';
 alter type settlement_type add value if not exists 'budget';
