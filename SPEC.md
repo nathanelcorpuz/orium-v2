@@ -136,6 +136,9 @@ Notion palette (`#37352F` text, `#E9E9E7` hairlines, `#2383E2` accent, soft pill
 
 ## Roadmap
 
+### Before MVP launch (needs discussion)
+- **Interactive onboarding experience for new users.** Flagged as a priority by the user (2026-07-21) — not yet scoped or designed. Needs a dedicated discussion with the user on approach/flow before it becomes a task with its own T-number.
+
 ### Done
 - **Phases 0–4 (T1–T21)**: v1 built and deployed to Vercel — schema, pure engine + tests, all CRUD pages, Forecast/History/Dashboard, settings, responsive/polish, legal pages.
 - **Phase 5 (T22–T23)**: integer-multiplier monthly totals (Bug #1); greeting name fallback (Bug #2).
