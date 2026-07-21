@@ -10,6 +10,8 @@ function rule(overrides: Partial<RecurrenceRule>): RecurrenceRule {
     unit: "month",
     weekdays: null,
     daysOfMonth: null,
+    ordinal: null,
+    ordinalWeekday: null,
     endsType: "on_date",
     endDate: "2026-12-31",
     occurrenceCount: null,
@@ -241,6 +243,68 @@ describe("expandRecurrenceOccurrences - new cases required by T33", () => {
       "2026-05-01",
       "2026-06-01",
     ]);
+  });
+});
+
+describe("expandRecurrenceOccurrences - nth-weekday (ordinal) month rules, T34", () => {
+  it("resolves the 3rd Tuesday of each month", () => {
+    // ordinalWeekday 2 = Tuesday.
+    const dates = expandRecurrenceOccurrences(
+      rule({ daysOfMonth: null, ordinal: 3, ordinalWeekday: 2, startDate: "2026-01-01", endDate: "2026-04-30" }),
+      "2026-01-01",
+      "2026-04-30",
+    );
+    // Jan 2026: Tue 6,13,20 -> 3rd=20. Feb: Tue 3,10,17 -> 3rd=17.
+    // Mar: Tue 3,10,17 -> 3rd=17. Apr: Tue 7,14,21 -> 3rd=21.
+    expect(dates).toEqual(["2026-01-20", "2026-02-17", "2026-03-17", "2026-04-21"]);
+  });
+
+  it("resolves the last Friday of each month", () => {
+    // ordinalWeekday 5 = Friday.
+    const dates = expandRecurrenceOccurrences(
+      rule({ daysOfMonth: null, ordinal: -1, ordinalWeekday: 5, startDate: "2026-01-01", endDate: "2026-03-31" }),
+      "2026-01-01",
+      "2026-03-31",
+    );
+    // Jan 2026's last day (31) is a Saturday, so last Friday = 30.
+    // Feb's last day (28) is a Saturday, so last Friday = 27.
+    // Mar's last day (31) is a Tuesday, so last Friday = 27.
+    expect(dates).toEqual(["2026-01-30", "2026-02-27", "2026-03-27"]);
+  });
+
+  it("resolves the 1st Monday and 4th Monday of a month (ordinal boundaries)", () => {
+    // 2026-02: Mondays fall on 2, 9, 16, 23.
+    const first = expandRecurrenceOccurrences(
+      rule({ daysOfMonth: null, ordinal: 1, ordinalWeekday: 1, startDate: "2026-02-01", endDate: "2026-02-28" }),
+      "2026-02-01",
+      "2026-02-28",
+    );
+    const fourth = expandRecurrenceOccurrences(
+      rule({ daysOfMonth: null, ordinal: 4, ordinalWeekday: 1, startDate: "2026-02-01", endDate: "2026-02-28" }),
+      "2026-02-01",
+      "2026-02-28",
+    );
+    expect(first).toEqual(["2026-02-02"]);
+    expect(fourth).toEqual(["2026-02-23"]);
+  });
+
+  it("handles the case where the month's last day is exactly the target weekday", () => {
+    // 2026-01-31 is a Saturday, so "last Saturday" of Jan 2026 is the 31st itself.
+    const dates = expandRecurrenceOccurrences(
+      rule({ daysOfMonth: null, ordinal: -1, ordinalWeekday: 6, startDate: "2026-01-01", endDate: "2026-01-31" }),
+      "2026-01-01",
+      "2026-01-31",
+    );
+    expect(dates).toEqual(["2026-01-31"]);
+  });
+
+  it("returns an empty array for a month rule with neither daysOfMonth nor a complete ordinal pair", () => {
+    const dates = expandRecurrenceOccurrences(
+      rule({ daysOfMonth: null, ordinal: null, ordinalWeekday: null, startDate: "2026-01-01", endDate: "2026-12-31" }),
+      "2026-01-01",
+      "2026-12-31",
+    );
+    expect(dates).toEqual([]);
   });
 });
 

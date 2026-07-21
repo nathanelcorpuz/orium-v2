@@ -53,6 +53,8 @@ export interface RecurrenceRule {
   unit: RecurrenceUnit;
   weekdays: number[] | null;
   daysOfMonth: number[] | null;
+  ordinal: number | null; // 1-4 (1st..4th) or -1 (last); unit "month" only
+  ordinalWeekday: number | null; // 0-6 (Sun-Sat); paired with ordinal
   endsType: RecurrenceEndsType;
   endDate: string | null;
   occurrenceCount: number | null;

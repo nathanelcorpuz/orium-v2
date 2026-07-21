@@ -30,6 +30,8 @@ function expandRecurringItem(item: RecurringItem, windowStart: string, windowEnd
       unit: item.unit,
       weekdays: item.weekdays ?? null,
       daysOfMonth: item.daysOfMonth ?? null,
+      ordinal: item.ordinal ?? null,
+      ordinalWeekday: item.ordinalWeekday ?? null,
       endsType: item.endsType,
       endDate: item.endDate,
       occurrenceCount: item.occurrenceCount ?? null,
