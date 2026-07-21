@@ -47,7 +47,7 @@ Identity: `id, user_id, name, type (bill|income|debt|savings), amount, comments`
 | `end_date` | date nullable | set iff ends_type=on_date |
 | `occurrence_count` | int nullable | set iff ends_type=after_count |
 
-**Legacy columns during the 6A rollout:** `frequency (monthly|weekly|biweekly|semi_monthly_15_30), day_of_month, weekday` — still read/written by the deployed app until T35 ships, then dropped by migration 0004 **Part 2**. Backfill mapping (already encoded in the migration): monthly → (1, month, days=[day_of_month]) · weekly → (1, week, weekdays=[weekday]) · biweekly → (2, week, weekdays=[weekday]) · semi_monthly_15_30 → (1, month, days=[15,30]); existing rows get `ends_type='on_date'` + their current end_date.
+**Legacy columns during the 6A rollout:** `frequency (monthly|weekly|biweekly|semi_monthly_15_30), day_of_month, weekday` — still read/written by the deployed app until T35 ships, then dropped by migration 0004 **Part 2**. Backfill mapping (already encoded in the migration): monthly → (1, month, days=[day_of_month, falling back to start_date's day]) · weekly → (1, week) and biweekly → (2, week), both with weekdays=[dow(start_date)] — **not** the legacy `weekday` column, which the v1 engine never read and which may be null or disagree with the real schedule · semi_monthly_15_30 → (1, month, days=[15,30]); existing rows get `ends_type='on_date'` + their current end_date.
 
 ### `occurrence_overrides`
 Per-instance edits to a recurring rule (calendar-exception style). `id, user_id, recurring_item_id (fk), original_date, new_date, new_amount, new_name, skipped (bool)`. Unique on (`recurring_item_id`, `original_date`).

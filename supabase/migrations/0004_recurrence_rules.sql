@@ -77,24 +77,41 @@ alter table public.recurring_items alter column "interval" drop not null;
 alter table public.recurring_items alter column unit drop not null;
 alter table public.recurring_items alter column ends_type drop not null;
 
--- Backfill per SPEC.md's mapping table. start_date and end_date are already
--- correct anchors, so every existing row keeps its exact current schedule
--- under the new rule shape. `unit is null` guards make re-runs no-ops and
--- protect rows that later get real new-column values.
+-- Backfill. start_date and end_date are already correct anchors, so every
+-- existing row keeps its exact current schedule under the new rule shape.
+--
+-- Weekly/biweekly derive their weekday from start_date, NOT from the legacy
+-- `weekday` column: the v1 engine (src/lib/engine/interval.ts) never read
+-- that column — it just stepped 7/14 days from start_date — so the column
+-- can be null or even disagree with the real schedule. dow(start_date) is
+-- the day occurrences actually landed on. extract(dow) is 0=Sun..6=Sat,
+-- matching our convention.
+--
+-- Monthly uses day_of_month (the v1 engine really reads it; forms validate
+-- 1-31), falling back to start_date's day for any null — the v1 engine
+-- emitted nothing for such rows, so the fallback only revives a rule that
+-- was silently dead.
+--
+-- Guards make re-runs no-ops, protect rows that later get real new-column
+-- values, and repair rows a partial earlier run may have left with a null
+-- array element.
 update public.recurring_items
-  set "interval" = 1, unit = 'month', days_of_month = array[day_of_month],
+  set "interval" = 1, unit = 'month',
+      days_of_month = array[coalesce(day_of_month, extract(day from start_date)::int)],
       ends_type = 'on_date'
-  where frequency = 'monthly' and unit is null;
+  where frequency = 'monthly' and (unit is null or days_of_month[1] is null);
 
 update public.recurring_items
-  set "interval" = 1, unit = 'week', weekdays = array[weekday],
+  set "interval" = 1, unit = 'week',
+      weekdays = array[extract(dow from start_date)::int],
       ends_type = 'on_date'
-  where frequency = 'weekly' and unit is null;
+  where frequency = 'weekly' and (unit is null or weekdays[1] is null);
 
 update public.recurring_items
-  set "interval" = 2, unit = 'week', weekdays = array[weekday],
+  set "interval" = 2, unit = 'week',
+      weekdays = array[extract(dow from start_date)::int],
       ends_type = 'on_date'
-  where frequency = 'biweekly' and unit is null;
+  where frequency = 'biweekly' and (unit is null or weekdays[1] is null);
 
 update public.recurring_items
   set "interval" = 1, unit = 'month', days_of_month = array[15, 30],
@@ -199,8 +216,8 @@ end $$;
 
 -- Verification queries (run manually, expect zero rows from each):
 --   select id, frequency from public.recurring_items where unit is null;
---   select id from public.recurring_items where frequency = 'monthly' and days_of_month <> array[day_of_month];
---   select id from public.recurring_items where frequency in ('weekly','biweekly') and weekdays <> array[weekday];
+--   select id from public.recurring_items where frequency = 'monthly' and day_of_month is not null and days_of_month <> array[day_of_month];
+--   select id from public.recurring_items where frequency in ('weekly','biweekly') and weekdays <> array[extract(dow from start_date)::int];
 --   select id from public.recurring_items where frequency = 'semi_monthly_15_30' and days_of_month <> array[15,30];
 
 -- =========================================================================
@@ -212,17 +229,22 @@ end $$;
 
 -- -- Re-backfill rows created while the pre-T35 app was still writing only
 -- -- the old columns (their new columns are null). Rows written by the
--- -- post-T35 app have unit set and are untouched.
+-- -- post-T35 app have unit set and are untouched. Same mapping as Part 1:
+-- -- weekly/biweekly weekday comes from start_date, not the unused legacy
+-- -- weekday column.
 -- update public.recurring_items
---   set "interval" = 1, unit = 'month', days_of_month = array[day_of_month],
+--   set "interval" = 1, unit = 'month',
+--       days_of_month = array[coalesce(day_of_month, extract(day from start_date)::int)],
 --       ends_type = 'on_date'
 --   where frequency = 'monthly' and unit is null;
 -- update public.recurring_items
---   set "interval" = 1, unit = 'week', weekdays = array[weekday],
+--   set "interval" = 1, unit = 'week',
+--       weekdays = array[extract(dow from start_date)::int],
 --       ends_type = 'on_date'
 --   where frequency = 'weekly' and unit is null;
 -- update public.recurring_items
---   set "interval" = 2, unit = 'week', weekdays = array[weekday],
+--   set "interval" = 2, unit = 'week',
+--       weekdays = array[extract(dow from start_date)::int],
 --       ends_type = 'on_date'
 --   where frequency = 'biweekly' and unit is null;
 -- update public.recurring_items
