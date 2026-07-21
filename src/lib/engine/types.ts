@@ -37,14 +37,28 @@ export interface OneOffItem {
   dueDate: string; // YYYY-MM-DD
 }
 
+export interface Budget {
+  id: string;
+  name: string;
+  monthlyAllocation: number; // centavos
+}
+
+export interface BudgetEntry {
+  id: string;
+  budgetId: string;
+  entryDate: string; // YYYY-MM-DD
+  amount: number; // centavos, positive = money spent
+  note: string | null;
+}
+
 export interface ForecastRow {
-  sourceType: "recurring" | "one_off";
+  sourceType: "recurring" | "one_off" | "budget";
   sourceId: string;
   originalDate: string;
   name: string;
   amount: number; // centavos
   dueDate: string;
-  type: RecurringItemType | "extra";
+  type: RecurringItemType | "extra" | "budget";
   runningBalance: number; // centavos
 }
 
@@ -53,6 +67,8 @@ export interface GenerateForecastInput {
   recurringItems: RecurringItem[];
   overrides: OccurrenceOverride[];
   oneOffs: OneOffItem[];
+  budgets?: Budget[];
+  budgetEntries?: BudgetEntry[];
   today: string; // YYYY-MM-DD
   horizon: string; // YYYY-MM-DD
 }

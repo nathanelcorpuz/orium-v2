@@ -7,6 +7,7 @@ import type {
 import { expandMonthlyOccurrences } from "./monthly";
 import { expandBiweeklyOccurrences, expandWeeklyOccurrences } from "./interval";
 import { expandSemiMonthlyOccurrences } from "./semi-monthly";
+import { expandBudgetOccurrences } from "./budgets";
 
 function expandRecurringItem(item: RecurringItem, windowStart: string, windowEnd: string): string[] {
   switch (item.frequency) {
@@ -27,6 +28,8 @@ function overrideKey(recurringItemId: string, originalDate: string): string {
 
 export function generateForecast(input: GenerateForecastInput): ForecastRow[] {
   const { balances, recurringItems, overrides, oneOffs, today, horizon } = input;
+  const budgets = input.budgets ?? [];
+  const budgetEntries = input.budgetEntries ?? [];
 
   const overridesByKey = new Map<string, OccurrenceOverride>();
   for (const override of overrides) {
@@ -64,6 +67,20 @@ export function generateForecast(input: GenerateForecastInput): ForecastRow[] {
       dueDate: oneOff.dueDate,
       type: "extra",
     });
+  }
+
+  for (const budget of budgets) {
+    for (const occurrence of expandBudgetOccurrences(budget, budgetEntries, today, horizon)) {
+      rows.push({
+        sourceType: "budget",
+        sourceId: budget.id,
+        originalDate: occurrence.date,
+        name: budget.name,
+        amount: occurrence.amount,
+        dueDate: occurrence.date,
+        type: "budget",
+      });
+    }
   }
 
   // Array.prototype.sort is stable (ES2019+), so equal due dates keep their insertion order.

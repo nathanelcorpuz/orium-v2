@@ -15,6 +15,7 @@ const TYPE_COLOR: Record<ForecastRow["type"], string> = {
   savings: "text-blue-700",
   extra: "text-purple-700",
   bill: "text-slate-900",
+  budget: "text-teal-700",
 };
 
 export function ForecastClient({

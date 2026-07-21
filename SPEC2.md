@@ -35,7 +35,7 @@ Extend `generateForecast` input with `budgets` and `budgetEntries`; emit budget 
 
 ### Tasks
 - [x] **T24.** Migration: `budgets` + `budget_entries` + RLS. Save in `supabase/migrations/`.
-- [ ] **T25.** Engine: budget occurrence generation + all tests above.
+- [x] **T25.** Engine: budget occurrence generation + all tests above.
 - [ ] **T26.** Budgets page (`/budgets`): CRUD for budgets; per-budget card with progress bar (spent vs allocation, over-flag state), current-month entries list, and a quick "Log spend" form (amount, date defaulting to today, note). Add "Budgets" to the sidebar under Transaction Types.
 - [ ] **T27.** Integration: budget rows appear in the Forecast list (type color below); History shows logged spends; Dashboard gets a compact "Budgets this month" card (each budget: name, spent/allocation mini progress bar).
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { generateForecast } from "./forecast";
-import type { OneOffItem, OccurrenceOverride, RecurringItem } from "./types";
+import type { Budget, BudgetEntry, OneOffItem, OccurrenceOverride, RecurringItem } from "./types";
 
 const today = "2026-01-01";
 const horizon = "2026-03-31";
@@ -160,6 +160,64 @@ describe("generateForecast running balance", () => {
       { dueDate: "2026-03-05", amount: 400000, runningBalance: 1450000 },
       { dueDate: "2026-03-20", amount: -300000, runningBalance: 1150000 },
     ]);
+  });
+});
+
+describe("generateForecast budgets", () => {
+  it("merges budget rows into the sorted list, type 'budget', unaffected by overrides", () => {
+    const groceries: Budget = { id: "budget-1", name: "Groceries", monthlyAllocation: 500000 };
+    const entries: BudgetEntry[] = [
+      { id: "e1", budgetId: "budget-1", entryDate: "2026-01-01", amount: 200000, note: null },
+    ];
+    const income: RecurringItem = {
+      id: "income-1",
+      name: "Salary",
+      type: "income",
+      amount: 400000,
+      frequency: "monthly",
+      dayOfMonth: 5,
+      weekday: null,
+      startDate: "2026-01-01",
+      endDate: "2026-12-31",
+    };
+
+    const result = generateForecast({
+      balances: [{ id: "bal-1", name: "Cash", amount: 1000000 }],
+      recurringItems: [income],
+      overrides: [],
+      oneOffs: [],
+      budgets: [groceries],
+      budgetEntries: entries,
+      today: "2026-01-01",
+      horizon: "2026-02-28",
+    });
+
+    expect(
+      result.map((row) => ({
+        sourceType: row.sourceType,
+        type: row.type,
+        dueDate: row.dueDate,
+        amount: row.amount,
+      })),
+    ).toEqual([
+      { sourceType: "budget", type: "budget", dueDate: "2026-01-01", amount: -300000 },
+      { sourceType: "recurring", type: "income", dueDate: "2026-01-05", amount: 400000 },
+      { sourceType: "budget", type: "budget", dueDate: "2026-02-01", amount: -500000 },
+      { sourceType: "recurring", type: "income", dueDate: "2026-02-05", amount: 400000 },
+    ]);
+  });
+
+  it("defaults to no budget rows when budgets/budgetEntries are omitted", () => {
+    const result = generateForecast({
+      balances: [],
+      recurringItems: [],
+      overrides: [],
+      oneOffs: [],
+      today: "2026-01-01",
+      horizon: "2026-02-28",
+    });
+
+    expect(result).toEqual([]);
   });
 });
 
