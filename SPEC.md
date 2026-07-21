@@ -131,7 +131,7 @@ Notion palette (`#37352F` text, `#E9E9E7` hairlines, `#2383E2` accent, soft pill
 
 ## Operations
 
-- **Migrations are applied manually by the user** in the Supabase SQL editor; SQL lives in `supabase/migrations/`. Back up first via `pg_dump` only when real data is at stake (see CLAUDE.md "Hard rules" — free tier has no dashboard Backups).
+- **Migrations are written as files** in `supabase/migrations/` and applied by Claude directly via the connected Supabase MCP integration (falls back to the user pasting into the SQL editor if that connection isn't available in a session — see CLAUDE.md "Hard rules"). Back up first via `pg_dump` only when real data is at stake.
 - **The recurrence migration is split across two files** so each is paste-and-run whole: `0004_recurrence_rules.sql` (add columns + backfill, non-destructive, run now) and `0005_recurrence_drop_legacy_after_t35.sql` (enforce NOT NULL + drop legacy columns — run only after T35 is deployed, as its filename warns).
 - **Sample data**: `supabase/seed.sql` fills every feature with a realistic family dataset (run after 0004; re-runnable; all seed rows share the id prefix `00000000-0000-4000-a000-` for easy wiping).
 
