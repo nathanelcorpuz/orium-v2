@@ -91,6 +91,9 @@ export default async function Home() {
           <Link href="/savings" className="underline">
             Savings
           </Link>
+          <Link href="/budgets" className="underline">
+            Budgets
+          </Link>
           <Link href="/extra" className="underline">
             Extras
           </Link>
