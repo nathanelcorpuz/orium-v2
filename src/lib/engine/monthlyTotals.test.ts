@@ -2,66 +2,38 @@ import { describe, expect, it } from "vitest";
 import { monthlyEquivalent } from "./monthlyTotals";
 
 describe("monthlyEquivalent", () => {
-  it("monthly items count once", () => {
-    expect(monthlyEquivalent({ amount: 500000, frequency: "monthly" })).toBe(500000);
-  });
-
-  it("weekly items count x4 (never 52/12)", () => {
-    expect(monthlyEquivalent({ amount: 2000000, frequency: "weekly" })).toBe(8000000);
-  });
-
-  it("biweekly items count x2 (never 26/12)", () => {
-    expect(monthlyEquivalent({ amount: 2000000, frequency: "biweekly" })).toBe(4000000);
-  });
-
-  it("semi_monthly_15_30 items count x2", () => {
-    expect(monthlyEquivalent({ amount: 1000000, frequency: "semi_monthly_15_30" })).toBe(2000000);
-  });
-
-  it("stays integer centavos for amounts that would produce a decimal under fractional math", () => {
-    const result = monthlyEquivalent({ amount: 2000000, frequency: "weekly" });
-    expect(Number.isInteger(result)).toBe(true);
-    expect(result).toBe(8000000);
-  });
-
-  it("preserves sign for negative (bill/debt/savings) amounts", () => {
-    expect(monthlyEquivalent({ amount: -150000, frequency: "monthly" })).toBe(-150000);
-  });
-});
-
-describe("monthlyEquivalent - generalized formula (T34), items with the new recurrence columns", () => {
   it("day: 30/interval - daily bill counts x30", () => {
     expect(
-      monthlyEquivalent({ amount: -10000, frequency: "monthly", interval: 1, unit: "day" }),
+      monthlyEquivalent({ amount: -10000, interval: 1, unit: "day", weekdays: null, daysOfMonth: null }),
     ).toBe(-300000);
   });
 
   it("day: every-3-days counts x10 (30/3)", () => {
     expect(
-      monthlyEquivalent({ amount: 10000, frequency: "monthly", interval: 3, unit: "day" }),
+      monthlyEquivalent({ amount: 10000, interval: 3, unit: "day", weekdays: null, daysOfMonth: null }),
     ).toBe(100000);
   });
 
-  it("week: reproduces the old weekly preset (x4) via (4*1)/1", () => {
+  it("week: a single weekly weekday counts x4 (4*1/1, never 52/12)", () => {
     expect(
       monthlyEquivalent({
         amount: 2000000,
-        frequency: "monthly",
         interval: 1,
         unit: "week",
         weekdays: [5],
+        daysOfMonth: null,
       }),
     ).toBe(8000000);
   });
 
-  it("week: reproduces the old biweekly preset (x2) via (4*1)/2", () => {
+  it("week: every-2-weeks on one weekday counts x2 (4*1/2, never 26/12)", () => {
     expect(
       monthlyEquivalent({
         amount: 2000000,
-        frequency: "monthly",
         interval: 2,
         unit: "week",
         weekdays: [5],
+        daysOfMonth: null,
       }),
     ).toBe(4000000);
   });
@@ -70,33 +42,33 @@ describe("monthlyEquivalent - generalized formula (T34), items with the new recu
     expect(
       monthlyEquivalent({
         amount: 100000,
-        frequency: "monthly",
         interval: 2,
         unit: "week",
         weekdays: [1, 4],
+        daysOfMonth: null,
       }),
     ).toBe(400000);
   });
 
-  it("month: reproduces the old semi-monthly preset (x2) via len([15,30])/1", () => {
+  it("month: two days (e.g. 15th and 30th) counts x2 via len([15,30])/1", () => {
     expect(
       monthlyEquivalent({
         amount: 1000000,
-        frequency: "monthly",
         interval: 1,
         unit: "month",
+        weekdays: null,
         daysOfMonth: [15, 30],
       }),
     ).toBe(2000000);
   });
 
-  it("month: reproduces the old monthly preset (x1) via len([d])/1", () => {
+  it("month: a single day counts x1 via len([d])/1", () => {
     expect(
       monthlyEquivalent({
         amount: 500000,
-        frequency: "monthly",
         interval: 1,
         unit: "month",
+        weekdays: null,
         daysOfMonth: [1],
       }),
     ).toBe(500000);
@@ -106,9 +78,9 @@ describe("monthlyEquivalent - generalized formula (T34), items with the new recu
     expect(
       monthlyEquivalent({
         amount: -300000,
-        frequency: "monthly",
         interval: 1,
         unit: "month",
+        weekdays: null,
         daysOfMonth: null,
       }),
     ).toBe(-300000);
@@ -118,9 +90,9 @@ describe("monthlyEquivalent - generalized formula (T34), items with the new recu
     expect(
       monthlyEquivalent({
         amount: -900000,
-        frequency: "monthly",
         interval: 3,
         unit: "month",
+        weekdays: null,
         daysOfMonth: [1],
       }),
     ).toBe(0);
@@ -128,24 +100,24 @@ describe("monthlyEquivalent - generalized formula (T34), items with the new recu
 
   it("year: an annual item rounds to 0 per month (1/12)", () => {
     expect(
-      monthlyEquivalent({ amount: -1200000, frequency: "monthly", interval: 1, unit: "year" }),
+      monthlyEquivalent({ amount: -1200000, interval: 1, unit: "year", weekdays: null, daysOfMonth: null }),
     ).toBe(0);
   });
 
-  it("stays integer centavos under the generalized formula", () => {
+  it("stays integer centavos for amounts that would produce a decimal under fractional math", () => {
     const result = monthlyEquivalent({
       amount: 333333,
-      frequency: "monthly",
       interval: 1,
       unit: "week",
       weekdays: [2, 4],
+      daysOfMonth: null,
     });
     expect(Number.isInteger(result)).toBe(true);
   });
 
-  it("falls back to the legacy preset table when the new columns are absent (e.g. IncomeRow)", () => {
-    // No interval/unit at all - matches the shape of pages still on the
-    // pre-T35 CRUD forms.
-    expect(monthlyEquivalent({ amount: 2000000, frequency: "weekly" })).toBe(8000000);
+  it("preserves sign for negative (bill/debt/savings) amounts", () => {
+    expect(
+      monthlyEquivalent({ amount: -150000, interval: 1, unit: "month", weekdays: null, daysOfMonth: [1] }),
+    ).toBe(-150000);
   });
 });

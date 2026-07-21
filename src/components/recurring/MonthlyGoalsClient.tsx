@@ -58,10 +58,9 @@ export function MonthlyGoalsClient({
   // Debt/Savings could previously only be monthly, so summing raw amounts
   // was exact; now that any recurrence unit is possible, the total needs
   // the same monthly-equivalent estimate the Dashboard/Income pages use.
-  // Goes through goalRule (not the raw row) because MonthlyGoalRow's
-  // days_of_month is snake_case - monthlyEquivalent's optional daysOfMonth
-  // field would silently miss it otherwise (no compile error, just a wrong
-  // total, since the mismatch is on an optional property).
+  // Goes through goalRule (not the raw row) since MonthlyGoalRow's
+  // days_of_month is snake_case, matching Supabase - both functions expect
+  // camelCase daysOfMonth.
   const totalMonthly = items.reduce(
     (sum, item) => sum + Math.abs(monthlyEquivalent({ ...goalRule(item), amount: item.amount })),
     0,
@@ -69,7 +68,7 @@ export function MonthlyGoalsClient({
   // "never"-ending items have no finite total (SPEC.md); they're excluded
   // here and shown as "Ongoing" per-item below instead.
   const totalRemaining = items.reduce(
-    (sum, item) => sum + (remainingTotal({ ...goalRule(item), amount: item.amount, dayOfMonth: null }, today) ?? 0),
+    (sum, item) => sum + (remainingTotal({ ...goalRule(item), amount: item.amount }, today) ?? 0),
     0,
   );
 
@@ -105,10 +104,7 @@ export function MonthlyGoalsClient({
         ) : (
           <ul className="space-y-2">
             {items.map((item) => {
-              const remaining = remainingTotal(
-                { ...goalRule(item), amount: item.amount, dayOfMonth: null },
-                today,
-              );
+              const remaining = remainingTotal({ ...goalRule(item), amount: item.amount }, today);
               return (
                 <li
                   key={item.id}

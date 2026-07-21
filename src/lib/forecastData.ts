@@ -44,7 +44,7 @@ export async function loadForecast(): Promise<ForecastData> {
     supabase
       .from("recurring_items")
       .select(
-        "id, name, type, amount, frequency, day_of_month, weekday, start_date, end_date, interval, unit, weekdays, days_of_month, ordinal, ordinal_weekday, ends_type, occurrence_count",
+        "id, name, type, amount, start_date, end_date, interval, unit, weekdays, days_of_month, ordinal, ordinal_weekday, ends_type, occurrence_count",
       ),
     supabase
       .from("occurrence_overrides")
@@ -69,9 +69,6 @@ export async function loadForecast(): Promise<ForecastData> {
     name: row.name,
     type: row.type,
     amount: row.amount,
-    frequency: row.frequency,
-    dayOfMonth: row.day_of_month,
-    weekday: row.weekday,
     startDate: row.start_date,
     endDate: row.end_date,
     interval: row.interval,

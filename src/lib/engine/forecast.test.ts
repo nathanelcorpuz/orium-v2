@@ -5,18 +5,35 @@ import type { Budget, BudgetEntry, OneOffItem, OccurrenceOverride, RecurringItem
 const today = "2026-01-01";
 const horizon = "2026-03-31";
 
-describe("generateForecast overrides", () => {
-  const electricBill: RecurringItem = {
-    id: "bill-1",
-    name: "Electric",
+// Shared defaults for a plain monthly-on-day-N item, so each test only
+// specifies what it's testing.
+function monthlyItem(overrides: Partial<RecurringItem>): RecurringItem {
+  return {
+    id: "item-1",
+    name: "Item",
     type: "bill",
-    amount: -150000,
-    frequency: "monthly",
-    dayOfMonth: 10,
-    weekday: null,
+    amount: -100000,
     startDate: "2026-01-01",
     endDate: "2026-12-31",
+    interval: 1,
+    unit: "month",
+    weekdays: null,
+    daysOfMonth: [1],
+    ordinal: null,
+    ordinalWeekday: null,
+    endsType: "on_date",
+    occurrenceCount: null,
+    ...overrides,
   };
+}
+
+describe("generateForecast overrides", () => {
+  const electricBill = monthlyItem({
+    id: "bill-1",
+    name: "Electric",
+    amount: -150000,
+    daysOfMonth: [10],
+  });
 
   it("moves a date, changes an amount/name, and skips an occurrence", () => {
     const overrides: OccurrenceOverride[] = [
@@ -116,28 +133,14 @@ describe("generateForecast one-offs", () => {
 
 describe("generateForecast running balance", () => {
   it("computes a stable-sorted cumulative balance across recurring items and one-offs", () => {
-    const bill: RecurringItem = {
-      id: "bill-2",
-      name: "Rent",
-      type: "bill",
-      amount: -300000,
-      frequency: "monthly",
-      dayOfMonth: 20,
-      weekday: null,
-      startDate: "2026-01-01",
-      endDate: "2026-12-31",
-    };
-    const income: RecurringItem = {
+    const bill = monthlyItem({ id: "bill-2", name: "Rent", type: "bill", amount: -300000, daysOfMonth: [20] });
+    const income = monthlyItem({
       id: "income-1",
       name: "Salary",
       type: "income",
       amount: 400000,
-      frequency: "monthly",
-      dayOfMonth: 5,
-      weekday: null,
-      startDate: "2026-01-01",
-      endDate: "2026-12-31",
-    };
+      daysOfMonth: [5],
+    });
     const oneOffs: OneOffItem[] = [
       { id: "off-x", name: "Refund", amount: 100000, dueDate: "2026-01-10" },
     ];
@@ -169,17 +172,13 @@ describe("generateForecast budgets", () => {
     const entries: BudgetEntry[] = [
       { id: "e1", budgetId: "budget-1", entryDate: "2026-01-01", amount: 200000, note: null },
     ];
-    const income: RecurringItem = {
+    const income = monthlyItem({
       id: "income-1",
       name: "Salary",
       type: "income",
       amount: 400000,
-      frequency: "monthly",
-      dayOfMonth: 5,
-      weekday: null,
-      startDate: "2026-01-01",
-      endDate: "2026-12-31",
-    };
+      daysOfMonth: [5],
+    });
 
     const result = generateForecast({
       balances: [{ id: "bal-1", name: "Cash", amount: 1000000 }],
@@ -223,17 +222,14 @@ describe("generateForecast budgets", () => {
 
 describe("generateForecast start/end date bounds", () => {
   it("delays occurrences until start_date and cuts them off at end_date through the full pipeline", () => {
-    const item: RecurringItem = {
+    const item = monthlyItem({
       id: "bill-3",
       name: "Short-lived bill",
-      type: "bill",
       amount: -100000,
-      frequency: "monthly",
-      dayOfMonth: 15,
-      weekday: null,
+      daysOfMonth: [15],
       startDate: "2026-02-01",
       endDate: "2026-02-28",
-    };
+    });
 
     const result = generateForecast({
       balances: [],

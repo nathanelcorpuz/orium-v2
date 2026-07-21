@@ -47,7 +47,7 @@ Identity: `id, user_id, name, type (bill|income|debt|savings), amount, comments`
 | `end_date` | date nullable | set iff ends_type=on_date |
 | `occurrence_count` | int nullable | set iff ends_type=after_count |
 
-**Legacy columns during the 6A rollout:** `frequency (monthly|weekly|biweekly|semi_monthly_15_30), day_of_month, weekday` — still read/written by the deployed app until T35 ships, then dropped by migration **0005**. Backfill mapping (already encoded in the migration): monthly → (1, month, days=[day_of_month, falling back to start_date's day]) · weekly → (1, week) and biweekly → (2, week), both with weekdays=[dow(start_date)] — **not** the legacy `weekday` column, which the v1 engine never read and which may be null or disagree with the real schedule · semi_monthly_15_30 → (1, month, days=[15,30]); existing rows get `ends_type='on_date'` + their current end_date.
+**Legacy columns `frequency`/`day_of_month`/`weekday` are gone** — dropped by migration 0005 (2026-07-21) once T35 shipped. Backfill mapping used to populate the new columns before the drop: monthly → (1, month, days=[day_of_month, falling back to start_date's day]) · weekly → (1, week) and biweekly → (2, week), both with weekdays=[dow(start_date)] — **not** the legacy `weekday` column, which the v1 engine never read and which may have been null or disagreed with the real schedule · semi_monthly_15_30 → (1, month, days=[15,30]); existing rows got `ends_type='on_date'` + their then-current end_date.
 
 ### `occurrence_overrides`
 Per-instance edits to a recurring rule (calendar-exception style). `id, user_id, recurring_item_id (fk), original_date, new_date, new_amount, new_name, skipped (bool)`. Unique on (`recurring_item_id`, `original_date`).
@@ -85,7 +85,7 @@ Pipeline: expand each recurring rule from `max(today, start_date)` to the rule's
 - **ends**: `never` → generate to horizon; `on_date` inclusive; `after_count` → stop after N emitted occurrences.
 - `ends_type=never` items are excluded from finite "remaining total" stats (e.g. total remaining debt).
 
-Legacy expansion (still live until T33): monthly clamps day to month length; weekly/biweekly step 7/14 days anchored on start_date; semi_monthly_15_30 = 15th + 30th (February: 15th + last day).
+The old fixed 4-frequency expansion (monthly/weekly/biweekly/semi_monthly_15_30) is gone — removed along with its columns by migration 0005 once T35 shipped. Every `recurring_items` row now uses this rule shape exclusively; `RecurringItem` has no legacy fields.
 
 ### Monthly-equivalent summary stat
 Summary cards ("Total Monthly Income/Bills") use integer multipliers, never fractional math (a displayed `86,666.7` means float leakage — bug). Generalized form: `occurrencesPerMonth = round(f)` where f = day: 30/interval · week: (4 × len(weekdays))/interval · month: (len(days_of_month) or 1)/interval · year: 1/(12 × interval); minimum 0. `monthlyEquivalent = amount × occurrencesPerMonth` (integer × integer). Old presets yield ×4 (weekly), ×2 (biweekly), ×2 (semi-monthly), ×1 (monthly). The *forecast* keeps real occurrence dates (a 5-Saturday month genuinely shows 5 incomes) — only summary stats use multipliers.
@@ -132,7 +132,7 @@ Notion palette (`#37352F` text, `#E9E9E7` hairlines, `#2383E2` accent, soft pill
 ## Operations
 
 - **Migrations are written as files** in `supabase/migrations/` and applied by Claude directly via the connected Supabase MCP integration (falls back to the user pasting into the SQL editor if that connection isn't available in a session — see CLAUDE.md "Hard rules"). Back up first via `pg_dump` only when real data is at stake.
-- **The recurrence migration is split across two files** so each is paste-and-run whole: `0004_recurrence_rules.sql` (add columns + backfill, non-destructive, run now) and `0005_recurrence_drop_legacy_after_t35.sql` (enforce NOT NULL + drop legacy columns — run only after T35 is deployed, as its filename warns).
+- **The recurrence migration was split across two files**, each paste-and-run whole: `0004_recurrence_rules.sql` (add columns + backfill, non-destructive) and `0005_recurrence_drop_legacy_after_t35.sql` (enforce NOT NULL + drop legacy columns). Both are applied — 0004 on 2026-07-21, 0005 the same day once T35 was live in production.
 - **Sample data**: `supabase/seed.sql` fills every feature with a realistic family dataset (run after 0004; re-runnable; all seed rows share the id prefix `00000000-0000-4000-a000-` for easy wiping).
 
 ## Roadmap
@@ -144,9 +144,9 @@ Notion palette (`#37352F` text, `#E9E9E7` hairlines, `#2383E2` accent, soft pill
 - **T41**: sample data seed (`supabase/seed.sql`).
 - ~~T26–T27~~ **cancelled** — superseded by Phase 6B; never build them.
 
-### Phase 6A — Flexible recurrence (in progress)
-- [x] **T32.** Migration 0004: recurrence columns + enums + constraints + backfill; legacy-column drop split out into migration 0005 (runs only after T35). *Applied and seeded 2026-07-21.*
-- [x] **T33.** Engine: day/week/month(days)/year expansion + ends rules; port existing tests; add 6A cases (list above). *`src/lib/engine/recurrence.ts`; dispatched from `forecast.ts` per item (new engine when migrated, legacy functions otherwise, so the pre-T35 CRUD forms keep working unchanged).*
+### Phase 6A — Flexible recurrence (done)
+- [x] **T32.** Migration 0004: recurrence columns + enums + constraints + backfill; legacy-column drop split out into migration 0005 (runs only after T35). *0004 applied and seeded 2026-07-21; 0005 (drops legacy `frequency`/`day_of_month`/`weekday`) applied 2026-07-21 via the connected Supabase MCP integration, after T35 shipped to production. Verified via `list_tables` + `get_advisors` — legacy columns gone, `interval`/`unit`/`ends_type` now `NOT NULL`, all 18 rows intact, no new advisories.*
+- [x] **T33.** Engine: day/week/month(days)/year expansion + ends rules; port existing tests; add 6A cases (list above). *`src/lib/engine/recurrence.ts`; originally dispatched per item alongside a legacy fallback path (new engine when migrated, old monthly/weekly/biweekly/semi-monthly functions otherwise) so pre-T35 forms kept working. That dispatch and the legacy functions were removed once migration 0005 dropped the columns they depended on — `recurrence.ts` is now the only expansion path.*
 - [x] **T34.** Engine: nth-weekday resolution (incl. last-X) + generalized `monthlyEquivalent`; tests. *Ordinal resolution in `recurrence.ts`; generalized formula in `monthlyTotals.ts` (same migrated/legacy dispatch pattern as T33's `forecast.ts`).*
 - [x] **T35.** Recurrence picker wired into all four CRUD forms; human-readable rule summary per row. *Browser-verified 2026-07-21 after a dev server restart; pushed and deployed to production the same day. Migration 0005 is ready for the user to run — see its header for steps.*
 

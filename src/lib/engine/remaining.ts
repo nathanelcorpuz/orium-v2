@@ -1,5 +1,4 @@
 import type { RecurrenceEndsType, RecurrenceRule, RecurrenceUnit } from "./types";
-import { expandMonthlyOccurrences } from "./monthly";
 import { expandRecurrenceOccurrences } from "./recurrence";
 
 // Safe upper bound for "sum every remaining occurrence" queries against
@@ -11,28 +10,28 @@ const FAR_FUTURE_DATE = "9999-12-31";
 type RuleShapedItem = {
   startDate: string;
   endDate: string | null;
-  interval?: number | null;
-  unit?: RecurrenceUnit | null;
-  weekdays?: number[] | null;
-  daysOfMonth?: number[] | null;
-  ordinal?: number | null;
-  ordinalWeekday?: number | null;
-  endsType?: RecurrenceEndsType | null;
-  occurrenceCount?: number | null;
+  interval: number;
+  unit: RecurrenceUnit;
+  weekdays: number[] | null;
+  daysOfMonth: number[] | null;
+  ordinal: number | null;
+  ordinalWeekday: number | null;
+  endsType: RecurrenceEndsType;
+  occurrenceCount: number | null;
 };
 
-function toRecurrenceRule(item: RuleShapedItem & { interval: number; unit: RecurrenceUnit; endsType: RecurrenceEndsType }): RecurrenceRule {
+function toRecurrenceRule(item: RuleShapedItem): RecurrenceRule {
   return {
     startDate: item.startDate,
     interval: item.interval,
     unit: item.unit,
-    weekdays: item.weekdays ?? null,
-    daysOfMonth: item.daysOfMonth ?? null,
-    ordinal: item.ordinal ?? null,
-    ordinalWeekday: item.ordinalWeekday ?? null,
+    weekdays: item.weekdays,
+    daysOfMonth: item.daysOfMonth,
+    ordinal: item.ordinal,
+    ordinalWeekday: item.ordinalWeekday,
     endsType: item.endsType,
     endDate: item.endDate,
-    occurrenceCount: item.occurrenceCount ?? null,
+    occurrenceCount: item.occurrenceCount,
   };
 }
 
@@ -43,32 +42,9 @@ function toRecurrenceRule(item: RuleShapedItem & { interval: number; unit: Recur
 // (SPEC.md: "ends_type=never items are excluded from finite remaining
 // total stats") — callers should exclude nulls when summing across items,
 // and show something like "Ongoing" per item.
-//
-// Dispatches like forecast.ts/monthlyEquivalent: items with the new
-// recurrence columns populated (every row after T35) use the general
-// engine; items missing them fall back to the legacy monthly-only
-// expansion (kept for defensive robustness, not expected to trigger on
-// fresh data once every page fetches the new columns).
-export function remainingTotal(
-  item: RuleShapedItem & { amount: number; dayOfMonth: number | null },
-  today: string,
-): number | null {
-  if (item.interval != null && item.unit != null && item.endsType != null) {
-    if (item.endsType === "never") return null;
-    const occurrences = expandRecurrenceOccurrences(
-      toRecurrenceRule({ ...item, interval: item.interval, unit: item.unit, endsType: item.endsType }),
-      today,
-      FAR_FUTURE_DATE,
-    );
-    return occurrences.length * Math.abs(item.amount);
-  }
-
-  if (item.endDate === null) return 0;
-  const occurrences = expandMonthlyOccurrences(
-    { startDate: item.startDate, endDate: item.endDate, dayOfMonth: item.dayOfMonth },
-    today,
-    item.endDate,
-  );
+export function remainingTotal(item: RuleShapedItem & { amount: number }, today: string): number | null {
+  if (item.endsType === "never") return null;
+  const occurrences = expandRecurrenceOccurrences(toRecurrenceRule(item), today, FAR_FUTURE_DATE);
   return occurrences.length * Math.abs(item.amount);
 }
 
@@ -79,20 +55,11 @@ export function remainingTotal(
 // stored date, so the Nth occurrence is computed directly from start_date
 // (not "today", so an already-fully-elapsed item still reports its real
 // completion date rather than nothing). Returns null for "never" (no
-// terminal date exists) or if a rule/legacy item somehow has no
-// occurrences at all.
+// terminal date exists) or if a rule somehow has no occurrences at all.
 export function ruleEndDate(item: RuleShapedItem): string | null {
-  if (item.interval != null && item.unit != null && item.endsType != null) {
-    if (item.endsType === "never") return null;
-    if (item.endsType === "on_date") return item.endDate;
+  if (item.endsType === "never") return null;
+  if (item.endsType === "on_date") return item.endDate;
 
-    const occurrences = expandRecurrenceOccurrences(
-      toRecurrenceRule({ ...item, interval: item.interval, unit: item.unit, endsType: item.endsType }),
-      item.startDate,
-      FAR_FUTURE_DATE,
-    );
-    return occurrences.length > 0 ? occurrences[occurrences.length - 1] : null;
-  }
-
-  return item.endDate;
+  const occurrences = expandRecurrenceOccurrences(toRecurrenceRule(item), item.startDate, FAR_FUTURE_DATE);
+  return occurrences.length > 0 ? occurrences[occurrences.length - 1] : null;
 }
