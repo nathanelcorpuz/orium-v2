@@ -1,17 +1,15 @@
 -- T32 (SPEC.md Phase 6A), step 2 of 2: drop the legacy frequency columns.
 --
--- ⛔ DO NOT RUN THIS YET. Run only after T33-T35 have shipped and the
--- deployed app reads and writes ONLY the new recurrence columns (interval/
--- unit/weekdays/days_of_month/ends_type...). Until then the live app still
--- reads frequency/day_of_month/weekday — running this early breaks the
--- Forecast page and every recurring-item form. The T35 session will tell
--- you when it's time.
+-- READY TO RUN. T33-T35 shipped and are deployed to production (2026-07-21)
+-- — the live app now reads and writes only the new recurrence columns
+-- (interval/unit/weekdays/days_of_month/ends_type...), so frequency/
+-- day_of_month/weekday are no longer read anywhere.
 --
--- HOW TO RUN (when it's time):
---   1. This one IS destructive and not reversible in place. If the
---      database holds real data by then, take a fresh pg_dump backup
---      immediately before running (method in CLAUDE.md "Hard rules");
---      restoring that backup is the only undo.
+-- HOW TO RUN:
+--   1. This one IS destructive and not reversible in place. Back up first
+--      with pg_dump only if the database holds real data you can't quickly
+--      recreate (method in CLAUDE.md "Hard rules"); restoring that backup
+--      is the only undo.
 --   2. Paste this whole file into the Supabase SQL editor and run it.
 --
 -- Prerequisite: 0004_recurrence_rules.sql (step 1: add + backfill) has

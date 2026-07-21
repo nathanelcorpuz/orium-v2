@@ -127,6 +127,8 @@ Used by Bills, Income, Debt, Savings, Budgets. Select with contextual presets co
 ### Phase 7 — Notion-style redesign (restyle only, no behavior changes)
 Notion palette (`#37352F` text, `#E9E9E7` hairlines, `#2383E2` accent, soft pill backgrounds), Inter, 14px base, full-width shell with 240px sidebar, tables with hairline dividers and hover `#F1F1EF`. Budget teal `#0B6E99`. Peaks and Drops keeps the v1 year×month pill grid.
 
+**Date display format**: replace every raw `YYYY-MM-DD` shown to the user with a human-readable format — full dates as "Jun 1, 2025" (Month Day, Year), month-only dates (e.g. a recurrence rule's "until" suffix, a debt-free date rounded to the month) as "Jun 2025" (Month Year). Storage/computation stays `YYYY-MM-DD` everywhere per the core design rules — this is purely a UI formatting change, which is why it's scoped to Phase 7 rather than done ad hoc. `recurrenceSummary.ts`'s internal `formatMonthYear` already produces the "Jun 2025" style; export it (or a shared equivalent) for reuse instead of duplicating. Applies wherever T28–T31 touch a page showing dates: Bills/Income/Debt/Savings row summaries and start/end dates, Forecast due dates, History forecasted/actual dates, Dashboard's debt-free date.
+
 ## Operations
 
 - **Migrations are applied manually by the user** in the Supabase SQL editor; SQL lives in `supabase/migrations/`. Back up first via `pg_dump` only when real data is at stake (see CLAUDE.md "Hard rules" — free tier has no dashboard Backups).
@@ -146,7 +148,7 @@ Notion palette (`#37352F` text, `#E9E9E7` hairlines, `#2383E2` accent, soft pill
 - [x] **T32.** Migration 0004: recurrence columns + enums + constraints + backfill; legacy-column drop split out into migration 0005 (runs only after T35). *Applied and seeded 2026-07-21.*
 - [x] **T33.** Engine: day/week/month(days)/year expansion + ends rules; port existing tests; add 6A cases (list above). *`src/lib/engine/recurrence.ts`; dispatched from `forecast.ts` per item (new engine when migrated, legacy functions otherwise, so the pre-T35 CRUD forms keep working unchanged).*
 - [x] **T34.** Engine: nth-weekday resolution (incl. last-X) + generalized `monthlyEquivalent`; tests. *Ordinal resolution in `recurrence.ts`; generalized formula in `monthlyTotals.ts` (same migrated/legacy dispatch pattern as T33's `forecast.ts`).*
-- [x] **T35.** Recurrence picker wired into all four CRUD forms; human-readable rule summary per row. *Browser-verified 2026-07-21 after a dev server restart. **Do not run migration 0005 yet** — local `main` is unpushed (22 commits ahead of `origin/main` as of this check), so production is still running pre-T24 code that needs the legacy columns. Push + deploy first, confirm production is healthy, then run 0005.*
+- [x] **T35.** Recurrence picker wired into all four CRUD forms; human-readable rule summary per row. *Browser-verified 2026-07-21 after a dev server restart; pushed and deployed to production the same day. Migration 0005 is ready for the user to run — see its header for steps.*
 
 ### Phase 6B — Budgets v2 (after 6A)
 - [ ] **T36.** ALTER migration on budgets (rename/allocation, carryover, linked income, recurrence columns). Existing rows keep working via fallback until edited.
