@@ -43,6 +43,15 @@ export default async function SettingsPage() {
               <DeleteAccountButton />
             </div>
           </div>
+
+          <div className="flex gap-4 text-sm text-slate-500">
+            <Link href="/terms" className="underline">
+              Terms of Service
+            </Link>
+            <Link href="/privacy" className="underline">
+              Privacy Policy
+            </Link>
+          </div>
         </div>
       </div>
     </main>
