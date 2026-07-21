@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { parseCentavos } from "@/lib/money";
 import { readRecurrenceRuleForm } from "@/lib/recurrenceForm";
+import { deleteStaleOverrides } from "@/lib/staleOverrides";
 
 export type IncomeActionState = { error: string | null };
 
@@ -64,6 +65,7 @@ export async function createIncome(
   if (error) return { error: error.message };
 
   revalidatePath("/income");
+  revalidatePath("/forecast");
   revalidatePath("/");
   return { error: null };
 }
@@ -97,7 +99,21 @@ export async function updateIncome(
     .eq("id", id);
   if (error) return { error: error.message };
 
+  await deleteStaleOverrides(supabase, id, {
+    startDate: fields.startDate,
+    interval: fields.interval,
+    unit: fields.unit,
+    weekdays: fields.weekdays,
+    daysOfMonth: fields.daysOfMonth,
+    ordinal: fields.ordinal,
+    ordinalWeekday: fields.ordinalWeekday,
+    endsType: fields.endsType,
+    endDate: fields.endDate,
+    occurrenceCount: fields.occurrenceCount,
+  });
+
   revalidatePath("/income");
+  revalidatePath("/forecast");
   revalidatePath("/");
   return { error: null };
 }
@@ -107,5 +123,6 @@ export async function deleteIncome(formData: FormData) {
   const supabase = await createClient();
   await supabase.from("recurring_items").delete().eq("id", id);
   revalidatePath("/income");
+  revalidatePath("/forecast");
   revalidatePath("/");
 }

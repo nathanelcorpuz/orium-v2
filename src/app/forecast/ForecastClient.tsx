@@ -91,10 +91,13 @@ export function ForecastClient({
                   </thead>
                   <tbody>
                     {forecast.map((row, index) => {
-                      // Budget rows are derived, not editable/settleable
-                      // (SPEC.md "Forecast integration") - logging a spend
-                      // happens through the Budgets panel or page instead.
-                      const clickable = row.type !== "budget";
+                      // Only future budget rows are editable (SPEC.md T42
+                      // part B) - the "remaining this cycle" row is always
+                      // dated exactly `today` (originalDate never exceeds
+                      // it), a live status snapshot rather than a discrete
+                      // future transaction. Logging a spend on it happens
+                      // through the Budgets panel or page instead.
+                      const clickable = row.type !== "budget" || row.originalDate > today;
                       return (
                         <tr
                           key={`${row.sourceType}-${row.sourceId}-${row.originalDate}-${index}`}

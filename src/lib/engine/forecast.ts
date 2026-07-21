@@ -1,4 +1,5 @@
 import type {
+  BudgetOccurrenceOverride,
   ForecastRow,
   GenerateForecastInput,
   OccurrenceOverride,
@@ -27,14 +28,24 @@ function overrideKey(recurringItemId: string, originalDate: string): string {
   return `${recurringItemId}|${originalDate}`;
 }
 
+function budgetOverrideKey(budgetId: string, originalDate: string): string {
+  return `${budgetId}|${originalDate}`;
+}
+
 export function generateForecast(input: GenerateForecastInput): ForecastRow[] {
   const { balances, recurringItems, overrides, oneOffs, today, horizon } = input;
   const budgets = input.budgets ?? [];
   const budgetEntries = input.budgetEntries ?? [];
+  const budgetOverrides = input.budgetOverrides ?? [];
 
   const overridesByKey = new Map<string, OccurrenceOverride>();
   for (const override of overrides) {
     overridesByKey.set(overrideKey(override.recurringItemId, override.originalDate), override);
+  }
+
+  const budgetOverridesByKey = new Map<string, BudgetOccurrenceOverride>();
+  for (const override of budgetOverrides) {
+    budgetOverridesByKey.set(budgetOverrideKey(override.budgetId, override.originalDate), override);
   }
 
   const rows: Omit<ForecastRow, "runningBalance">[] = [];
@@ -79,13 +90,23 @@ export function generateForecast(input: GenerateForecastInput): ForecastRow[] {
       today,
       horizon,
     )) {
+      // Only future boundary rows are editable (SPEC.md T42 part B) - the
+      // "remaining this cycle" row is always dated exactly `today` (never
+      // `> today`) and has no override concept, so it's never looked up
+      // here, matching expandBudgetCycleOccurrences's own row ordering.
+      const isFutureRow = occurrence.date > today;
+      const override = isFutureRow
+        ? budgetOverridesByKey.get(budgetOverrideKey(budget.id, occurrence.date))
+        : undefined;
+      if (override?.skipped) continue;
+
       rows.push({
         sourceType: "budget",
         sourceId: budget.id,
         originalDate: occurrence.date,
         name: budget.name,
-        amount: occurrence.amount,
-        dueDate: occurrence.date,
+        amount: override?.newAmount ?? occurrence.amount,
+        dueDate: override?.newDate ?? occurrence.date,
         type: "budget",
       });
     }

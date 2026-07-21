@@ -327,3 +327,28 @@ describe("expandRecurrenceOccurrences - day and year units", () => {
     expect(dates).toEqual(["2024-02-29", "2025-02-28", "2026-02-28", "2027-02-28", "2028-02-29"]);
   });
 });
+
+describe("expandRecurrenceOccurrences - tight single-date window (T42 stale-override check)", () => {
+  // deleteStaleOverrides (src/lib/staleOverrides.ts) asks "is this exact
+  // date still produced by the rule?" via a [date, date] window rather than
+  // a realistic today->horizon range - confirming that usage works
+  // correctly, not just the wide-window case every other test exercises.
+  it("reproduces the exact date when it's still a valid occurrence", () => {
+    const dates = expandRecurrenceOccurrences(
+      rule({ daysOfMonth: [15], startDate: "2026-01-01" }),
+      "2026-03-15",
+      "2026-03-15",
+    );
+    expect(dates).toEqual(["2026-03-15"]);
+  });
+
+  it("returns empty when the date is no longer produced by the rule", () => {
+    // Rule changed from day-15 to day-1; the old day-15 date is stale.
+    const dates = expandRecurrenceOccurrences(
+      rule({ daysOfMonth: [1], startDate: "2026-01-01" }),
+      "2026-03-15",
+      "2026-03-15",
+    );
+    expect(dates).toEqual([]);
+  });
+});

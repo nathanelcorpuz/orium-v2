@@ -73,6 +73,80 @@ export async function editOneOff(
   return { error: null };
 }
 
+// Editable budget forecast rows (SPEC.md T42 part B) - only ever called for
+// a *future* boundary row (see ForecastClient's clickable guard); the
+// "remaining this cycle" row has no edit affordance. No Name field here
+// (unlike editRecurringOccurrence) since a budget row's name is a computed
+// label, not a stored per-occurrence value.
+function readBudgetOccurrenceForm(formData: FormData) {
+  const amount = parseCentavos(formData.get("amountPesos") as string);
+  const date = formData.get("date") as string;
+
+  if (amount === null) return { error: "Enter a valid amount." } as const;
+  if (!date) return { error: "Date is required." } as const;
+
+  return { error: null, amount, date } as const;
+}
+
+export async function editBudgetOccurrence(
+  _prevState: ForecastActionState,
+  formData: FormData,
+): Promise<ForecastActionState> {
+  const budgetId = formData.get("sourceId") as string;
+  const originalDate = formData.get("originalDate") as string;
+  const fields = readBudgetOccurrenceForm(formData);
+  if (fields.error) return { error: fields.error };
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Not signed in." };
+
+  const { error } = await supabase.from("budget_occurrence_overrides").upsert(
+    {
+      user_id: user.id,
+      budget_id: budgetId,
+      original_date: originalDate,
+      new_date: fields.date,
+      new_amount: fields.amount,
+      skipped: false,
+    },
+    { onConflict: "budget_id,original_date" },
+  );
+  if (error) return { error: error.message };
+
+  revalidatePath("/forecast");
+  revalidatePath("/");
+  return { error: null };
+}
+
+export async function skipBudgetOccurrence(formData: FormData) {
+  const budgetId = formData.get("sourceId") as string;
+  const originalDate = formData.get("originalDate") as string;
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return;
+
+  await supabase.from("budget_occurrence_overrides").upsert(
+    {
+      user_id: user.id,
+      budget_id: budgetId,
+      original_date: originalDate,
+      new_date: null,
+      new_amount: null,
+      skipped: true,
+    },
+    { onConflict: "budget_id,original_date" },
+  );
+
+  revalidatePath("/forecast");
+  revalidatePath("/");
+}
+
 function readSettleForm(formData: FormData) {
   const actualAmount = parseCentavos(formData.get("actualAmountPesos") as string);
   const actualDate = formData.get("actualDate") as string;

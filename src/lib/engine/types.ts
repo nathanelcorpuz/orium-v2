@@ -105,6 +105,20 @@ export interface BudgetEntry {
   note: string | null;
 }
 
+// Per-occurrence override for a budget's own *future* forecast rows
+// (SPEC.md T42 part B) - mirrors OccurrenceOverride, but only ever keyed
+// against a future cycle-boundary date. The "remaining this cycle" row
+// (always dated today) has no override concept and never looks this up -
+// see forecast.ts's budget merge loop, the only place these are applied.
+export interface BudgetOccurrenceOverride {
+  id: string;
+  budgetId: string;
+  originalDate: string; // YYYY-MM-DD, a raw future boundary date
+  newDate: string | null;
+  newAmount: number | null; // centavos
+  skipped: boolean;
+}
+
 export interface ForecastRow {
   sourceType: "recurring" | "one_off" | "budget";
   sourceId: string;
@@ -123,6 +137,7 @@ export interface GenerateForecastInput {
   oneOffs: OneOffItem[];
   budgets?: Budget[];
   budgetEntries?: BudgetEntry[];
+  budgetOverrides?: BudgetOccurrenceOverride[];
   today: string; // YYYY-MM-DD
   horizon: string; // YYYY-MM-DD
 }

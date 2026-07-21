@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { generateForecast } from "./forecast";
-import type { Budget, BudgetEntry, OneOffItem, OccurrenceOverride, RecurringItem } from "./types";
+import type {
+  Budget,
+  BudgetEntry,
+  BudgetOccurrenceOverride,
+  OneOffItem,
+  OccurrenceOverride,
+  RecurringItem,
+} from "./types";
 
 const today = "2026-01-01";
 const horizon = "2026-03-31";
@@ -305,6 +312,97 @@ describe("generateForecast budgets", () => {
       { sourceType: "budget", type: "budget", dueDate: "2026-02-15", amount: -500000 },
       { sourceType: "recurring", type: "income", dueDate: "2026-03-05", amount: 400000 },
       { sourceType: "budget", type: "budget", dueDate: "2026-03-05", amount: -500000 },
+    ]);
+  });
+});
+
+describe("generateForecast budget occurrence overrides (T42 part B)", () => {
+  const groceries: Budget = {
+    id: "budget-1",
+    name: "Groceries",
+    monthlyAllocation: 500000,
+    allocation: 500000,
+    carryoverEnabled: false,
+    createdAt: "2026-01-01",
+    linkedIncomeId: null,
+    startDate: null,
+    interval: null,
+    unit: null,
+    weekdays: null,
+    daysOfMonth: null,
+    ordinal: null,
+    ordinalWeekday: null,
+    endsType: null,
+    endDate: null,
+    occurrenceCount: null,
+  };
+
+  it("moves a future boundary row's date and amount", () => {
+    const budgetOverrides: BudgetOccurrenceOverride[] = [
+      { id: "bo1", budgetId: "budget-1", originalDate: "2026-02-01", newDate: "2026-02-05", newAmount: -450000, skipped: false },
+    ];
+
+    const result = generateForecast({
+      balances: [],
+      recurringItems: [],
+      overrides: [],
+      oneOffs: [],
+      budgets: [groceries],
+      budgetEntries: [],
+      budgetOverrides,
+      today: "2026-01-15",
+      horizon: "2026-03-31",
+    });
+
+    expect(result.map((row) => ({ originalDate: row.originalDate, dueDate: row.dueDate, amount: row.amount }))).toEqual([
+      { originalDate: "2026-01-15", dueDate: "2026-01-15", amount: -500000 }, // remaining this cycle, unaffected
+      { originalDate: "2026-02-01", dueDate: "2026-02-05", amount: -450000 }, // moved
+      { originalDate: "2026-03-01", dueDate: "2026-03-01", amount: -500000 }, // untouched
+    ]);
+  });
+
+  it("omits a skipped future boundary row entirely", () => {
+    const budgetOverrides: BudgetOccurrenceOverride[] = [
+      { id: "bo1", budgetId: "budget-1", originalDate: "2026-03-01", newDate: null, newAmount: null, skipped: true },
+    ];
+
+    const result = generateForecast({
+      balances: [],
+      recurringItems: [],
+      overrides: [],
+      oneOffs: [],
+      budgets: [groceries],
+      budgetEntries: [],
+      budgetOverrides,
+      today: "2026-01-15",
+      horizon: "2026-03-31",
+    });
+
+    expect(result.map((row) => row.dueDate)).toEqual(["2026-01-15", "2026-02-01"]);
+  });
+
+  it("never applies to the 'remaining this cycle' row, even with an override dated exactly today", () => {
+    // The "remaining this cycle" row is always dated `today`, never
+    // `> today`, so it's structurally excluded from the override lookup -
+    // this override should be completely inert.
+    const budgetOverrides: BudgetOccurrenceOverride[] = [
+      { id: "bo1", budgetId: "budget-1", originalDate: "2026-01-15", newDate: "2026-01-20", newAmount: -999999, skipped: false },
+    ];
+
+    const result = generateForecast({
+      balances: [],
+      recurringItems: [],
+      overrides: [],
+      oneOffs: [],
+      budgets: [groceries],
+      budgetEntries: [],
+      budgetOverrides,
+      today: "2026-01-15",
+      horizon: "2026-01-31",
+    });
+
+    expect(result).toEqual([
+      expect.objectContaining({ dueDate: "2026-01-15", amount: -500000 }),
     ]);
   });
 });

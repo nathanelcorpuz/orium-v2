@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useRef, useState } from "react";
-import { formatCentavos } from "@/lib/money";
+import { centavosToPesosString, formatCentavos } from "@/lib/money";
 import { todayInManila } from "@/lib/date";
 import { computeBudgetCycleStatus } from "@/lib/engine/budgetCycles";
 import {
@@ -15,11 +15,146 @@ import {
   type IncomeItemRow,
   type OverrideRow,
 } from "@/lib/budgetView";
-import { deleteBudget, deleteBudgetEntry, logSpend, type BudgetActionState } from "./actions";
+import {
+  deleteBudget,
+  deleteBudgetEntry,
+  logSpend,
+  updateBudgetEntry,
+  type BudgetActionState,
+} from "./actions";
 
 export type { BudgetEntryRow, IncomeItemRow, OverrideRow } from "@/lib/budgetView";
 
 const initialLogState: BudgetActionState = { error: null };
+
+// One current-cycle entry (SPEC.md T42 part B: entries are now editable, not
+// just create/delete). Its own component so each entry gets an independent
+// useActionState/edit-mode instead of one shared across the whole list.
+function BudgetEntryListItem({
+  entry,
+  budgetId,
+  budgetName,
+}: {
+  entry: BudgetEntryRow;
+  budgetId: string;
+  budgetName: string;
+}) {
+  const [mode, setMode] = useState<"view" | "edit" | "delete">("view");
+  const [editState, editFormAction, editPending] = useActionState(updateBudgetEntry, initialLogState);
+  const submitted = useRef(false);
+
+  useEffect(() => {
+    if (submitted.current && !editPending && !editState.error) {
+      setMode("view");
+      submitted.current = false;
+    }
+  }, [editPending, editState]);
+
+  if (mode === "edit") {
+    return (
+      <li>
+        <form
+          action={editFormAction}
+          onSubmit={() => {
+            submitted.current = true;
+          }}
+          className="flex flex-wrap items-end gap-2 py-1"
+        >
+          <input type="hidden" name="id" value={entry.id} />
+          <input type="hidden" name="budgetId" value={budgetId} />
+          <input type="hidden" name="budgetName" value={budgetName} />
+          <input
+            name="amountPesos"
+            type="number"
+            step="0.01"
+            min="0"
+            required
+            defaultValue={centavosToPesosString(entry.amount)}
+            aria-label="Amount"
+            className="w-20 rounded border border-slate-300 p-1 text-xs"
+          />
+          <input
+            name="entryDate"
+            type="date"
+            required
+            defaultValue={entry.entry_date}
+            aria-label="Date"
+            className="rounded border border-slate-300 p-1 text-xs"
+          />
+          <input
+            name="note"
+            type="text"
+            defaultValue={entry.note ?? ""}
+            aria-label="Note"
+            className="min-w-[6rem] flex-1 rounded border border-slate-300 p-1 text-xs"
+          />
+          <button type="submit" disabled={editPending} className="text-xs text-slate-600 underline">
+            {editPending ? "Saving..." : "Save"}
+          </button>
+          <button
+            type="button"
+            onClick={() => setMode("view")}
+            className="text-xs text-slate-400 underline"
+          >
+            Cancel
+          </button>
+        </form>
+        {editState.error && <p className="text-xs text-red-600">{editState.error}</p>}
+      </li>
+    );
+  }
+
+  if (mode === "delete") {
+    return (
+      <li className="flex items-center justify-between gap-2 text-sm">
+        <span className="text-slate-600">Delete this entry?</span>
+        <span className="flex items-center gap-2">
+          <form action={deleteBudgetEntry}>
+            <input type="hidden" name="id" value={entry.id} />
+            <button type="submit" className="text-xs text-red-600 underline">
+              Yes
+            </button>
+          </form>
+          <button
+            type="button"
+            onClick={() => setMode("view")}
+            className="text-xs text-slate-400 underline"
+          >
+            Cancel
+          </button>
+        </span>
+      </li>
+    );
+  }
+
+  return (
+    <li className="flex items-center justify-between gap-2 text-sm text-slate-600">
+      <span className="truncate">
+        {entry.entry_date}
+        {entry.note && ` - ${entry.note}`}
+      </span>
+      <span className="flex items-center gap-2">
+        <span>{formatCentavos(entry.amount)}</span>
+        <button
+          type="button"
+          onClick={() => setMode("edit")}
+          className="text-xs text-slate-400 hover:text-slate-700"
+          aria-label={`Edit entry ${entry.entry_date}`}
+        >
+          Edit
+        </button>
+        <button
+          type="button"
+          onClick={() => setMode("delete")}
+          className="text-xs text-slate-400 hover:text-red-600"
+          aria-label={`Delete entry ${entry.entry_date}`}
+        >
+          Delete
+        </button>
+      </span>
+    </li>
+  );
+}
 
 export function BudgetCard({
   budget,
@@ -35,7 +170,6 @@ export function BudgetCard({
   onEdit: () => void;
 }) {
   const [confirmingDelete, setConfirmingDelete] = useState(false);
-  const [confirmingEntryId, setConfirmingEntryId] = useState<string | null>(null);
   const today = todayInManila();
 
   const incomeNameById = new Map(incomes.map((income) => [income.id, income.name]));
@@ -141,43 +275,9 @@ export function BudgetCard({
       )}
 
       {currentCycleEntries.length > 0 && (
-        <ul className="mb-3 space-y-1 text-sm text-slate-600">
+        <ul className="mb-3 space-y-1">
           {currentCycleEntries.map((entry) => (
-            <li key={entry.id} className="flex items-center justify-between gap-2">
-              <span className="truncate">
-                {entry.entry_date}
-                {entry.note && ` - ${entry.note}`}
-              </span>
-              <span className="flex items-center gap-2">
-                <span>{formatCentavos(entry.amount)}</span>
-                {confirmingEntryId === entry.id ? (
-                  <>
-                    <form action={deleteBudgetEntry}>
-                      <input type="hidden" name="id" value={entry.id} />
-                      <button type="submit" className="text-xs text-red-600 underline">
-                        Yes
-                      </button>
-                    </form>
-                    <button
-                      type="button"
-                      onClick={() => setConfirmingEntryId(null)}
-                      className="text-xs text-slate-400 underline"
-                    >
-                      Cancel
-                    </button>
-                  </>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => setConfirmingEntryId(entry.id)}
-                    className="text-xs text-slate-400 hover:text-red-600"
-                    aria-label={`Delete entry ${entry.entry_date}`}
-                  >
-                    Delete
-                  </button>
-                )}
-              </span>
-            </li>
+            <BudgetEntryListItem key={entry.id} entry={entry} budgetId={budget.id} budgetName={budget.name} />
           ))}
         </ul>
       )}

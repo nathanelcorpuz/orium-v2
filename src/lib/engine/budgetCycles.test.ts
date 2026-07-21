@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { computeBudgetCycleStatus, expandBudgetCycleOccurrences } from "./budgetCycles";
+import { computeBudgetCycleStatus, expandBudgetCycleOccurrences, resolveBoundaries } from "./budgetCycles";
 import type { Budget, BudgetEntry, OccurrenceOverride, RecurringItem } from "./types";
 
 function budget(overrides: Partial<Budget>): Budget {
@@ -324,5 +324,39 @@ describe("expandBudgetCycleOccurrences", () => {
       { date: "2026-01-15", amount: -500000 },
       { date: "2026-02-01", amount: -500000 },
     ]);
+  });
+});
+
+describe("resolveBoundaries (T42 stale-budget-override check)", () => {
+  // deleteStaleBudgetOverrides (src/lib/staleOverrides.ts) asks "is this
+  // exact date still a real boundary under the new rule" via
+  // resolveBoundaries(..., through=that date).boundaries.includes(date) -
+  // confirming that exact usage, since every other test here exercises
+  // resolveBoundaries only indirectly through computeBudgetCycleStatus/
+  // expandBudgetCycleOccurrences with a realistic today/horizon.
+  it("includes a date that's still a valid boundary after a rule change", () => {
+    const b = budget({
+      startDate: "2026-01-05",
+      interval: 1,
+      unit: "week",
+      weekdays: [1], // Monday
+      endsType: "never",
+    });
+    const { boundaries } = resolveBoundaries(b, [], [], "2026-01-19"); // a Monday
+    expect(boundaries).toContain("2026-01-19");
+  });
+
+  it("omits a date that a rule change removed", () => {
+    // Was weekly on Monday; now weekly on Wednesday - the old Monday date
+    // is no longer a real boundary.
+    const b = budget({
+      startDate: "2026-01-05",
+      interval: 1,
+      unit: "week",
+      weekdays: [3], // Wednesday
+      endsType: "never",
+    });
+    const { boundaries } = resolveBoundaries(b, [], [], "2026-01-19"); // the old Monday
+    expect(boundaries).not.toContain("2026-01-19");
   });
 });

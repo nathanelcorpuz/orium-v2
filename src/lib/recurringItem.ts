@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { parseCentavos } from "@/lib/money";
 import type { RecurringItemType } from "@/lib/engine/types";
 import { readRecurrenceRuleForm } from "@/lib/recurrenceForm";
+import { deleteStaleOverrides } from "@/lib/staleOverrides";
 
 export type RecurringItemActionState = { error: string | null };
 
@@ -64,6 +65,7 @@ export async function createMonthlyGoal(
   if (error) return { error: error.message };
 
   revalidatePath(path);
+  revalidatePath("/forecast");
   revalidatePath("/");
   return { error: null };
 }
@@ -97,7 +99,21 @@ export async function updateMonthlyGoal(
     .eq("id", id);
   if (error) return { error: error.message };
 
+  await deleteStaleOverrides(supabase, id, {
+    startDate: fields.startDate,
+    interval: fields.interval,
+    unit: fields.unit,
+    weekdays: fields.weekdays,
+    daysOfMonth: fields.daysOfMonth,
+    ordinal: fields.ordinal,
+    ordinalWeekday: fields.ordinalWeekday,
+    endsType: fields.endsType,
+    endDate: fields.endDate,
+    occurrenceCount: fields.occurrenceCount,
+  });
+
   revalidatePath(path);
+  revalidatePath("/forecast");
   revalidatePath("/");
   return { error: null };
 }
@@ -107,5 +123,6 @@ export async function deleteMonthlyGoal(path: string, formData: FormData) {
   const supabase = await createClient();
   await supabase.from("recurring_items").delete().eq("id", id);
   revalidatePath(path);
+  revalidatePath("/forecast");
   revalidatePath("/");
 }

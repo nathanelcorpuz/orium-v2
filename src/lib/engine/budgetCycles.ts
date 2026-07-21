@@ -145,7 +145,12 @@ function clipToCreation(boundaries: string[], createdAt: string): string[] {
 // *configured*, not whether it happens to produce any boundaries by
 // `through` (e.g. an own schedule that hasn't started yet is still the
 // source - see the empty-boundaries handling in computeBudgetCycleStatus).
-function resolveBoundaries(
+// Exported for the T42 part-A stale-cleanup check on a budget's own rule
+// edits (see src/app/budgets/actions.ts) - it needs to ask "is this date
+// still a real boundary under the new rule?" the same way
+// computeBudgetCycleStatus/expandBudgetCycleOccurrences already do
+// internally.
+export function resolveBoundaries(
   budget: Budget,
   recurringItems: RecurringItem[],
   overrides: OccurrenceOverride[],

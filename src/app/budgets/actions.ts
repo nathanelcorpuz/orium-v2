@@ -5,7 +5,12 @@ import { createClient } from "@/lib/supabase/server";
 import { parseCentavos } from "@/lib/money";
 import { todayInManila } from "@/lib/date";
 import { readRecurrenceRuleForm } from "@/lib/recurrenceForm";
+import { toEngineBudget, toEngineIncomes, toEngineOverrides, type BudgetRow } from "@/lib/budgetView";
+import { deleteStaleBudgetOverrides } from "@/lib/staleOverrides";
 import type { RecurrenceEndsType, RecurrenceUnit } from "@/lib/engine/types";
+
+const BUDGET_COLUMNS =
+  "id, name, monthly_allocation, allocation, carryover_enabled, created_at, linked_income_id, start_date, interval, unit, weekdays, days_of_month, ordinal, ordinal_weekday, ends_type, end_date, occurrence_count";
 
 export type BudgetActionState = { error: string | null };
 
@@ -152,6 +157,29 @@ export async function updateBudget(
     .eq("id", id);
   if (error) return { error: error.message };
 
+  const { data: updatedRow } = await supabase.from("budgets").select(BUDGET_COLUMNS).eq("id", id).single();
+  if (updatedRow) {
+    const [incomesRes, incomeOverridesRes] = await Promise.all([
+      supabase
+        .from("recurring_items")
+        .select(
+          "id, name, type, amount, start_date, interval, unit, weekdays, days_of_month, ordinal, ordinal_weekday, ends_type, end_date, occurrence_count",
+        )
+        .eq("type", "income"),
+      supabase
+        .from("occurrence_overrides")
+        .select("id, recurring_item_id, original_date, new_date, new_amount, new_name, skipped"),
+    ]);
+
+    await deleteStaleBudgetOverrides(
+      supabase,
+      id,
+      toEngineBudget(updatedRow as BudgetRow),
+      toEngineIncomes(incomesRes.data ?? []),
+      toEngineOverrides(incomeOverridesRes.data ?? []),
+    );
+  }
+
   revalidatePath("/budgets");
   revalidatePath("/forecast");
   revalidatePath("/");
@@ -220,6 +248,56 @@ export async function logSpend(
     forecasted_balance: 0,
   });
   if (settlementError) return { error: settlementError.message };
+
+  revalidatePath("/budgets");
+  revalidatePath("/history");
+  revalidatePath("/forecast");
+  revalidatePath("/");
+  return { error: null };
+}
+
+// SPEC.md T42 part B: a logged spend can be moved to a different date
+// (e.g. paid a few days after the linked income landed) instead of only
+// create/delete. Same no-FK matching trick as deleteBudgetEntry - the OLD
+// entry's fields locate its settlement row before either one changes.
+export async function updateBudgetEntry(
+  _prevState: BudgetActionState,
+  formData: FormData,
+): Promise<BudgetActionState> {
+  const id = formData.get("id") as string;
+  const budgetId = formData.get("budgetId") as string;
+  const budgetName = formData.get("budgetName") as string;
+  const fields = readLogSpendForm(formData);
+  if (fields.error) return { error: fields.error };
+
+  const supabase = await createClient();
+
+  const { data: oldEntry } = await supabase
+    .from("budget_entries")
+    .select("entry_date, amount")
+    .eq("id", id)
+    .single();
+
+  const { error: entryError } = await supabase
+    .from("budget_entries")
+    .update({ entry_date: fields.entryDate, amount: fields.amount, note: fields.note })
+    .eq("id", id);
+  if (entryError) return { error: entryError.message };
+
+  if (oldEntry) {
+    await supabase
+      .from("settlements")
+      .update({
+        name: fields.note ? `${budgetName} - ${fields.note}` : budgetName,
+        actual_amount: -fields.amount,
+        actual_date: fields.entryDate,
+        forecasted_date: fields.entryDate,
+      })
+      .eq("source_type", "budget")
+      .eq("source_id", budgetId)
+      .eq("actual_date", oldEntry.entry_date)
+      .eq("actual_amount", -oldEntry.amount);
+  }
 
   revalidatePath("/budgets");
   revalidatePath("/history");
