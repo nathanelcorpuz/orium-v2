@@ -4,21 +4,37 @@ import { useState } from "react";
 import Link from "next/link";
 import { formatCentavos } from "@/lib/money";
 import { monthlyEquivalent } from "@/lib/engine/monthlyTotals";
+import { summarizeRecurrence } from "@/lib/recurrenceSummary";
 import { deleteIncome } from "./actions";
 import { IncomeModal, type IncomeRow } from "./IncomeModal";
 
-const FREQUENCY_TEXT: Record<IncomeRow["frequency"], (row: IncomeRow) => string> = {
-  monthly: (row) => `due on day ${row.day_of_month}`,
-  weekly: (row) => `weekly, starting ${row.start_date}`,
-  biweekly: (row) => `every 2 weeks, starting ${row.start_date}`,
-  semi_monthly_15_30: () => "on the 15th & last day of the month",
-};
+function incomeRule(income: IncomeRow) {
+  return {
+    startDate: income.start_date,
+    interval: income.interval,
+    unit: income.unit,
+    weekdays: income.weekdays,
+    daysOfMonth: income.days_of_month,
+    ordinal: income.ordinal,
+    ordinalWeekday: income.ordinal_weekday,
+    endsType: income.ends_type,
+    endDate: income.end_date,
+    occurrenceCount: income.occurrence_count,
+  };
+}
 
 export function IncomeClient({ incomes }: { incomes: IncomeRow[] }) {
   const [modalState, setModalState] = useState<null | "new" | IncomeRow>(null);
   const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null);
 
-  const totalMonthly = incomes.reduce((sum, income) => sum + monthlyEquivalent(income), 0);
+  // Goes through incomeRule (not the raw row) because IncomeRow's
+  // days_of_month is snake_case - monthlyEquivalent's optional daysOfMonth
+  // field would silently miss it otherwise (no compile error, just a
+  // wrong total, since the mismatch is on an optional property).
+  const totalMonthly = incomes.reduce(
+    (sum, income) => sum + monthlyEquivalent({ ...incomeRule(income), amount: income.amount }),
+    0,
+  );
 
   return (
     <main className="min-h-screen bg-slate-50 p-8">
@@ -54,10 +70,8 @@ export function IncomeClient({ incomes }: { incomes: IncomeRow[] }) {
               >
                 <div>
                   <p className="font-medium">{income.name}</p>
-                  <p className="text-sm text-green-700">
-                    {formatCentavos(income.amount)}, {FREQUENCY_TEXT[income.frequency](income)}
-                  </p>
-                  <p className="text-sm text-slate-400">Tracked until {income.end_date}</p>
+                  <p className="text-sm text-green-700">{formatCentavos(income.amount)}</p>
+                  <p className="text-sm text-slate-400">{summarizeRecurrence(incomeRule(income))}</p>
                   {income.comments && (
                     <p className="text-sm text-slate-400">{income.comments}</p>
                   )}

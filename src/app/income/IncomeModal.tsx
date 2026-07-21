@@ -3,28 +3,29 @@
 import { useActionState, useEffect, useRef, useState } from "react";
 import { Modal } from "@/components/Modal";
 import { centavosToPesosString } from "@/lib/money";
+import { todayInManila } from "@/lib/date";
+import { RecurrencePicker, type RecurrenceValue } from "@/components/recurring/RecurrencePicker";
+import type { RecurrenceEndsType, RecurrenceUnit } from "@/lib/engine/types";
 import { createIncome, updateIncome, type IncomeActionState } from "./actions";
-import type { RecurringFrequency } from "@/lib/engine/types";
 
 export type IncomeRow = {
   id: string;
   name: string;
   amount: number;
-  frequency: RecurringFrequency;
-  day_of_month: number | null;
   start_date: string;
-  end_date: string;
+  interval: number;
+  unit: RecurrenceUnit;
+  weekdays: number[] | null;
+  days_of_month: number[] | null;
+  ordinal: number | null;
+  ordinal_weekday: number | null;
+  ends_type: RecurrenceEndsType;
+  end_date: string | null;
+  occurrence_count: number | null;
   comments: string | null;
 };
 
 const initialState: IncomeActionState = { error: null };
-
-const FREQUENCY_LABELS: Record<RecurringFrequency, string> = {
-  monthly: "Monthly",
-  weekly: "Weekly",
-  biweekly: "Biweekly",
-  semi_monthly_15_30: "Twice a month (15th & 30th)",
-};
 
 export function IncomeModal({ income, onClose }: { income: IncomeRow | null; onClose: () => void }) {
   const isEdit = income !== null;
@@ -32,8 +33,22 @@ export function IncomeModal({ income, onClose }: { income: IncomeRow | null; onC
     isEdit ? updateIncome : createIncome,
     initialState,
   );
-  const [frequency, setFrequency] = useState<RecurringFrequency>(income?.frequency ?? "monthly");
+  const [startDate, setStartDate] = useState(income?.start_date ?? todayInManila());
   const submitted = useRef(false);
+
+  const initialRecurrenceValue: RecurrenceValue | null = income
+    ? {
+        interval: income.interval,
+        unit: income.unit,
+        weekdays: income.weekdays,
+        daysOfMonth: income.days_of_month,
+        ordinal: income.ordinal,
+        ordinalWeekday: income.ordinal_weekday,
+        endsType: income.ends_type,
+        endDate: income.end_date,
+        occurrenceCount: income.occurrence_count,
+      }
+    : null;
 
   useEffect(() => {
     if (submitted.current && !pending && !state.error) {
@@ -80,72 +95,20 @@ export function IncomeModal({ income, onClose }: { income: IncomeRow | null; onC
           />
         </div>
         <div>
-          <label className="block text-sm text-slate-600" htmlFor="frequency">
-            Frequency
-          </label>
-          <select
-            id="frequency"
-            name="frequency"
-            required
-            value={frequency}
-            onChange={(event) => setFrequency(event.target.value as RecurringFrequency)}
-            className="mt-1 w-full rounded border border-slate-300 p-2"
-          >
-            {Object.entries(FREQUENCY_LABELS).map(([value, label]) => (
-              <option key={value} value={value}>
-                {label}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        {frequency === "monthly" && (
-          <div>
-            <label className="block text-sm text-slate-600" htmlFor="dayOfMonth">
-              Day of month
-            </label>
-            <input
-              id="dayOfMonth"
-              name="dayOfMonth"
-              type="number"
-              min="1"
-              max="31"
-              required
-              defaultValue={income?.day_of_month ?? undefined}
-              className="mt-1 w-full rounded border border-slate-300 p-2"
-            />
-          </div>
-        )}
-
-        {(frequency === "weekly" || frequency === "biweekly") && (
-          <div>
-            <label className="block text-sm text-slate-600" htmlFor="startDate">
-              First payday ({frequency === "weekly" ? "weekly" : "every 2 weeks"} from this date)
-            </label>
-            <input
-              id="startDate"
-              name="startDate"
-              type="date"
-              required
-              defaultValue={income?.start_date}
-              className="mt-1 w-full rounded border border-slate-300 p-2"
-            />
-          </div>
-        )}
-
-        <div>
-          <label className="block text-sm text-slate-600" htmlFor="endDate">
-            Track until
+          <label className="block text-sm text-slate-600" htmlFor="startDate">
+            Start date
           </label>
           <input
-            id="endDate"
-            name="endDate"
+            id="startDate"
+            name="startDate"
             type="date"
             required
-            defaultValue={income?.end_date}
+            value={startDate}
+            onChange={(e) => setStartDate(e.target.value)}
             className="mt-1 w-full rounded border border-slate-300 p-2"
           />
         </div>
+        <RecurrencePicker startDate={startDate} initialValue={initialRecurrenceValue} />
         <div>
           <label className="block text-sm text-slate-600" htmlFor="comments">
             Comments

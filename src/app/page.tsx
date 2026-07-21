@@ -5,10 +5,9 @@ import { loadForecast } from "@/lib/forecastData";
 import { formatCentavos } from "@/lib/money";
 import { displayName } from "@/lib/displayName";
 import { monthlyEquivalent } from "@/lib/engine/monthlyTotals";
-import { remainingMonthlyTotal } from "@/lib/engine/remaining";
+import { remainingTotal, ruleEndDate } from "@/lib/engine/remaining";
 import { computeMonthlyPeaksAndDrops } from "@/lib/engine/peaksAndDrops";
 import { daysBetween } from "@/lib/engine/date-utils";
-import type { RecurringItem } from "@/lib/engine/types";
 
 function DashboardCard({
   title,
@@ -48,22 +47,22 @@ export default async function Home() {
     .filter((item) => item.type === "income")
     .reduce((sum, item) => sum + monthlyEquivalent(item), 0);
 
-  // remainingMonthlyTotal/the debt-free date only mean something for items
-  // with a fixed end_date; a "never"/"after_count" debt item (Phase 6A) has
-  // no such date. All current debt items have one (see the endDate comment
-  // in types.ts), but the filter makes that an explicit, type-checked fact
-  // rather than an assumption.
-  const debtItems = recurringItems.filter(
-    (item): item is RecurringItem & { endDate: string } => item.type === "debt" && item.endDate !== null,
-  );
+  const debtItems = recurringItems.filter((item) => item.type === "debt");
+  // "never"-ending debt items have no finite remaining total or end date
+  // (SPEC.md); remainingTotal/ruleEndDate return null for them, and they're
+  // excluded here the same way MonthlyGoalsClient excludes them from its
+  // own totals (a household with an intentionally-indefinite "debt" isn't
+  // ever fully debt-free, but that one item shouldn't block the stat for
+  // every other debt that does have a real end).
   const remainingDebt = debtItems.reduce(
-    (sum, item) => sum + remainingMonthlyTotal(item, today),
+    (sum, item) => sum + (remainingTotal(item, today) ?? 0),
     0,
   );
+  const debtEndDates = debtItems
+    .map((item) => ruleEndDate(item))
+    .filter((date): date is string => date !== null);
   const debtFreeDate =
-    debtItems.length > 0
-      ? debtItems.reduce((latest, item) => (item.endDate > latest ? item.endDate : latest), debtItems[0].endDate)
-      : null;
+    debtEndDates.length > 0 ? debtEndDates.reduce((latest, date) => (date > latest ? date : latest)) : null;
   const daysUntilDebtFree = debtFreeDate ? daysBetween(today, debtFreeDate) : null;
 
   const peaksAndDrops = computeMonthlyPeaksAndDrops(forecast, totalBalance, today, horizon);

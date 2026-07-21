@@ -5,9 +5,11 @@ export default async function BillsPage() {
   const supabase = await createClient();
   const { data: bills, error } = await supabase
     .from("recurring_items")
-    .select("id, name, amount, day_of_month, end_date, comments")
+    .select(
+      "id, name, amount, start_date, interval, unit, weekdays, days_of_month, ordinal, ordinal_weekday, ends_type, end_date, occurrence_count, comments",
+    )
     .eq("type", "bill")
-    .order("day_of_month", { ascending: true });
+    .order("start_date", { ascending: true });
 
   if (error) {
     return <p className="p-8 text-red-600">Could not load bills: {error.message}</p>;

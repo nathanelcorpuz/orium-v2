@@ -6,7 +6,9 @@ export default async function SavingsPage() {
   const supabase = await createClient();
   const { data: items, error } = await supabase
     .from("recurring_items")
-    .select("id, name, amount, day_of_month, start_date, end_date, comments")
+    .select(
+      "id, name, amount, start_date, interval, unit, weekdays, days_of_month, ordinal, ordinal_weekday, ends_type, end_date, occurrence_count, comments",
+    )
     .eq("type", "savings")
     .order("end_date", { ascending: true });
 
@@ -19,7 +21,7 @@ export default async function SavingsPage() {
       items={items ?? []}
       pageTitle="Savings"
       noun="savings goal"
-      amountLabel="Amount (₱ / month)"
+      amountLabel="Amount (₱)"
       amountColorClass="text-blue-700"
       createAction={createSavings}
       updateAction={updateSavings}

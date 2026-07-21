@@ -5,7 +5,9 @@ export default async function IncomePage() {
   const supabase = await createClient();
   const { data: incomes, error } = await supabase
     .from("recurring_items")
-    .select("id, name, amount, frequency, day_of_month, start_date, end_date, comments")
+    .select(
+      "id, name, amount, start_date, interval, unit, weekdays, days_of_month, ordinal, ordinal_weekday, ends_type, end_date, occurrence_count, comments",
+    )
     .eq("type", "income")
     .order("name", { ascending: true });
 

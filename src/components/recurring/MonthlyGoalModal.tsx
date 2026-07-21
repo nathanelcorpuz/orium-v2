@@ -1,9 +1,11 @@
 "use client";
 
-import { useActionState, useEffect, useRef } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 import { Modal } from "@/components/Modal";
 import { centavosToPesosString } from "@/lib/money";
+import { todayInManila } from "@/lib/date";
 import type { RecurringItemActionState } from "@/lib/recurringItem";
+import { RecurrencePicker, type RecurrenceValue } from "./RecurrencePicker";
 import type { MonthlyGoalRow } from "./MonthlyGoalRow";
 
 const initialState: RecurringItemActionState = { error: null };
@@ -33,7 +35,22 @@ export function MonthlyGoalModal({
     isEdit ? updateAction : createAction,
     initialState,
   );
+  const [startDate, setStartDate] = useState(item?.start_date ?? todayInManila());
   const submitted = useRef(false);
+
+  const initialRecurrenceValue: RecurrenceValue | null = item
+    ? {
+        interval: item.interval,
+        unit: item.unit,
+        weekdays: item.weekdays,
+        daysOfMonth: item.days_of_month,
+        ordinal: item.ordinal,
+        ordinalWeekday: item.ordinal_weekday,
+        endsType: item.ends_type,
+        endDate: item.end_date,
+        occurrenceCount: item.occurrence_count,
+      }
+    : null;
 
   useEffect(() => {
     if (submitted.current && !pending && !state.error) {
@@ -80,21 +97,6 @@ export function MonthlyGoalModal({
           />
         </div>
         <div>
-          <label className="block text-sm text-slate-600" htmlFor="dayOfMonth">
-            Day of month
-          </label>
-          <input
-            id="dayOfMonth"
-            name="dayOfMonth"
-            type="number"
-            min="1"
-            max="31"
-            required
-            defaultValue={item?.day_of_month ?? undefined}
-            className="mt-1 w-full rounded border border-slate-300 p-2"
-          />
-        </div>
-        <div>
           <label className="block text-sm text-slate-600" htmlFor="startDate">
             Start date
           </label>
@@ -103,23 +105,12 @@ export function MonthlyGoalModal({
             name="startDate"
             type="date"
             required
-            defaultValue={item?.start_date}
+            value={startDate}
+            onChange={(e) => setStartDate(e.target.value)}
             className="mt-1 w-full rounded border border-slate-300 p-2"
           />
         </div>
-        <div>
-          <label className="block text-sm text-slate-600" htmlFor="endDate">
-            End date
-          </label>
-          <input
-            id="endDate"
-            name="endDate"
-            type="date"
-            required
-            defaultValue={item?.end_date}
-            className="mt-1 w-full rounded border border-slate-300 p-2"
-          />
-        </div>
+        <RecurrencePicker startDate={startDate} initialValue={initialRecurrenceValue} />
         <div>
           <label className="block text-sm text-slate-600" htmlFor="comments">
             Comments

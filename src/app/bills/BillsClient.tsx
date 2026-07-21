@@ -3,14 +3,40 @@
 import { useState } from "react";
 import Link from "next/link";
 import { formatCentavos } from "@/lib/money";
+import { monthlyEquivalent } from "@/lib/engine/monthlyTotals";
+import { summarizeRecurrence } from "@/lib/recurrenceSummary";
 import { deleteBill } from "./actions";
 import { BillModal, type BillRow } from "./BillModal";
+
+function billRule(bill: BillRow) {
+  return {
+    startDate: bill.start_date,
+    interval: bill.interval,
+    unit: bill.unit,
+    weekdays: bill.weekdays,
+    daysOfMonth: bill.days_of_month,
+    ordinal: bill.ordinal,
+    ordinalWeekday: bill.ordinal_weekday,
+    endsType: bill.ends_type,
+    endDate: bill.end_date,
+    occurrenceCount: bill.occurrence_count,
+  };
+}
 
 export function BillsClient({ bills }: { bills: BillRow[] }) {
   const [modalState, setModalState] = useState<null | "new" | BillRow>(null);
   const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null);
 
-  const totalMonthly = bills.reduce((sum, bill) => sum + Math.abs(bill.amount), 0);
+  // Bills could previously only be monthly, so summing raw amounts was
+  // exact; now that any recurrence unit is possible, the total needs the
+  // same monthly-equivalent estimate the Dashboard/Income pages use. Goes
+  // through billRule (not the raw row) because BillRow's days_of_month is
+  // snake_case - monthlyEquivalent's optional daysOfMonth field would
+  // silently miss it otherwise (no compile error, just a wrong total).
+  const totalMonthly = bills.reduce(
+    (sum, bill) => sum + Math.abs(monthlyEquivalent({ ...billRule(bill), amount: bill.amount })),
+    0,
+  );
 
   return (
     <main className="min-h-screen bg-slate-50 p-8">
@@ -44,10 +70,8 @@ export function BillsClient({ bills }: { bills: BillRow[] }) {
               >
                 <div>
                   <p className="font-medium">{bill.name}</p>
-                  <p className="text-sm text-slate-600">
-                    {formatCentavos(Math.abs(bill.amount))} / month, due on day {bill.day_of_month}
-                  </p>
-                  <p className="text-sm text-slate-400">Tracked until {bill.end_date}</p>
+                  <p className="text-sm text-slate-600">{formatCentavos(Math.abs(bill.amount))}</p>
+                  <p className="text-sm text-slate-400">{summarizeRecurrence(billRule(bill))}</p>
                   {bill.comments && <p className="text-sm text-slate-400">{bill.comments}</p>}
                 </div>
                 <div className="flex items-center gap-2">
