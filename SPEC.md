@@ -143,7 +143,7 @@ Notion palette (`#37352F` text, `#E9E9E7` hairlines, `#2383E2` accent, soft pill
 - ~~T26–T27~~ **cancelled** — superseded by Phase 6B; never build them.
 
 ### Phase 6A — Flexible recurrence (in progress)
-- [ ] **T32.** Migration 0004: recurrence columns + enums + constraints + backfill; legacy-column drop split out into migration 0005. *Status: files written and reviewed; 0004 awaiting the user to run in the SQL editor.*
+- [x] **T32.** Migration 0004: recurrence columns + enums + constraints + backfill; legacy-column drop split out into migration 0005 (runs only after T35). *Applied and seeded 2026-07-21.*
 - [ ] **T33.** Engine: day/week/month(days)/year expansion + ends rules; port existing tests; add 6A cases (list above).
 - [ ] **T34.** Engine: nth-weekday resolution (incl. last-X) + generalized `monthlyEquivalent`; tests.
 - [ ] **T35.** Recurrence picker wired into all four CRUD forms; human-readable rule summary per row. *After deploy: user runs migration 0005 (drops legacy columns).*
