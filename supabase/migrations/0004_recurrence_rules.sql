@@ -10,9 +10,13 @@
 --      Pro-plan only — the free tier has no managed backup feature. Instead,
 --      run a manual pg_dump via the Supabase CLI (works on any plan):
 --        npx supabase db dump --db-url "<connection string>" -f orium-backup-YYYY-MM-DD.sql
---      Get the connection string from Supabase dashboard > Project Settings >
---      Database > Connection string > URI, "Direct connection" (not the
---      pooler — pg_dump needs a direct connection). Keep the .sql file
+--      Get the connection string from the project dashboard (not Settings):
+--      click the "Connect" button near the top of the page, choose "Direct
+--      connection" (not a pooler — pg_dump needs a direct connection), and
+--      copy the URI. It looks like
+--      postgresql://postgres:[YOUR-PASSWORD]@db.<project-ref>.supabase.co:5432/postgres
+--      — swap in the database password (set at project creation; resettable
+--      from Project Settings > Database if forgotten). Keep the .sql file
 --      somewhere safe; it's a full logical backup you can replay with psql
 --      if something goes wrong. See CLAUDE.md "Hard rules" for this project's
 --      standing backup convention.
