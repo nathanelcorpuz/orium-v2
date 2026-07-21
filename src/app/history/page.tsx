@@ -8,6 +8,7 @@ const TYPE_COLOR: Record<string, string> = {
   savings: "text-blue-700",
   extra: "text-purple-700",
   bill: "text-slate-900",
+  budget: "text-teal-700",
 };
 
 export default async function HistoryPage() {
@@ -56,19 +57,37 @@ export default async function HistoryPage() {
                 </tr>
               </thead>
               <tbody>
-                {rows.map((row) => (
-                  <tr key={row.id} className="border-b border-slate-100 last:border-0">
-                    <td className="p-3">{row.name}</td>
-                    <td className={`p-3 ${TYPE_COLOR[row.type] ?? ""}`}>{row.type}</td>
-                    <td className="p-3 text-right">{formatCentavos(row.forecasted_amount, currency)}</td>
-                    <td className="p-3 text-right">{formatCentavos(row.actual_amount, currency)}</td>
-                    <td className="p-3">{row.forecasted_date}</td>
-                    <td className="p-3">{row.actual_date}</td>
-                    <td className="p-3 text-right font-medium">
-                      {formatCentavos(row.forecasted_balance, currency)}
-                    </td>
-                  </tr>
-                ))}
+                {rows.map((row) => {
+                  // Budget settlements have no real forecast to compare
+                  // against - forecasted_amount/forecasted_balance are 0 and
+                  // forecasted_date mirrors actual_date (SPEC.md "Logging a
+                  // spend"), so showing them as real numbers would be
+                  // misleading rather than just absent.
+                  const isBudget = row.type === "budget";
+                  return (
+                    <tr key={row.id} className="border-b border-slate-100 last:border-0">
+                      <td className="p-3">{row.name}</td>
+                      <td className="p-3">
+                        {isBudget ? (
+                          <span className="rounded-full bg-teal-50 px-2 py-0.5 text-xs font-medium text-teal-700">
+                            budget
+                          </span>
+                        ) : (
+                          <span className={TYPE_COLOR[row.type] ?? ""}>{row.type}</span>
+                        )}
+                      </td>
+                      <td className="p-3 text-right">
+                        {isBudget ? "—" : formatCentavos(row.forecasted_amount, currency)}
+                      </td>
+                      <td className="p-3 text-right">{formatCentavos(row.actual_amount, currency)}</td>
+                      <td className="p-3">{isBudget ? "—" : row.forecasted_date}</td>
+                      <td className="p-3">{row.actual_date}</td>
+                      <td className="p-3 text-right font-medium">
+                        {isBudget ? "—" : formatCentavos(row.forecasted_balance, currency)}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

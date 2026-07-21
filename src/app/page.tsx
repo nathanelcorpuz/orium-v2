@@ -7,6 +7,7 @@ import { displayName } from "@/lib/displayName";
 import { monthlyEquivalent } from "@/lib/engine/monthlyTotals";
 import { remainingTotal, ruleEndDate } from "@/lib/engine/remaining";
 import { computeMonthlyPeaksAndDrops } from "@/lib/engine/peaksAndDrops";
+import { computeBudgetCycleStatus } from "@/lib/engine/budgetCycles";
 import { daysBetween } from "@/lib/engine/date-utils";
 
 function DashboardCard({
@@ -32,7 +33,8 @@ export default async function Home() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const { forecast, balances, recurringItems, currency, today, horizon } = await loadForecast();
+  const { forecast, balances, recurringItems, overrides, budgets, budgetEntries, currency, today, horizon } =
+    await loadForecast();
 
   const profileName = (user?.user_metadata?.name as string | undefined) ?? "";
   const greetingName = displayName(profileName, user?.email);
@@ -157,6 +159,42 @@ export default async function Home() {
             </p>
           ) : (
             <p className="mt-1 text-sm text-slate-400">No debt tracked.</p>
+          )}
+        </div>
+
+        <div className="mb-6 rounded-xl bg-white p-4 shadow">
+          <h2 className="mb-2 text-sm font-semibold text-slate-700">Budgets this cycle</h2>
+          {budgets.length === 0 ? (
+            <p className="text-sm text-slate-400">No budgets yet.</p>
+          ) : (
+            <ul className="space-y-2">
+              {budgets.map((budget) => {
+                const entries = budgetEntries.filter((entry) => entry.budgetId === budget.id);
+                const status = computeBudgetCycleStatus(budget, entries, recurringItems, overrides, today);
+                const available = status.allocation + status.carriedIn;
+                const progressPercent =
+                  available > 0 ? Math.min((status.spent / available) * 100, 100) : status.spent > 0 ? 100 : 0;
+
+                return (
+                  <li key={budget.id}>
+                    <div className="mb-1 flex items-center justify-between gap-2 text-sm">
+                      <span className="truncate">{budget.name}</span>
+                      <span className={status.over > 0 ? "font-medium text-red-600" : "text-slate-500"}>
+                        {status.over > 0
+                          ? `Over by ${formatCentavos(status.over, currency)}`
+                          : `${formatCentavos(status.remaining, currency)} left`}
+                      </span>
+                    </div>
+                    <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
+                      <div
+                        className={`h-full ${status.over > 0 ? "bg-red-500" : "bg-teal-600"}`}
+                        style={{ width: `${progressPercent}%` }}
+                      />
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
           )}
         </div>
 
