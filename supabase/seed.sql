@@ -4,9 +4,9 @@
 -- spends, settlement history, and reminders.
 --
 -- HOW TO RUN:
---   1. Run migrations 0001-0003 and 0004 PART 1 first (the seed fills the
---      new recurrence columns too, and fails fast with a clear message if
---      0004 Part 1 hasn't been applied).
+--   1. Run migrations 0001-0004 first (the seed fills the new recurrence
+--      columns too, and fails fast with a clear message if 0004 hasn't
+--      been applied). Do NOT run 0005 yet — see its header.
 --   2. Make sure you've logged into the app at least once with the account
 --      email set below (the row lookup needs the auth user to exist).
 --   3. Paste this whole file into the Supabase SQL editor and run it.
@@ -35,7 +35,7 @@ begin
     select 1 from information_schema.columns
     where table_schema = 'public' and table_name = 'recurring_items' and column_name = 'unit'
   ) then
-    raise exception 'Run migration 0004_recurrence_rules.sql PART 1 before seeding';
+    raise exception 'Run migration 0004_recurrence_rules.sql before seeding';
   end if;
 
   -- ── Balances ─────────────────────────────────────────────── ₱56,700 total

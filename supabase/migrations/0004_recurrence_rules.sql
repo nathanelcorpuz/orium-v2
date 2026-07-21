@@ -1,8 +1,14 @@
--- T32 (SPEC.md Phase 6A): flexible recurrence rules on recurring_items.
--- Replaces the fixed 4-frequency system (monthly/weekly/biweekly/
--- semi_monthly_15_30) with Google-Calendar-style rules: interval + unit
--- (day/week/month/year), weekdays / days_of_month / nth-weekday, and an
--- ends_type (never/on_date/after_count). See SPEC.md "Phase 6A".
+-- T32 (SPEC.md Phase 6A), step 1 of 2: flexible recurrence rules on
+-- recurring_items. Replaces the fixed 4-frequency system (monthly/weekly/
+-- biweekly/semi_monthly_15_30) with Google-Calendar-style rules: interval +
+-- unit (day/week/month/year), weekdays / days_of_month / nth-weekday, and
+-- an ends_type (never/on_date/after_count). See SPEC.md "Phase 6A".
+--
+-- This file only ADDS columns and backfills them — non-destructive and safe
+-- to re-run. The old columns stay, and the new columns stay nullable, so
+-- the live app keeps working for reads AND inserts throughout the T33-T35
+-- rollout. Step 2 of 2 (0005_recurrence_drop_legacy_after_t35.sql) drops
+-- the legacy columns — run that one ONLY after T35 is deployed.
 --
 -- HOW TO RUN (manual, per CLAUDE.md — never run destructive DB commands
 -- automatically):
@@ -14,31 +20,14 @@
 --      string: project dashboard (not Settings) > "Connect" button near the
 --      top > "Direct connection" (not a pooler) > copy the URI, swap in the
 --      database password (resettable under Project Settings > Database).
---   2. Run PART 1 in the Supabase SQL editor. It only adds columns and
---      backfills them; the old columns stay, and the new columns stay
---      nullable until Part 2, so the live app keeps working for reads AND
---      inserts throughout the T33-T35 rollout. Part 1 is safe to re-run,
---      including on a database where an earlier revision of this file
---      (which wrongly set the new columns NOT NULL) was applied.
---   3. Verify the backfill (queries at the end of Part 1).
---   4. Do NOT run PART 2 until T33-T35 have shipped and the deployed app
---      reads and writes only the new columns. Part 2 re-backfills any rows
---      created during the transition, enforces NOT NULL, then drops the old
---      columns. Running it early breaks the live app.
+--   2. Paste this whole file into the Supabase SQL editor and run it.
+--   3. Verify the backfill (queries at the end; each should return zero
+--      rows).
 --
--- ROLLBACK NOTES:
---   - Part 1 is additive and reversible: drop the eight new columns,
---     restore `not null` on frequency and end_date, drop types
---     recurrence_unit and recurrence_ends_type — safe as long as nothing
---     has started writing the new columns.
---   - Part 2 is NOT reversible in place: it drops frequency/day_of_month/
---     weekday outright. If Part 2 must be undone, restore from a pg_dump
---     backup taken immediately before running it.
-
--- =========================================================================
--- PART 1 — RUN NOW: add columns, backfill, constrain. Non-destructive,
--- re-runnable.
--- =========================================================================
+-- ROLLBACK: additive and reversible — drop the eight new columns, restore
+-- `not null` on frequency and end_date, drop types recurrence_unit and
+-- recurrence_ends_type. Safe as long as nothing has started writing the
+-- new columns.
 
 do $$ begin
   create type recurrence_unit as enum ('day', 'week', 'month', 'year');
@@ -66,8 +55,8 @@ alter table public.recurring_items
 -- nullable):
 --   - end_date must accept null for ends_type = never / after_count.
 --   - frequency must accept null once T35 ships and new rows stop setting
---     it (it's dropped entirely in Part 2).
---   - interval/unit/ends_type stay nullable until Part 2 because the
+--     it (it's dropped entirely in migration 0005).
+--   - interval/unit/ends_type stay nullable until migration 0005 because the
 --     currently deployed forms don't write them yet; making them NOT NULL
 --     now would break every insert. Also repairs databases where the
 --     earlier revision of this file set them NOT NULL.
@@ -219,50 +208,3 @@ end $$;
 --   select id from public.recurring_items where frequency = 'monthly' and day_of_month is not null and days_of_month <> array[day_of_month];
 --   select id from public.recurring_items where frequency in ('weekly','biweekly') and weekdays <> array[extract(dow from start_date)::int];
 --   select id from public.recurring_items where frequency = 'semi_monthly_15_30' and days_of_month <> array[15,30];
-
--- =========================================================================
--- PART 2 — RUN LATER (only after T33-T35 are deployed and the app reads and
--- writes the new columns exclusively). Destructive: take a fresh pg_dump
--- backup immediately before running this part if there is real data.
--- Uncomment the block below to run it.
--- =========================================================================
-
--- -- Re-backfill rows created while the pre-T35 app was still writing only
--- -- the old columns (their new columns are null). Rows written by the
--- -- post-T35 app have unit set and are untouched. Same mapping as Part 1:
--- -- weekly/biweekly weekday comes from start_date, not the unused legacy
--- -- weekday column.
--- update public.recurring_items
---   set "interval" = 1, unit = 'month',
---       days_of_month = array[coalesce(day_of_month, extract(day from start_date)::int)],
---       ends_type = 'on_date'
---   where frequency = 'monthly' and unit is null;
--- update public.recurring_items
---   set "interval" = 1, unit = 'week',
---       weekdays = array[extract(dow from start_date)::int],
---       ends_type = 'on_date'
---   where frequency = 'weekly' and unit is null;
--- update public.recurring_items
---   set "interval" = 2, unit = 'week',
---       weekdays = array[extract(dow from start_date)::int],
---       ends_type = 'on_date'
---   where frequency = 'biweekly' and unit is null;
--- update public.recurring_items
---   set "interval" = 1, unit = 'month', days_of_month = array[15, 30],
---       ends_type = 'on_date'
---   where frequency = 'semi_monthly_15_30' and unit is null;
---
--- -- Every row must now have a complete rule. This fails loudly if any row
--- -- somehow has neither old nor new columns set — investigate before
--- -- proceeding rather than forcing it.
--- alter table public.recurring_items
---   alter column "interval" set not null,
---   alter column unit set not null,
---   alter column ends_type set not null;
---
--- alter table public.recurring_items
---   drop column frequency,
---   drop column day_of_month,
---   drop column weekday;
---
--- drop type if exists recurring_frequency;

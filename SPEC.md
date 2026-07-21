@@ -47,7 +47,7 @@ Identity: `id, user_id, name, type (bill|income|debt|savings), amount, comments`
 | `end_date` | date nullable | set iff ends_type=on_date |
 | `occurrence_count` | int nullable | set iff ends_type=after_count |
 
-**Legacy columns during the 6A rollout:** `frequency (monthly|weekly|biweekly|semi_monthly_15_30), day_of_month, weekday` — still read/written by the deployed app until T35 ships, then dropped by migration 0004 **Part 2**. Backfill mapping (already encoded in the migration): monthly → (1, month, days=[day_of_month, falling back to start_date's day]) · weekly → (1, week) and biweekly → (2, week), both with weekdays=[dow(start_date)] — **not** the legacy `weekday` column, which the v1 engine never read and which may be null or disagree with the real schedule · semi_monthly_15_30 → (1, month, days=[15,30]); existing rows get `ends_type='on_date'` + their current end_date.
+**Legacy columns during the 6A rollout:** `frequency (monthly|weekly|biweekly|semi_monthly_15_30), day_of_month, weekday` — still read/written by the deployed app until T35 ships, then dropped by migration **0005**. Backfill mapping (already encoded in the migration): monthly → (1, month, days=[day_of_month, falling back to start_date's day]) · weekly → (1, week) and biweekly → (2, week), both with weekdays=[dow(start_date)] — **not** the legacy `weekday` column, which the v1 engine never read and which may be null or disagree with the real schedule · semi_monthly_15_30 → (1, month, days=[15,30]); existing rows get `ends_type='on_date'` + their current end_date.
 
 ### `occurrence_overrides`
 Per-instance edits to a recurring rule (calendar-exception style). `id, user_id, recurring_item_id (fk), original_date, new_date, new_amount, new_name, skipped (bool)`. Unique on (`recurring_item_id`, `original_date`).
@@ -130,8 +130,8 @@ Notion palette (`#37352F` text, `#E9E9E7` hairlines, `#2383E2` accent, soft pill
 ## Operations
 
 - **Migrations are applied manually by the user** in the Supabase SQL editor; SQL lives in `supabase/migrations/`. Back up first via `pg_dump` only when real data is at stake (see CLAUDE.md "Hard rules" — free tier has no dashboard Backups).
-- **Migration 0004 is two-part**: Part 1 (add recurrence columns + backfill, non-destructive, run now) and Part 2 (enforce NOT NULL + drop legacy columns, run only after T35 is deployed).
-- **Sample data**: `supabase/seed.sql` fills every feature with a realistic family dataset (run after 0004 Part 1; re-runnable; all seed rows share the id prefix `00000000-0000-4000-a000-` for easy wiping).
+- **The recurrence migration is split across two files** so each is paste-and-run whole: `0004_recurrence_rules.sql` (add columns + backfill, non-destructive, run now) and `0005_recurrence_drop_legacy_after_t35.sql` (enforce NOT NULL + drop legacy columns — run only after T35 is deployed, as its filename warns).
+- **Sample data**: `supabase/seed.sql` fills every feature with a realistic family dataset (run after 0004; re-runnable; all seed rows share the id prefix `00000000-0000-4000-a000-` for easy wiping).
 
 ## Roadmap
 
@@ -143,10 +143,10 @@ Notion palette (`#37352F` text, `#E9E9E7` hairlines, `#2383E2` accent, soft pill
 - ~~T26–T27~~ **cancelled** — superseded by Phase 6B; never build them.
 
 ### Phase 6A — Flexible recurrence (in progress)
-- [ ] **T32.** Migration 0004: recurrence columns + enums + constraints + backfill; legacy-column drop deferred to Part 2. *Status: file written and reviewed; Part 1 awaiting the user to run in the SQL editor.*
+- [ ] **T32.** Migration 0004: recurrence columns + enums + constraints + backfill; legacy-column drop split out into migration 0005. *Status: files written and reviewed; 0004 awaiting the user to run in the SQL editor.*
 - [ ] **T33.** Engine: day/week/month(days)/year expansion + ends rules; port existing tests; add 6A cases (list above).
 - [ ] **T34.** Engine: nth-weekday resolution (incl. last-X) + generalized `monthlyEquivalent`; tests.
-- [ ] **T35.** Recurrence picker wired into all four CRUD forms; human-readable rule summary per row. *After deploy: user runs migration 0004 Part 2.*
+- [ ] **T35.** Recurrence picker wired into all four CRUD forms; human-readable rule summary per row. *After deploy: user runs migration 0005 (drops legacy columns).*
 
 ### Phase 6B — Budgets v2 (after 6A)
 - [ ] **T36.** ALTER migration on budgets (rename/allocation, carryover, linked income, recurrence columns). Existing rows keep working via fallback until edited.
