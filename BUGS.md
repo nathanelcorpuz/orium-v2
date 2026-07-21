@@ -4,7 +4,10 @@ Format per bug: steps to reproduce → what happened → what was expected. Clau
 
 ## Open
 
-(none currently)
+### Bug #3 — Future-dated spend is listed but not counted in cycle totals
+- **Reproduce**: on the Budgets page, log a spend dated later than today but still inside the current cycle (e.g. today 2026-07-22, entry dated 2026-07-23 on the monthly-on-the-1st "food" budget). Observed with the seeded test account on 2026-07-21.
+- **What happened**: the entry shows in the budget's current-cycle entries list, but is excluded from "₱X of ₱Y spent this cycle", the progress bar, "remaining", the Dashboard "Budgets this cycle" card, and the Forecast current-cycle row — the list and every total disagree.
+- **Expected**: the user confirmed (2026-07-21) that future-dated spends are a real use case for them, so the entries list and the totals must agree. Most likely rule: an entry dated inside the current cycle counts toward that cycle's totals regardless of being after today — confirm the exact rule with the user before fixing (it interacts with how the Forecast's current-cycle "remaining" row is computed).
 
 ## Fixed
 

@@ -7,6 +7,7 @@ const PUBLIC_PATHS = [
   "/forgot-password",
   "/reset-password",
   "/auth/callback",
+  "/api/dev-login", // the route itself 404s outside development
   "/health",
   "/privacy",
   "/terms",

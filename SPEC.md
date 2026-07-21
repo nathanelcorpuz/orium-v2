@@ -135,6 +135,7 @@ Notion palette (`#37352F` text, `#E9E9E7` hairlines, `#2383E2` accent, soft pill
 - **Migrations are written as files** in `supabase/migrations/` and applied by Claude directly via the connected Supabase MCP integration (falls back to the user pasting into the SQL editor if that connection isn't available in a session — see CLAUDE.md "Hard rules"). Back up first via `pg_dump` only when real data is at stake.
 - **The recurrence migration was split across two files**, each paste-and-run whole: `0004_recurrence_rules.sql` (add columns + backfill, non-destructive) and `0005_recurrence_drop_legacy_after_t35.sql` (enforce NOT NULL + drop legacy columns). Both are applied — 0004 on 2026-07-21, 0005 the same day once T35 was live in production.
 - **Sample data**: `supabase/seed.sql` fills every feature with a realistic family dataset (run after 0004; re-runnable; all seed rows share the id prefix `00000000-0000-4000-a000-` for easy wiping).
+- **Dev auto-login for browser verification** (added 2026-07-21): `GET /api/dev-login` signs in the dedicated test account so automated Browser-pane sessions reach a logged-in state without a password ever being typed. Dev-only twice over: it 404s unless `NODE_ENV` is development **and** `DEV_LOGIN_EMAIL`/`DEV_LOGIN_PASSWORD` exist in `.env.local` (gitignored; never set on Vercel). The route is listed in the middleware's `PUBLIC_PATHS` so a logged-out hit isn't bounced to `/login` first.
 
 ## Roadmap
 
