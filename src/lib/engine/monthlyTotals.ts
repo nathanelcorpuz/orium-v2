@@ -44,13 +44,15 @@ function occurrencesPerMonth(item: {
 // these summary totals use multipliers.
 //
 // Dispatches like forecast.ts: items with the new recurrence columns
-// populated (every row in the database since T32's backfill) use the
-// generalized formula above; items missing them (e.g. IncomeRow, still
-// fetched via the pre-T35 legacy-only query) fall back to the old preset
-// table.
+// populated (every row after T35 - migrated rows via T32's backfill, new
+// rows via the RecurrencePicker) use the generalized formula above; items
+// missing them (e.g. IncomeRow, still fetched via a pre-T35-shaped query)
+// fall back to the old preset table. `frequency` is optional since T35's
+// BillRow has no legacy shape to fall back to at all - every bill has the
+// new columns from the day it was written.
 export function monthlyEquivalent(item: {
   amount: number;
-  frequency: RecurringFrequency;
+  frequency?: RecurringFrequency;
   interval?: number | null;
   unit?: RecurrenceUnit | null;
   weekdays?: number[] | null;
@@ -63,5 +65,8 @@ export function monthlyEquivalent(item: {
     // normalizes it so this never returns a signed zero.
     return item.amount * occurrences || 0;
   }
+  // Neither shape present - shouldn't happen given the callers above, but
+  // returning 0 beats a NaN from indexing MONTHLY_MULTIPLIER with undefined.
+  if (item.frequency == null) return 0;
   return item.amount * MONTHLY_MULTIPLIER[item.frequency];
 }
