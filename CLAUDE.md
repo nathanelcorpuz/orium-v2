@@ -23,6 +23,7 @@ Orium is a family cash-flow forecasting app (Next.js + Supabase). The full produ
 - Secrets live only in `.env.local` (gitignored). Never hardcode or commit keys. If a secret is needed, tell the user which value to paste and where.
 - No new dependencies without asking. Stack is fixed in SPEC.md.
 - Never run destructive DB commands (drop/truncate/delete without where) — propose SQL for the user to review instead.
+- Before any migration that alters or drops columns/tables, the user backs up first. The Supabase dashboard's "Database > Backups" page is Pro-plan only — this project is on the free tier, which has no managed backup feature. Use a manual `pg_dump` via the Supabase CLI instead (works on any plan, no new project dependency since it runs through `npx`): `npx supabase db dump --db-url "<connection string>" -f orium-backup-YYYY-MM-DD.sql`. Connection string: Supabase dashboard > Project Settings > Database > Connection string > URI, "Direct connection" (not the pooler).
 - Keep diffs small and focused on the current task. Don't refactor unrelated code.
 
 ## Commands

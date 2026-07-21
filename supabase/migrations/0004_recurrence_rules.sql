@@ -6,7 +6,16 @@
 --
 -- HOW TO RUN (manual, per CLAUDE.md — never run destructive DB commands
 -- automatically):
---   1. Export a Supabase backup (Database > Backups) before running anything.
+--   1. Back up first. The Supabase dashboard's "Database > Backups" page is
+--      Pro-plan only — the free tier has no managed backup feature. Instead,
+--      run a manual pg_dump via the Supabase CLI (works on any plan):
+--        npx supabase db dump --db-url "<connection string>" -f orium-backup-YYYY-MM-DD.sql
+--      Get the connection string from Supabase dashboard > Project Settings >
+--      Database > Connection string > URI, "Direct connection" (not the
+--      pooler — pg_dump needs a direct connection). Keep the .sql file
+--      somewhere safe; it's a full logical backup you can replay with psql
+--      if something goes wrong. See CLAUDE.md "Hard rules" for this project's
+--      standing backup convention.
 --   2. Run PART 1 now in the Supabase SQL editor. It only adds columns and
 --      backfills them from existing data — nothing old is removed, so the
 --      live app keeps working unchanged (it doesn't read the new columns
@@ -30,8 +39,8 @@
 --     `day_of_month`, and `weekday`, which is a real data loss (the new
 --     columns are a faithful re-encoding, not a value-for-value copy, so
 --     there's no formula back to the old columns). If Part 2 needs to be
---     undone, restore the Step 1 backup instead of trying to reconstruct
---     the dropped columns from the new ones.
+--     undone, restore the Step 1 pg_dump backup instead of trying to
+--     reconstruct the dropped columns from the new ones.
 
 -- =========================================================================
 -- PART 1 — RUN NOW: add columns, backfill, constrain. Non-destructive.
@@ -191,8 +200,9 @@ end $$;
 -- =========================================================================
 -- PART 2 — RUN LATER (after T33-T35 ship): drop the old frequency columns.
 -- Everything below is destructive. Do not run until the engine and every
--- CRUD form read/write the new columns exclusively. Take a fresh backup
--- immediately before running this part, even though Step 1 already took one.
+-- CRUD form read/write the new columns exclusively. Take a fresh pg_dump
+-- backup immediately before running this part, even though Step 1 already
+-- took one.
 -- =========================================================================
 
 -- alter table public.recurring_items

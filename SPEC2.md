@@ -28,7 +28,7 @@ Replace the fixed 4-frequency system with Google-Calendar-style rules on `recurr
 - `ends_type=never` items are excluded from finite "remaining total" stats (e.g. total remaining debt).
 
 ### Migration (T32) — backfill live data
-monthly → (1, month, days=[day_of_month]) · weekly → (1, week, weekdays=[weekday]) · biweekly → (2, week, weekdays=[weekday]) · semi_monthly_15_30 → (1, month, days=[15,30]). Existing rows get `ends_type='on_date'` + current end_date. Drop old columns after backfill verification, same migration file, rollback notes in header. **User exports a Supabase backup, then applies the SQL manually in the SQL editor.**
+monthly → (1, month, days=[day_of_month]) · weekly → (1, week, weekdays=[weekday]) · biweekly → (2, week, weekdays=[weekday]) · semi_monthly_15_30 → (1, month, days=[15,30]). Existing rows get `ends_type='on_date'` + current end_date. Drop old columns after backfill verification, same migration file, rollback notes in header. **User takes a manual `pg_dump` backup (the free Supabase tier has no dashboard Backups feature — see CLAUDE.md "Hard rules"), then applies the SQL manually in the SQL editor.**
 
 ### Generalized monthly-equivalent stat (supersedes T22 table)
 `occurrencesPerMonth = round(f)`, f = day: 30/interval · week: (4 × len(weekdays))/interval · month: (len(days_of_month) or 1)/interval · year: 1/(12×interval); minimum 0. `monthlyEquivalent = amount × occurrencesPerMonth` (integer × integer). Old presets still yield ×4 / ×2 / ×2 / ×1.
@@ -37,7 +37,7 @@ monthly → (1, month, days=[day_of_month]) · weekly → (1, week, weekdays=[we
 Used by Bills, Income, Debt, Savings, Budgets. Select with contextual presets from the chosen start date — "Monthly on the 21st", "Weekly on Tuesday", "Every 2 weeks on Tuesday", "Every 15th and 30th", "Monthly on the third Tuesday", "Custom…". Custom panel: Repeat every [N] [unit]; weekday chips (week); day list or nth-weekday (month); Ends: Never / On [date] / After [N] occurrences.
 
 ### Tasks
-- [ ] **T32.** Migration: columns + enums + constraints + backfill + drop old columns. **Status: written, Part 1 (add + backfill, non-destructive) awaiting the user to run in the Supabase SQL editor — see `supabase/migrations/0004_recurrence_rules.sql` header for steps. Part 2 (drop old columns) is deliberately deferred until after T35 ships, so the live app never reads a missing column mid-rollout.**
+- [ ] **T32.** Migration: columns + enums + constraints + backfill + drop old columns. **Status: written, Part 1 (add + backfill, non-destructive) awaiting the user to `pg_dump` a backup (see CLAUDE.md "Hard rules" — free tier has no dashboard Backups) and then run it in the Supabase SQL editor — see `supabase/migrations/0004_recurrence_rules.sql` header for steps. Part 2 (drop old columns) is deliberately deferred until after T35 ships, so the live app never reads a missing column mid-rollout.**
 - [ ] **T33.** Engine: day/week/month(days)/year expansion + ends rules; port existing tests; add: every-2-weeks multi-weekday, days=[15,30] Feb, interval-3 months, after_count, never→horizon.
 - [ ] **T34.** Engine: nth-weekday resolution (incl. last-X) + generalized `monthlyEquivalent`; tests.
 - [ ] **T35.** Recurrence picker component wired into all four CRUD forms; human-readable rule summary shown on each row (e.g. "Every 2 weeks on Sat · until Apr 2030").
@@ -76,7 +76,7 @@ Converts the existing T24/T25 budgets (monthly-only, no rollover) into cycle-bas
 - **Dashboard**: compact "Budgets this cycle" card (name + mini bar + remaining).
 
 ### Tasks
-- [ ] **T36.** ALTER migration per above (backup first; user applies manually). Existing budget rows: keep working via fallback until edited.
+- [ ] **T36.** ALTER migration per above (manual `pg_dump` backup first, same method as T32 — no dashboard Backups on the free tier; user applies manually). Existing budget rows: keep working via fallback until edited.
 - [ ] **T37.** Engine rework: replace T25's monthly logic with boundary/cycle/carryover model. Tests: linked-income boundaries (incl. moved + skipped occurrence), own-schedule weekly cycles, fallback, income-ends extension, carryover on/off/negative, remaining/over, boundary-date entry, integer math.
 - [ ] **T38.** Budgets page: CRUD + replenish source UI + entries + log spend.
 - [ ] **T39.** Forecast: budgets panel + budget rows + quick log-spend.
