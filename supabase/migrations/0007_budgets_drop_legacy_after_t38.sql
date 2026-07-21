@@ -1,0 +1,25 @@
+-- T36 (SPEC.md Phase 6B), step 2 of 2: drop the legacy monthly_allocation
+-- column from budgets.
+--
+-- ⛔ DO NOT RUN THIS YET. Run only after T37 (engine rework) and T38
+-- (Budgets page rework) have shipped and the deployed app reads and
+-- writes ONLY `allocation` - not `monthly_allocation`. Until then the
+-- live Budgets page still reads/writes monthly_allocation; running this
+-- early breaks it, the same way running 0005 before T35 was live would
+-- have broken the Forecast page. The T38 session will tell you when it's
+-- time.
+--
+-- HOW TO RUN (when it's time):
+--   1. This one IS destructive and not reversible in place. If the
+--      database holds real data by then, take a fresh pg_dump backup
+--      immediately before running (method in CLAUDE.md "Hard rules");
+--      restoring that backup is the only undo.
+--   2. Before running: grep the whole codebase for monthly_allocation to
+--      confirm no query still references it - not just src/app/budgets/,
+--      every file (see the T35 postmortem in project memory about why
+--      this check matters).
+--   3. Paste this whole file into the Supabase SQL editor and run it.
+--
+-- Prerequisite: 0006_budgets_v2_columns.sql has been applied.
+
+alter table public.budgets drop column monthly_allocation;
