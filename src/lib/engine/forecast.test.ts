@@ -168,7 +168,25 @@ describe("generateForecast running balance", () => {
 
 describe("generateForecast budgets", () => {
   it("merges budget rows into the sorted list, type 'budget', unaffected by overrides", () => {
-    const groceries: Budget = { id: "budget-1", name: "Groceries", monthlyAllocation: 500000 };
+    const groceries: Budget = {
+      id: "budget-1",
+      name: "Groceries",
+      monthlyAllocation: 500000,
+      allocation: 500000,
+      carryoverEnabled: true,
+      createdAt: "2026-01-01",
+      linkedIncomeId: null,
+      startDate: null,
+      interval: null,
+      unit: null,
+      weekdays: null,
+      daysOfMonth: null,
+      ordinal: null,
+      ordinalWeekday: null,
+      endsType: null,
+      endDate: null,
+      occurrenceCount: null,
+    };
     const entries: BudgetEntry[] = [
       { id: "e1", budgetId: "budget-1", entryDate: "2026-01-01", amount: 200000, note: null },
     ];

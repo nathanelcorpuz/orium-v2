@@ -68,7 +68,33 @@ export interface OneOffItem {
 export interface Budget {
   id: string;
   name: string;
+
+  // Pre-6B baseline (T24/T25). Still used by the currently-deployed
+  // Budgets page (BudgetCard.tsx) via currentMonthBudgetStatus/
+  // expandBudgetOccurrences in budgets.ts - untouched by T37, since those
+  // are the only live UI consumers left. Dropped once T38 ships (see
+  // migration 0007).
   monthlyAllocation: number; // centavos
+
+  // Budgets v2 (SPEC.md Phase 6B, migration 0006). allocation/
+  // carryoverEnabled are DB NOT NULL; the rest describe the budget's own
+  // schedule and are null when relying on linkedIncomeId or the fallback.
+  // Consumed by budgetCycles.ts (T37) - not yet wired into forecast.ts;
+  // that's T39.
+  allocation: number; // centavos, >= 0
+  carryoverEnabled: boolean;
+  createdAt: string; // YYYY-MM-DD; anchors the fallback schedule's cycle 0 (see budgetCycles.ts)
+  linkedIncomeId: string | null;
+  startDate: string | null;
+  interval: number | null;
+  unit: RecurrenceUnit | null;
+  weekdays: number[] | null;
+  daysOfMonth: number[] | null;
+  ordinal: number | null;
+  ordinalWeekday: number | null;
+  endsType: RecurrenceEndsType | null;
+  endDate: string | null;
+  occurrenceCount: number | null;
 }
 
 export interface BudgetEntry {
