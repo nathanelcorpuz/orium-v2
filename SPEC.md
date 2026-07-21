@@ -58,9 +58,8 @@ Per-instance edits to a recurring rule (calendar-exception style). `id, user_id,
 ### `settlements`
 "History" — what actually happened, written when the user settles an occurrence or logs a budget spend. `id, user_id, source_type (recurring|one_off|budget), source_id, name, type (bill|income|debt|savings|extra|budget), forecasted_amount, actual_amount, forecasted_date, actual_date, forecasted_balance`. Settling a recurring occurrence also writes a `skipped` override so it leaves the forecast.
 
-### `budgets` (current baseline; T36 converts)
-Today: `id, user_id, name, monthly_allocation (bigint ≥ 0), created_at`.
-**T36 (planned ALTER):** RENAME `monthly_allocation` → `allocation`; ADD `carryover_enabled` bool default true; ADD `linked_income_id` uuid nullable REFERENCES recurring_items ON DELETE SET NULL (app-level rule: must point at a type=income item); ADD the full recurrence column set above (all nullable).
+### `budgets` (T36 columns live; app still on the pre-6B baseline until T37/T38)
+`id, user_id, name, created_at`, plus (still pre-6B, current app): `monthly_allocation (bigint ≥ 0)`. Plus (T36, migration 0006, added 2026-07-21): `allocation (bigint ≥ 0, NOT NULL, backfilled 1:1 from monthly_allocation)`, `carryover_enabled (bool, default true)`, `linked_income_id (uuid nullable, REFERENCES recurring_items ON DELETE SET NULL — app-level rule: must point at a type=income item, not DB-enforced)`, and the full recurrence rule shape (all nullable — `start_date, interval, unit, weekdays, days_of_month, ordinal, ordinal_weekday, ends_type, end_date, occurrence_count`; `interval`/`unit`/`start_date`/`ends_type` are constrained to move together as a complete-or-nothing group). `monthly_allocation` is dropped by migration 0007 once T38 ships and the app no longer reads it — same additive-then-drop pattern as 0004/0005.
 
 ### `budget_entries`
 Logged spends. `id, user_id, budget_id (fk cascade), entry_date, amount (bigint > 0 = money spent), note, created_at`. Unchanged by 6B.
@@ -151,7 +150,7 @@ Notion palette (`#37352F` text, `#E9E9E7` hairlines, `#2383E2` accent, soft pill
 - [x] **T35.** Recurrence picker wired into all four CRUD forms; human-readable rule summary per row. *Browser-verified 2026-07-21 after a dev server restart; pushed and deployed to production the same day. Migration 0005 is ready for the user to run — see its header for steps.*
 
 ### Phase 6B — Budgets v2 (after 6A)
-- [ ] **T36.** ALTER migration on budgets (rename/allocation, carryover, linked income, recurrence columns). Existing rows keep working via fallback until edited.
+- [x] **T36.** ALTER migration on budgets (allocation, carryover, linked income, recurrence columns). Existing rows keep working via fallback until edited. *Migration 0006 applied 2026-07-21 via the connected Supabase MCP integration, additive-only (kept `monthly_allocation` in place rather than renaming, so the currently-deployed Budgets page needed zero code changes — chosen specifically after the T35→0005 outage). Verified via `execute_sql` — all 4 budgets backfilled correctly (`allocation = monthly_allocation`), `carryover_enabled=true`, `unit=null`. Drop-legacy migration 0007 written but not run until T38.*
 - [ ] **T37.** Engine rework: boundary/cycle/carryover model + tests (list above).
 - [ ] **T38.** Budgets page: CRUD + replenish-source UI + entries + log spend.
 - [ ] **T39.** Forecast: budgets panel + budget rows + quick log-spend.
