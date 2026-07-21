@@ -37,7 +37,7 @@ monthly → (1, month, days=[day_of_month]) · weekly → (1, week, weekdays=[we
 Used by Bills, Income, Debt, Savings, Budgets. Select with contextual presets from the chosen start date — "Monthly on the 21st", "Weekly on Tuesday", "Every 2 weeks on Tuesday", "Every 15th and 30th", "Monthly on the third Tuesday", "Custom…". Custom panel: Repeat every [N] [unit]; weekday chips (week); day list or nth-weekday (month); Ends: Never / On [date] / After [N] occurrences.
 
 ### Tasks
-- [ ] **T32.** Migration: columns + enums + constraints + backfill + drop old columns.
+- [ ] **T32.** Migration: columns + enums + constraints + backfill + drop old columns. **Status: written, Part 1 (add + backfill, non-destructive) awaiting the user to run in the Supabase SQL editor — see `supabase/migrations/0004_recurrence_rules.sql` header for steps. Part 2 (drop old columns) is deliberately deferred until after T35 ships, so the live app never reads a missing column mid-rollout.**
 - [ ] **T33.** Engine: day/week/month(days)/year expansion + ends rules; port existing tests; add: every-2-weeks multi-weekday, days=[15,30] Feb, interval-3 months, after_count, never→horizon.
 - [ ] **T34.** Engine: nth-weekday resolution (incl. last-X) + generalized `monthlyEquivalent`; tests.
 - [ ] **T35.** Recurrence picker component wired into all four CRUD forms; human-readable rule summary shown on each row (e.g. "Every 2 weeks on Sat · until Apr 2030").
