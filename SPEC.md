@@ -146,7 +146,7 @@ Notion palette (`#37352F` text, `#E9E9E7` hairlines, `#2383E2` accent, soft pill
 - [x] **T32.** Migration 0004: recurrence columns + enums + constraints + backfill; legacy-column drop split out into migration 0005 (runs only after T35). *Applied and seeded 2026-07-21.*
 - [x] **T33.** Engine: day/week/month(days)/year expansion + ends rules; port existing tests; add 6A cases (list above). *`src/lib/engine/recurrence.ts`; dispatched from `forecast.ts` per item (new engine when migrated, legacy functions otherwise, so the pre-T35 CRUD forms keep working unchanged).*
 - [x] **T34.** Engine: nth-weekday resolution (incl. last-X) + generalized `monthlyEquivalent`; tests. *Ordinal resolution in `recurrence.ts`; generalized formula in `monthlyTotals.ts` (same migrated/legacy dispatch pattern as T33's `forecast.ts`).*
-- [ ] **T35.** Recurrence picker wired into all four CRUD forms; human-readable rule summary per row. *After deploy: user runs migration 0005 (drops legacy columns).*
+- [ ] **T35.** Recurrence picker wired into all four CRUD forms; human-readable rule summary per row. *Status: code complete and committed (`RecurrencePicker.tsx` + Bills/Income/Debt/Savings wiring); 129/129 tests, tsc, and eslint all clean. Not yet browser-verified — the dev server's Turbopack cache went stale mid-session and needs a restart before a real click-through. Do that walkthrough before checking this off. After that: user runs migration 0005 (drops legacy columns).*
 
 ### Phase 6B — Budgets v2 (after 6A)
 - [ ] **T36.** ALTER migration on budgets (rename/allocation, carryover, linked income, recurrence columns). Existing rows keep working via fallback until edited.
