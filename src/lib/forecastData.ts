@@ -2,14 +2,20 @@ import { createClient } from "@/lib/supabase/server";
 import { todayInManila } from "@/lib/date";
 import { formatDate } from "@/lib/engine/date-utils";
 import { generateForecast } from "@/lib/engine/forecast";
+import { toEngineBudget, toEngineEntries, type BudgetEntryRow, type BudgetRow } from "@/lib/budgetView";
 import type {
   Balance,
+  Budget,
+  BudgetEntry,
   ForecastRow,
   GenerateForecastInput,
   OccurrenceOverride,
   OneOffItem,
   RecurringItem,
 } from "@/lib/engine/types";
+
+const BUDGET_COLUMNS =
+  "id, name, monthly_allocation, allocation, carryover_enabled, created_at, linked_income_id, start_date, interval, unit, weekdays, days_of_month, ordinal, ordinal_weekday, ends_type, end_date, occurrence_count";
 
 const DEFAULT_BALANCE_RANGES = [0, 500000, 2000000, 5000000, 10000000];
 const DEFAULT_CURRENCY = "₱";
@@ -28,6 +34,9 @@ export type ForecastData = {
   forecast: ForecastRow[];
   balances: ForecastBalance[];
   recurringItems: RecurringItem[];
+  overrides: OccurrenceOverride[];
+  budgets: Budget[];
+  budgetEntries: BudgetEntry[];
   currency: string;
   balanceRanges: number[];
   today: string;
@@ -39,25 +48,35 @@ export async function loadForecast(): Promise<ForecastData> {
   const today = todayInManila();
   const horizon = addYears(today, 3);
 
-  const [balancesRes, recurringRes, overridesRes, oneOffsRes, preferencesRes] = await Promise.all([
-    supabase.from("balances").select("id, name, amount, comments"),
-    supabase
-      .from("recurring_items")
-      .select(
-        "id, name, type, amount, start_date, end_date, interval, unit, weekdays, days_of_month, ordinal, ordinal_weekday, ends_type, occurrence_count",
-      ),
-    supabase
-      .from("occurrence_overrides")
-      .select("id, recurring_item_id, original_date, new_date, new_amount, new_name, skipped"),
-    supabase.from("one_off_items").select("id, name, amount, due_date"),
-    supabase.from("preferences").select("currency, balance_ranges").single(),
-  ]);
+  const [balancesRes, recurringRes, overridesRes, oneOffsRes, budgetsRes, entriesRes, preferencesRes] =
+    await Promise.all([
+      supabase.from("balances").select("id, name, amount, comments"),
+      supabase
+        .from("recurring_items")
+        .select(
+          "id, name, type, amount, start_date, end_date, interval, unit, weekdays, days_of_month, ordinal, ordinal_weekday, ends_type, occurrence_count",
+        ),
+      supabase
+        .from("occurrence_overrides")
+        .select("id, recurring_item_id, original_date, new_date, new_amount, new_name, skipped"),
+      supabase.from("one_off_items").select("id, name, amount, due_date"),
+      supabase.from("budgets").select(BUDGET_COLUMNS),
+      // Not bounded by cycle - see src/app/budgets/page.tsx for why (T38).
+      supabase.from("budget_entries").select("id, budget_id, entry_date, amount, note"),
+      supabase.from("preferences").select("currency, balance_ranges").single(),
+    ]);
 
-  // These four queries determine the forecast's correctness - silently treating
-  // a failed one as empty would show a wrong forecast with no indication anything
-  // failed. Preferences failure is left as a graceful fallback below (formatting only).
+  // These queries determine the forecast's correctness - silently treating a
+  // failed one as empty would show a wrong forecast with no indication
+  // anything failed. Preferences failure is left as a graceful fallback
+  // below (formatting only).
   const criticalError =
-    balancesRes.error ?? recurringRes.error ?? overridesRes.error ?? oneOffsRes.error;
+    balancesRes.error ??
+    recurringRes.error ??
+    overridesRes.error ??
+    oneOffsRes.error ??
+    budgetsRes.error ??
+    entriesRes.error;
   if (criticalError) {
     throw new Error(`Failed to load forecast data: ${criticalError.message}`);
   }
@@ -98,12 +117,37 @@ export async function loadForecast(): Promise<ForecastData> {
     dueDate: row.due_date,
   }));
 
-  const input: GenerateForecastInput = { balances, recurringItems, overrides, oneOffs, today, horizon };
+  const budgetRows: BudgetRow[] = budgetsRes.data ?? [];
+  const budgets: Budget[] = budgetRows.map(toEngineBudget);
+
+  const entriesByBudgetId = new Map<string, BudgetEntryRow[]>();
+  for (const row of entriesRes.data ?? []) {
+    const list = entriesByBudgetId.get(row.budget_id) ?? [];
+    list.push({ id: row.id, entry_date: row.entry_date, amount: row.amount, note: row.note });
+    entriesByBudgetId.set(row.budget_id, list);
+  }
+  const budgetEntries: BudgetEntry[] = budgetRows.flatMap((budget) =>
+    toEngineEntries(entriesByBudgetId.get(budget.id) ?? [], budget.id),
+  );
+
+  const input: GenerateForecastInput = {
+    balances,
+    recurringItems,
+    overrides,
+    oneOffs,
+    budgets,
+    budgetEntries,
+    today,
+    horizon,
+  };
 
   return {
     forecast: generateForecast(input),
     balances,
     recurringItems,
+    overrides,
+    budgets,
+    budgetEntries,
     currency: preferencesRes.data?.currency ?? DEFAULT_CURRENCY,
     balanceRanges: preferencesRes.data?.balance_ranges ?? DEFAULT_BALANCE_RANGES,
     today,

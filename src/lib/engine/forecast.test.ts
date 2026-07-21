@@ -236,6 +236,77 @@ describe("generateForecast budgets", () => {
 
     expect(result).toEqual([]);
   });
+
+  it("threads recurringItems/overrides through to a linked-income budget's cycle boundaries (T39)", () => {
+    // Before T39, generateForecast called the old monthly-only budgets.ts
+    // expansion, which never received recurringItems/overrides at all - a
+    // linked-income budget's cycle boundary couldn't respect a moved
+    // occurrence. Here the income's Feb 5th occurrence is moved to Feb 10th;
+    // an entry logged Feb 8th (between the two dates) must land in the
+    // cycle that ends at the *moved* boundary, not the raw one.
+    const income = monthlyItem({
+      id: "income-1",
+      name: "Salary",
+      type: "income",
+      amount: 400000,
+      daysOfMonth: [5],
+    });
+    const overrides: OccurrenceOverride[] = [
+      {
+        id: "ov1",
+        recurringItemId: "income-1",
+        originalDate: "2026-02-05",
+        newDate: "2026-02-10",
+        newAmount: null,
+        newName: null,
+        skipped: false,
+      },
+    ];
+    const groceries: Budget = {
+      id: "budget-1",
+      name: "Groceries",
+      monthlyAllocation: 500000,
+      allocation: 500000,
+      carryoverEnabled: false,
+      createdAt: "2026-01-01",
+      linkedIncomeId: "income-1",
+      startDate: null,
+      interval: null,
+      unit: null,
+      weekdays: null,
+      daysOfMonth: null,
+      ordinal: null,
+      ordinalWeekday: null,
+      endsType: null,
+      endDate: null,
+      occurrenceCount: null,
+    };
+    const entries: BudgetEntry[] = [
+      { id: "e1", budgetId: "budget-1", entryDate: "2026-02-08", amount: 100000, note: null },
+    ];
+
+    const result = generateForecast({
+      balances: [],
+      recurringItems: [income],
+      overrides,
+      oneOffs: [],
+      budgets: [groceries],
+      budgetEntries: entries,
+      today: "2026-02-15",
+      horizon: "2026-03-31",
+    });
+
+    expect(
+      result.map((row) => ({ sourceType: row.sourceType, type: row.type, dueDate: row.dueDate, amount: row.amount })),
+    ).toEqual([
+      // Feb 8th entry counted against the prior cycle (ending at the moved
+      // Feb 10th boundary), so the current cycle's remaining is the full
+      // allocation, not allocation-minus-100000.
+      { sourceType: "budget", type: "budget", dueDate: "2026-02-15", amount: -500000 },
+      { sourceType: "recurring", type: "income", dueDate: "2026-03-05", amount: 400000 },
+      { sourceType: "budget", type: "budget", dueDate: "2026-03-05", amount: -500000 },
+    ]);
+  });
 });
 
 describe("generateForecast start/end date bounds", () => {

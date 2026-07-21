@@ -5,28 +5,10 @@ import { Modal } from "@/components/Modal";
 import { centavosToPesosString } from "@/lib/money";
 import { todayInManila } from "@/lib/date";
 import { RecurrencePicker, type RecurrenceValue } from "@/components/recurring/RecurrencePicker";
-import type { RecurrenceEndsType, RecurrenceUnit } from "@/lib/engine/types";
+import { type BudgetRow } from "@/lib/budgetView";
 import { createBudget, updateBudget, type BudgetActionState } from "./actions";
 
-export type BudgetRow = {
-  id: string;
-  name: string;
-  monthly_allocation: number;
-  allocation: number;
-  carryover_enabled: boolean;
-  created_at: string;
-  linked_income_id: string | null;
-  start_date: string | null;
-  interval: number | null;
-  unit: RecurrenceUnit | null;
-  weekdays: number[] | null;
-  days_of_month: number[] | null;
-  ordinal: number | null;
-  ordinal_weekday: number | null;
-  ends_type: RecurrenceEndsType | null;
-  end_date: string | null;
-  occurrence_count: number | null;
-};
+export type { BudgetRow } from "@/lib/budgetView";
 
 type ReplenishSource = "income" | "schedule";
 

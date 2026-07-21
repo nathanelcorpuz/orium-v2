@@ -5,9 +5,10 @@ import Link from "next/link";
 import { formatCentavos } from "@/lib/money";
 import { balanceRangeColorClass } from "@/lib/balanceColor";
 import { BalanceModal, type BalanceRow } from "@/app/balances/BalanceModal";
-import type { ForecastRow } from "@/lib/engine/types";
+import type { Budget, BudgetEntry, ForecastRow, OccurrenceOverride, RecurringItem } from "@/lib/engine/types";
 import { EditSettleModal } from "./EditSettleModal";
 import { RemindersPanel, type ReminderRow } from "./RemindersPanel";
+import { BudgetsPanel } from "./BudgetsPanel";
 
 const TYPE_COLOR: Record<ForecastRow["type"], string> = {
   income: "text-green-700",
@@ -23,12 +24,22 @@ export function ForecastClient({
   balances,
   currency,
   balanceRanges,
+  recurringItems,
+  overrides,
+  budgets,
+  budgetEntries,
+  today,
   reminders,
 }: {
   forecast: ForecastRow[];
   balances: BalanceRow[];
   currency: string;
   balanceRanges: number[];
+  recurringItems: RecurringItem[];
+  overrides: OccurrenceOverride[];
+  budgets: Budget[];
+  budgetEntries: BudgetEntry[];
+  today: string;
   reminders: ReminderRow[];
 }) {
   const [editingBalance, setEditingBalance] = useState<BalanceRow | null>(null);
@@ -79,36 +90,57 @@ export function ForecastClient({
                     </tr>
                   </thead>
                   <tbody>
-                    {forecast.map((row, index) => (
-                      <tr
-                        key={`${row.sourceType}-${row.sourceId}-${row.originalDate}-${index}`}
-                        role="button"
-                        tabIndex={0}
-                        onClick={() => setSelectedRow(row)}
-                        onKeyDown={(event) => {
-                          if (event.key === "Enter" || event.key === " ") {
-                            event.preventDefault();
-                            setSelectedRow(row);
+                    {forecast.map((row, index) => {
+                      // Budget rows are derived, not editable/settleable
+                      // (SPEC.md "Forecast integration") - logging a spend
+                      // happens through the Budgets panel or page instead.
+                      const clickable = row.type !== "budget";
+                      return (
+                        <tr
+                          key={`${row.sourceType}-${row.sourceId}-${row.originalDate}-${index}`}
+                          role={clickable ? "button" : undefined}
+                          tabIndex={clickable ? 0 : undefined}
+                          onClick={clickable ? () => setSelectedRow(row) : undefined}
+                          onKeyDown={
+                            clickable
+                              ? (event) => {
+                                  if (event.key === "Enter" || event.key === " ") {
+                                    event.preventDefault();
+                                    setSelectedRow(row);
+                                  }
+                                }
+                              : undefined
                           }
-                        }}
-                        className={`cursor-pointer hover:opacity-80 ${balanceRangeColorClass(row.runningBalance, balanceRanges)}`}
-                      >
-                        <td className="p-3">{row.dueDate}</td>
-                        <td className="p-3">{row.name}</td>
-                        <td className={`p-3 ${TYPE_COLOR[row.type]}`}>{row.type}</td>
-                        <td className="p-3 text-right">{formatCentavos(row.amount, currency)}</td>
-                        <td className="p-3 text-right font-medium">
-                          {formatCentavos(row.runningBalance, currency)}
-                        </td>
-                      </tr>
-                    ))}
+                          className={`${clickable ? "cursor-pointer hover:opacity-80" : ""} ${balanceRangeColorClass(row.runningBalance, balanceRanges)}`}
+                        >
+                          <td className="p-3">{row.dueDate}</td>
+                          <td className="p-3">{row.name}</td>
+                          <td className={`p-3 ${TYPE_COLOR[row.type]}`}>{row.type}</td>
+                          <td className="p-3 text-right">{formatCentavos(row.amount, currency)}</td>
+                          <td className="p-3 text-right font-medium">
+                            {formatCentavos(row.runningBalance, currency)}
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
             )}
           </div>
 
-          <RemindersPanel reminders={reminders} />
+          <div className="flex w-full shrink-0 flex-col gap-6 lg:w-72">
+            <BudgetsPanel
+              budgets={budgets}
+              budgetEntries={budgetEntries}
+              recurringItems={recurringItems}
+              overrides={overrides}
+              forecast={forecast}
+              today={today}
+              currency={currency}
+            />
+            <RemindersPanel reminders={reminders} />
+          </div>
         </div>
       </div>
 

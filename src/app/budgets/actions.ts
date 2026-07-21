@@ -116,6 +116,7 @@ export async function createBudget(
   if (error) return { error: error.message };
 
   revalidatePath("/budgets");
+  revalidatePath("/forecast");
   revalidatePath("/");
   return { error: null };
 }
@@ -152,6 +153,7 @@ export async function updateBudget(
   if (error) return { error: error.message };
 
   revalidatePath("/budgets");
+  revalidatePath("/forecast");
   revalidatePath("/");
   return { error: null };
 }
@@ -161,6 +163,7 @@ export async function deleteBudget(formData: FormData) {
   const supabase = await createClient();
   await supabase.from("budgets").delete().eq("id", id);
   revalidatePath("/budgets");
+  revalidatePath("/forecast");
   revalidatePath("/");
 }
 
@@ -220,6 +223,7 @@ export async function logSpend(
 
   revalidatePath("/budgets");
   revalidatePath("/history");
+  revalidatePath("/forecast");
   revalidatePath("/");
   return { error: null };
 }
@@ -252,5 +256,6 @@ export async function deleteBudgetEntry(formData: FormData) {
 
   revalidatePath("/budgets");
   revalidatePath("/history");
+  revalidatePath("/forecast");
   revalidatePath("/");
 }

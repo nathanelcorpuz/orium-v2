@@ -6,7 +6,7 @@ import type {
   RecurringItem,
 } from "./types";
 import { expandRecurrenceOccurrences } from "./recurrence";
-import { expandBudgetOccurrences } from "./budgets";
+import { expandBudgetCycleOccurrences } from "./budgetCycles";
 
 function toRecurrenceRule(item: RecurringItem): RecurrenceRule {
   return {
@@ -71,7 +71,14 @@ export function generateForecast(input: GenerateForecastInput): ForecastRow[] {
   }
 
   for (const budget of budgets) {
-    for (const occurrence of expandBudgetOccurrences(budget, budgetEntries, today, horizon)) {
+    for (const occurrence of expandBudgetCycleOccurrences(
+      budget,
+      budgetEntries,
+      recurringItems,
+      overrides,
+      today,
+      horizon,
+    )) {
       rows.push({
         sourceType: "budget",
         sourceId: budget.id,
