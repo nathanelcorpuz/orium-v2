@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { logout } from "@/app/auth/actions";
 import { loadForecast } from "@/lib/forecastData";
 import { formatCentavos } from "@/lib/money";
+import { displayName } from "@/lib/displayName";
 import { monthlyEquivalent } from "@/lib/engine/monthlyTotals";
 import { remainingMonthlyTotal } from "@/lib/engine/remaining";
 import { computeMonthlyPeaksAndDrops } from "@/lib/engine/peaksAndDrops";
@@ -33,6 +34,9 @@ export default async function Home() {
 
   const { forecast, balances, recurringItems, currency, today, horizon } = await loadForecast();
 
+  const profileName = (user?.user_metadata?.name as string | undefined) ?? "";
+  const greetingName = displayName(profileName, user?.email);
+
   const totalBalance = balances.reduce((sum, balance) => sum + balance.amount, 0);
 
   const totalMonthlyBills = recurringItems
@@ -62,7 +66,7 @@ export default async function Home() {
         <div className="mb-6 flex items-center justify-between">
           <div>
             <h1 className="text-xl font-semibold">Dashboard</h1>
-            <p className="text-slate-600">Welcome, {user?.email}</p>
+            <p className="text-slate-600">Welcome, {greetingName}</p>
           </div>
           <form action={logout}>
             <button type="submit" className="rounded bg-slate-900 px-4 py-2 text-white">

@@ -4,12 +4,15 @@ Format per bug: steps to reproduce → what happened → what was expected. Clau
 
 ## Open
 
-### Bug #2 — Greeting name wrong by default
-- **Reproduce**: log in with an account that has no profile name set; view Dashboard greeting.
-- **What happened**: greeting doesn't show a sensible name.
-- **Expected**: show profile name when set; otherwise the email's local part (before `@`). Example: `juan.lopez@gmail.com` → "Hello, juan.lopez." Definition: SPEC2.md → T23.
+(none currently)
 
 ## Fixed
+
+### Bug #2 — Greeting name wrong by default
+- **Reproduce**: log in with an account that has no profile name set; view Dashboard greeting.
+- **What happened**: greeting showed the raw email instead of a sensible name.
+- **Expected**: show profile name when set; otherwise the email's local part (before `@`). Example: `juan.lopez@gmail.com` → "Welcome, juan.lopez."
+- **Fixed by**: `displayName()` in `src/lib/displayName.ts`, wired into the Dashboard greeting, covered by Vitest in `displayName.test.ts`. See SPEC2.md → T23.
 
 ### Bug #1 — Total Monthly Income uses fractional weekly math
 - **Reproduce**: add a weekly income of ₱20,000; open Dashboard or Income page.

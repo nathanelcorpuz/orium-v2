@@ -11,7 +11,7 @@ Active bugs live in `BUGS.md`. Fix format: reproduce → fix → add a test or m
   `monthly ×1 · weekly ×4 · biweekly ×2 · semi_monthly_15_30 ×2`.
   Never 52/12 or any fractional math. Implement as a pure helper `monthlyEquivalent(item)` in `src/lib/engine/` with unit tests (weekly 20,000_00 → 80,000_00). Audit for float leakage — a displayed value like `86,666.7` means non-integer math somewhere; all sums must stay integer centavos. Note: the *forecast* keeps using real occurrence dates (a 5-Saturday month genuinely shows 5 incomes) — only these summary stats use multipliers.
 
-- [ ] **T23. Greeting shows name or email prefix (Bug #2).**
+- [x] **T23. Greeting shows name or email prefix (Bug #2).**
   Display name rule everywhere a user is greeted: `profile.name` if non-empty, else the part of their email before `@`. Never show a blank or "undefined" greeting.
 
 ## Phase 6 — Budgets (variable monthly spending)
