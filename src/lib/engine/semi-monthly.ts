@@ -1,4 +1,3 @@
-import type { RecurringItem } from "./types";
 import { daysInMonth, formatDate } from "./date-utils";
 
 function secondSemiMonthlyDay(year: number, month: number): number {
@@ -11,9 +10,16 @@ function secondSemiMonthlyDay(year: number, month: number): number {
  * [windowStart, windowEnd], clamped by the item's own start/end dates.
  * Occurrences fall on the 15th and 30th of each month, except February
  * where the second occurrence is the last day of the month.
+ *
+ * Legacy path (SPEC.md's old 4-frequency model); superseded by
+ * expandRecurrenceOccurrences in recurrence.ts (days_of_month=[15,30]
+ * reproduces the same February clamping generically) once an item has
+ * migrated. Decoupled from RecurringItem's (now-nullable) endDate since
+ * this legacy path only ever runs for items that still have a non-null
+ * end_date.
  */
 export function expandSemiMonthlyOccurrences(
-  item: Pick<RecurringItem, "startDate" | "endDate">,
+  item: { startDate: string; endDate: string },
   windowStart: string,
   windowEnd: string,
 ): string[] {

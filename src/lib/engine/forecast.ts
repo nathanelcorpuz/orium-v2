@@ -2,23 +2,57 @@ import type {
   ForecastRow,
   GenerateForecastInput,
   OccurrenceOverride,
+  RecurrenceRule,
   RecurringItem,
 } from "./types";
 import { expandMonthlyOccurrences } from "./monthly";
 import { expandBiweeklyOccurrences, expandWeeklyOccurrences } from "./interval";
 import { expandSemiMonthlyOccurrences } from "./semi-monthly";
+import { expandRecurrenceOccurrences } from "./recurrence";
 import { expandBudgetOccurrences } from "./budgets";
 
+// True once an item has migration 0004's new recurrence columns populated
+// (every row in the database today - see SPEC.md T32/T33). Narrows the
+// three fields expandRecurrenceOccurrences requires to non-null so it can
+// be called directly, rather than the item as a whole (endsType="never"/
+// "after_count" items still have a null endDate on purpose).
+function hasRecurrenceRule(
+  item: RecurringItem,
+): item is RecurringItem & Pick<RecurrenceRule, "interval" | "unit" | "endsType"> {
+  return item.interval != null && item.unit != null && item.endsType != null;
+}
+
 function expandRecurringItem(item: RecurringItem, windowStart: string, windowEnd: string): string[] {
+  if (hasRecurrenceRule(item)) {
+    const rule: RecurrenceRule = {
+      startDate: item.startDate,
+      interval: item.interval,
+      unit: item.unit,
+      weekdays: item.weekdays ?? null,
+      daysOfMonth: item.daysOfMonth ?? null,
+      endsType: item.endsType,
+      endDate: item.endDate,
+      occurrenceCount: item.occurrenceCount ?? null,
+    };
+    return expandRecurrenceOccurrences(rule, windowStart, windowEnd);
+  }
+
+  // Legacy path: item hasn't migrated yet (inserted by a pre-T35 form).
+  // These forms always set a non-null end_date (see the endDate comment in
+  // types.ts); if that invariant is ever violated, treat it as having no
+  // occurrences rather than letting date-string comparisons silently
+  // misbehave against null.
+  if (item.endDate === null) return [];
+  const legacyItem = { ...item, endDate: item.endDate };
   switch (item.frequency) {
     case "monthly":
-      return expandMonthlyOccurrences(item, windowStart, windowEnd);
+      return expandMonthlyOccurrences(legacyItem, windowStart, windowEnd);
     case "weekly":
-      return expandWeeklyOccurrences(item, windowStart, windowEnd);
+      return expandWeeklyOccurrences(legacyItem, windowStart, windowEnd);
     case "biweekly":
-      return expandBiweeklyOccurrences(item, windowStart, windowEnd);
+      return expandBiweeklyOccurrences(legacyItem, windowStart, windowEnd);
     case "semi_monthly_15_30":
-      return expandSemiMonthlyOccurrences(item, windowStart, windowEnd);
+      return expandSemiMonthlyOccurrences(legacyItem, windowStart, windowEnd);
   }
 }
 

@@ -21,3 +21,9 @@ export function daysBetween(a: string, b: string): number {
   };
   return Math.round((toUTC(b) - toUTC(a)) / 86400000);
 }
+
+// Days beyond a month's length (e.g. day 31 in April, day 29-31 in
+// February) clamp to that month's last day.
+export function clampDayOfMonth(year: number, month: number, day: number): number {
+  return Math.min(day, daysInMonth(year, month));
+}

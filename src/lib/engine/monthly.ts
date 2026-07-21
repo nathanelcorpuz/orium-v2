@@ -1,18 +1,22 @@
-import type { RecurringItem } from "./types";
-import { daysInMonth, formatDate } from "./date-utils";
+import { clampDayOfMonth, formatDate } from "./date-utils";
 
 function clampedMonthlyDate(year: number, month: number, dayOfMonth: number): string {
-  const day = Math.min(dayOfMonth, daysInMonth(year, month));
-  return formatDate(year, month, day);
+  return formatDate(year, month, clampDayOfMonth(year, month, dayOfMonth));
 }
 
 /**
  * Expands a monthly recurring item into occurrence dates within [windowStart, windowEnd],
  * clamped by the item's own start/end dates. Days that overflow the month's length
  * (e.g. day 31 in April, day 29-31 in February) clamp to that month's last day.
+ *
+ * Legacy path (SPEC.md's old 4-frequency model) for items without the new
+ * recurrence columns set; superseded by expandRecurrenceOccurrences in
+ * recurrence.ts once an item has migrated. Decoupled from RecurringItem's
+ * (now-nullable) endDate since this legacy path only ever runs for items
+ * that still have a non-null end_date.
  */
 export function expandMonthlyOccurrences(
-  item: Pick<RecurringItem, "startDate" | "endDate" | "dayOfMonth">,
+  item: { startDate: string; endDate: string; dayOfMonth: number | null },
   windowStart: string,
   windowEnd: string,
 ): string[] {

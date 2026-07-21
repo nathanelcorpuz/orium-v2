@@ -1,13 +1,17 @@
-import type { RecurringItem } from "./types";
 import { addDays, daysBetween } from "./date-utils";
 
 /**
  * Expands a fixed-interval recurring item (every `intervalDays` days,
  * anchored on the item's start_date) into occurrence dates within
  * [windowStart, windowEnd], clamped by the item's own start/end dates.
+ *
+ * Legacy path (SPEC.md's old 4-frequency model); superseded by
+ * expandRecurrenceOccurrences in recurrence.ts once an item has migrated.
+ * Decoupled from RecurringItem's (now-nullable) endDate since this legacy
+ * path only ever runs for items that still have a non-null end_date.
  */
 function expandIntervalOccurrences(
-  item: Pick<RecurringItem, "startDate" | "endDate">,
+  item: { startDate: string; endDate: string },
   intervalDays: number,
   windowStart: string,
   windowEnd: string,
@@ -34,7 +38,7 @@ function expandIntervalOccurrences(
 }
 
 export function expandWeeklyOccurrences(
-  item: Pick<RecurringItem, "startDate" | "endDate">,
+  item: { startDate: string; endDate: string },
   windowStart: string,
   windowEnd: string,
 ): string[] {
@@ -42,7 +46,7 @@ export function expandWeeklyOccurrences(
 }
 
 export function expandBiweeklyOccurrences(
-  item: Pick<RecurringItem, "startDate" | "endDate">,
+  item: { startDate: string; endDate: string },
   windowStart: string,
   windowEnd: string,
 ): string[] {

@@ -8,6 +8,7 @@ import { monthlyEquivalent } from "@/lib/engine/monthlyTotals";
 import { remainingMonthlyTotal } from "@/lib/engine/remaining";
 import { computeMonthlyPeaksAndDrops } from "@/lib/engine/peaksAndDrops";
 import { daysBetween } from "@/lib/engine/date-utils";
+import type { RecurringItem } from "@/lib/engine/types";
 
 function DashboardCard({
   title,
@@ -47,7 +48,14 @@ export default async function Home() {
     .filter((item) => item.type === "income")
     .reduce((sum, item) => sum + monthlyEquivalent(item), 0);
 
-  const debtItems = recurringItems.filter((item) => item.type === "debt");
+  // remainingMonthlyTotal/the debt-free date only mean something for items
+  // with a fixed end_date; a "never"/"after_count" debt item (Phase 6A) has
+  // no such date. All current debt items have one (see the endDate comment
+  // in types.ts), but the filter makes that an explicit, type-checked fact
+  // rather than an assumption.
+  const debtItems = recurringItems.filter(
+    (item): item is RecurringItem & { endDate: string } => item.type === "debt" && item.endDate !== null,
+  );
   const remainingDebt = debtItems.reduce(
     (sum, item) => sum + remainingMonthlyTotal(item, today),
     0,
