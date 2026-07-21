@@ -7,8 +7,10 @@
 --   1. Run migrations 0001-0004 first (the seed fills the new recurrence
 --      columns too, and fails fast with a clear message if 0004 hasn't
 --      been applied). Do NOT run 0005 yet — see its header.
---   2. Make sure you've logged into the app at least once with the account
---      email set below (the row lookup needs the auth user to exist).
+--   2. Make sure you've signed up / logged into the app at least once (an
+--      auth user must exist). With a single account the seed finds it
+--      automatically, whatever its email; with several accounts it seeds
+--      the one matching v_email below and lists the options if none match.
 --   3. Paste this whole file into the Supabase SQL editor and run it.
 --
 -- Re-runnable: every row has a fixed id and inserts use
@@ -23,12 +25,28 @@
 
 do $$
 declare
+  -- Preferred account to seed. If no user has this exact email but the
+  -- project has exactly one user, that user is seeded instead — so in the
+  -- normal single-account case this "just works" regardless of which email
+  -- the account was created with.
+  v_email text := 'nathanelcorpuz@gmail.com';
   v_user uuid;
+  v_count int;
 begin
-  -- Change this email if seeding a different account.
-  select id into v_user from auth.users where email = 'nathanelcorpuz@gmail.com';
+  select id into v_user from auth.users where email = v_email;
+
   if v_user is null then
-    raise exception 'No auth user with that email — log into the app once first, or edit the email at the top of seed.sql';
+    select count(*) into v_count from auth.users;
+    if v_count = 1 then
+      select id into v_user from auth.users;
+      raise notice 'No user with email %; seeding the project''s only user instead', v_email;
+    elsif v_count = 0 then
+      raise exception 'auth.users is empty — sign up / log into the app once, then re-run this seed';
+    else
+      raise exception 'No user with email % and the project has % users — edit v_email at the top of seed.sql to one of: %',
+        v_email, v_count,
+        (select string_agg(email, ', ' order by created_at) from auth.users);
+    end if;
   end if;
 
   if not exists (
