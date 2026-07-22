@@ -4,6 +4,7 @@ import { useActionState, useEffect, useRef, useState } from "react";
 import { Modal } from "@/components/Modal";
 import { SegmentedControl } from "@/components/SegmentedControl";
 import { centavosToPesosString } from "@/lib/money";
+import { formatFullDate } from "@/lib/date";
 import type { ForecastRow } from "@/lib/engine/types";
 import { deleteBudgetEntry, updateBudgetEntry, type BudgetActionState } from "@/app/(app)/budgets/actions";
 import {
@@ -109,7 +110,7 @@ export function EditSettleModal({
                 step="0.01"
                 required
                 defaultValue={centavosToPesosString(-row.amount)}
-                className="mt-1 w-full rounded border border-slate-300 p-2"
+                className="mt-1 w-full rounded border border-notion-hairline p-2 text-notion-text focus:border-notion-accent focus:outline-none"
               />
             </div>
             <div>
@@ -122,7 +123,7 @@ export function EditSettleModal({
                 type="date"
                 required
                 defaultValue={row.dueDate}
-                className="mt-1 w-full rounded border border-slate-300 p-2"
+                className="mt-1 w-full rounded border border-notion-hairline p-2 text-notion-text focus:border-notion-accent focus:outline-none"
               />
             </div>
             <div>
@@ -134,7 +135,7 @@ export function EditSettleModal({
                 name="note"
                 type="text"
                 defaultValue={row.note ?? ""}
-                className="mt-1 w-full rounded border border-slate-300 p-2"
+                className="mt-1 w-full rounded border border-notion-hairline p-2 text-notion-text focus:border-notion-accent focus:outline-none"
               />
             </div>
             {entryState.error && <p className="text-sm text-red-600">{entryState.error}</p>}
@@ -142,20 +143,20 @@ export function EditSettleModal({
               <button
                 type="button"
                 onClick={onClose}
-                className="rounded border border-slate-300 px-4 py-2"
+                className="rounded border border-notion-hairline px-4 py-2 text-notion-text hover:bg-notion-hover"
               >
                 Cancel
               </button>
               <button
                 type="submit"
                 disabled={entryPending}
-                className="rounded bg-slate-900 px-4 py-2 text-white disabled:opacity-50"
+                className="rounded bg-notion-text px-4 py-2 text-white hover:opacity-90 disabled:opacity-50"
               >
                 {entryPending ? "Saving..." : "Save"}
               </button>
             </div>
           </form>
-          <form action={deleteBudgetEntry} onSubmit={onClose} className="mt-3 border-t border-slate-100 pt-3">
+          <form action={deleteBudgetEntry} onSubmit={onClose} className="mt-3 border-t border-notion-hairline pt-3">
             <input type="hidden" name="id" value={row.sourceId} />
             <button type="submit" className="text-sm text-red-600 underline">
               Delete this entry
@@ -184,7 +185,7 @@ export function EditSettleModal({
                 step="0.01"
                 required
                 defaultValue={centavosToPesosString(row.amount)}
-                className="mt-1 w-full rounded border border-slate-300 p-2"
+                className="mt-1 w-full rounded border border-notion-hairline p-2 text-notion-text focus:border-notion-accent focus:outline-none"
               />
             </div>
             <div>
@@ -197,7 +198,7 @@ export function EditSettleModal({
                 type="date"
                 required
                 defaultValue={row.dueDate}
-                className="mt-1 w-full rounded border border-slate-300 p-2"
+                className="mt-1 w-full rounded border border-notion-hairline p-2 text-notion-text focus:border-notion-accent focus:outline-none"
               />
             </div>
             {editState.error && <p className="text-sm text-red-600">{editState.error}</p>}
@@ -205,20 +206,20 @@ export function EditSettleModal({
               <button
                 type="button"
                 onClick={onClose}
-                className="rounded border border-slate-300 px-4 py-2"
+                className="rounded border border-notion-hairline px-4 py-2 text-notion-text hover:bg-notion-hover"
               >
                 Cancel
               </button>
               <button
                 type="submit"
                 disabled={editPending}
-                className="rounded bg-slate-900 px-4 py-2 text-white disabled:opacity-50"
+                className="rounded bg-notion-text px-4 py-2 text-white hover:opacity-90 disabled:opacity-50"
               >
                 {editPending ? "Saving..." : "Save"}
               </button>
             </div>
           </form>
-          <form action={skipBudgetOccurrence} onSubmit={onClose} className="mt-3 border-t border-slate-100 pt-3">
+          <form action={skipBudgetOccurrence} onSubmit={onClose} className="mt-3 border-t border-notion-hairline pt-3">
             <input type="hidden" name="sourceId" value={row.sourceId} />
             <input type="hidden" name="originalDate" value={row.originalDate} />
             <button type="submit" className="text-sm text-red-600 underline">
@@ -246,7 +247,7 @@ export function EditSettleModal({
               type="text"
               required
               defaultValue={row.name}
-              className="mt-1 w-full rounded border border-slate-300 p-2"
+              className="mt-1 w-full rounded border border-notion-hairline p-2 text-notion-text focus:border-notion-accent focus:outline-none"
             />
           </div>
           <div>
@@ -260,7 +261,7 @@ export function EditSettleModal({
               step="0.01"
               required
               defaultValue={centavosToPesosString(row.amount)}
-              className="mt-1 w-full rounded border border-slate-300 p-2"
+              className="mt-1 w-full rounded border border-notion-hairline p-2 text-notion-text focus:border-notion-accent focus:outline-none"
             />
           </div>
           <div>
@@ -273,7 +274,7 @@ export function EditSettleModal({
               type="date"
               required
               defaultValue={row.dueDate}
-              className="mt-1 w-full rounded border border-slate-300 p-2"
+              className="mt-1 w-full rounded border border-notion-hairline p-2 text-notion-text focus:border-notion-accent focus:outline-none"
             />
           </div>
           {editState.error && <p className="text-sm text-red-600">{editState.error}</p>}
@@ -310,8 +311,8 @@ export function EditSettleModal({
           <input type="hidden" name="forecastedAmount" value={row.amount} />
           <input type="hidden" name="forecastedDate" value={row.dueDate} />
           <input type="hidden" name="forecastedBalance" value={row.runningBalance} />
-          <p className="text-sm text-slate-600">
-            Forecasted: {row.dueDate}, {centavosToPesosString(row.amount)} {currency}
+          <p className="text-sm text-slate-500">
+            Forecasted: {formatFullDate(row.dueDate)}, {centavosToPesosString(row.amount)} {currency}
           </p>
           <div>
             <label className="block text-sm text-slate-600" htmlFor="actualAmountPesos">
@@ -324,7 +325,7 @@ export function EditSettleModal({
               step="0.01"
               required
               defaultValue={centavosToPesosString(row.amount)}
-              className="mt-1 w-full rounded border border-slate-300 p-2"
+              className="mt-1 w-full rounded border border-notion-hairline p-2 text-notion-text focus:border-notion-accent focus:outline-none"
             />
           </div>
           <div>
@@ -337,7 +338,7 @@ export function EditSettleModal({
               type="date"
               required
               defaultValue={row.dueDate}
-              className="mt-1 w-full rounded border border-slate-300 p-2"
+              className="mt-1 w-full rounded border border-notion-hairline p-2 text-notion-text focus:border-notion-accent focus:outline-none"
             />
           </div>
           {settleState.error && <p className="text-sm text-red-600">{settleState.error}</p>}

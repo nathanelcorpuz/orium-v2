@@ -135,6 +135,12 @@ export interface ForecastRow {
   budgetId?: string;
   budgetName?: string;
   note?: string | null;
+  // True when a non-skipped occurrence_overrides/budget_occurrence_overrides
+  // row applied to this occurrence (SPEC.md Phase 7 "edited-occurrence
+  // indicator") - omitted rather than false so existing forecast.test.ts
+  // literals using toEqual don't need updating (toEqual treats a missing key
+  // the same as an explicit `undefined`).
+  edited?: true;
 }
 
 export interface GenerateForecastInput {

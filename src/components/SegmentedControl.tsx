@@ -19,8 +19,8 @@ export function SegmentedControl<T extends string>({
           onClick={() => onChange(option.value)}
           className={`flex-1 rounded-full border px-3 py-1.5 text-center text-sm ${
             value === option.value
-              ? "border-slate-900 bg-slate-900 text-white"
-              : "border-slate-300 text-slate-600 hover:border-slate-400"
+              ? "border-notion-text bg-notion-text text-white"
+              : "border-notion-hairline text-slate-600 hover:bg-notion-hover"
           }`}
         >
           {option.label}

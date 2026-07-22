@@ -3,6 +3,7 @@
 import { useActionState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { formatCentavos } from "@/lib/money";
+import { formatFullDate } from "@/lib/date";
 import { computeBudgetCycleStatus } from "@/lib/engine/budgetCycles";
 import type { Budget, BudgetEntry, ForecastRow, OccurrenceOverride, RecurringItem } from "@/lib/engine/types";
 import { ProgressBar } from "@/components/ProgressBar";
@@ -45,9 +46,9 @@ function BudgetPanelItem({
   if (status.over > 0) {
     statusLine = `Over by ${formatCentavos(status.over, currency)} · next cycle starts at ${formatCentavos(budget.allocation, currency)}`;
   } else if (status.source === "linked_income") {
-    statusLine = `resets with ${incomeName ?? "linked income"}${nextCycleStart ? ` · ${nextCycleStart}` : ""}`;
+    statusLine = `resets with ${incomeName ?? "linked income"}${nextCycleStart ? ` · ${formatFullDate(nextCycleStart)}` : ""}`;
   } else {
-    statusLine = `${formatCentavos(status.remaining, currency)} left${nextCycleStart ? ` · resets ${nextCycleStart}` : ""}`;
+    statusLine = `${formatCentavos(status.remaining, currency)} left${nextCycleStart ? ` · resets ${formatFullDate(nextCycleStart)}` : ""}`;
   }
 
   const [logState, logAction, logPending] = useActionState(logSpend, initialLogState);
@@ -62,11 +63,11 @@ function BudgetPanelItem({
   }, [logPending, logState]);
 
   return (
-    <li className="border-b border-slate-100 pb-3 last:border-0 last:pb-0">
+    <li className="border-b border-notion-hairline pb-3 last:border-0 last:pb-0">
       <div className="mb-1 flex items-center justify-between gap-2">
-        <p className="truncate text-sm font-medium">{budget.name}</p>
+        <p className="truncate text-sm font-medium text-notion-text">{budget.name}</p>
         {status.carriedIn !== 0 && (
-          <span className="shrink-0 rounded-full bg-teal-50 px-2 py-0.5 text-xs font-medium text-teal-700">
+          <span className="shrink-0 rounded-full bg-notion-hover px-2 py-0.5 text-xs font-medium text-notion-budget">
             {status.carriedIn > 0 ? "+" : ""}
             {formatCentavos(status.carriedIn, currency)} carried over
           </span>
@@ -98,20 +99,20 @@ function BudgetPanelItem({
             required
             placeholder="Amount"
             aria-label={`Log spend amount for ${budget.name}`}
-            className="w-20 rounded border border-slate-300 p-1 text-xs"
+            className="w-20 rounded border border-notion-hairline p-1 text-xs text-notion-text focus:border-notion-accent focus:outline-none"
           />
           <input
             name="note"
             type="text"
             placeholder="Note (optional)"
             aria-label={`Log spend note for ${budget.name}`}
-            className="min-w-0 flex-1 rounded border border-slate-300 p-1 text-xs"
+            className="min-w-0 flex-1 rounded border border-notion-hairline p-1 text-xs text-notion-text focus:border-notion-accent focus:outline-none"
           />
         </div>
         <button
           type="submit"
           disabled={logPending}
-          className="w-full rounded bg-slate-900 py-1 text-xs text-white disabled:opacity-50"
+          className="w-full rounded bg-notion-text py-1 text-xs text-white hover:opacity-90 disabled:opacity-50"
         >
           {logPending ? "Logging..." : "Log spend"}
         </button>
@@ -139,10 +140,10 @@ export function BudgetsPanel({
   currency: string;
 }) {
   return (
-    <aside className="w-full shrink-0 rounded-xl bg-white p-4 shadow">
+    <aside className="w-full shrink-0 rounded-lg border border-notion-hairline bg-white p-4">
       <div className="mb-3 flex items-center justify-between">
-        <h2 className="text-sm font-semibold text-slate-700">Budgets</h2>
-        <Link href="/budgets" className="text-xs text-slate-400 underline">
+        <h2 className="text-sm font-semibold text-notion-text">Budgets</h2>
+        <Link href="/budgets" className="text-xs text-notion-accent underline">
           Manage
         </Link>
       </div>

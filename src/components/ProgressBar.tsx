@@ -11,9 +11,9 @@ export function ProgressBar({
   className?: string;
 }) {
   return (
-    <div className={`w-full overflow-hidden rounded-full bg-slate-100 ${className}`}>
+    <div className={`w-full overflow-hidden rounded-full bg-notion-hover ${className}`}>
       <div
-        className={`h-full ${over ? "bg-red-500" : "bg-teal-600"}`}
+        className={`h-full ${over ? "bg-red-500" : "bg-notion-budget"}`}
         style={{ width: `${percent}%` }}
       />
     </div>

@@ -1,4 +1,5 @@
 import type { RecurrenceRule } from "./engine/types";
+import { MONTH_ABBR, formatMonthYear } from "./date";
 
 // Display formatting for a recurrence rule (e.g. "Every 2 weeks on Sat ·
 // until Apr 2030"), shown on each Bills/Income/Debt/Savings row (SPEC.md
@@ -6,10 +7,6 @@ import type { RecurrenceRule } from "./engine/types";
 // UI display formatting, not occurrence computation.
 
 const WEEKDAY_ABBR = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-const MONTH_ABBR = [
-  "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
-];
 const ORDINAL_WORDS: Record<number, string> = { 1: "first", 2: "second", 3: "third", 4: "fourth" };
 
 export function ordinalSuffix(day: number): string {
@@ -38,11 +35,6 @@ function formatWeekdayList(weekdays: number[]): string {
     .sort((a, b) => a - b)
     .map((w) => WEEKDAY_ABBR[w])
     .join(", ");
-}
-
-function formatMonthYear(dateStr: string): string {
-  const [year, month] = dateStr.split("-").map(Number);
-  return `${MONTH_ABBR[month - 1]} ${year}`;
 }
 
 function endsSuffix(rule: RecurrenceRule): string {

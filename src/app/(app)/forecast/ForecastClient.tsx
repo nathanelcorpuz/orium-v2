@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { formatCentavos } from "@/lib/money";
+import { formatFullDate } from "@/lib/date";
 import { balanceRangeColorClass } from "@/lib/balanceColor";
 import { BalanceModal, type BalanceRow } from "@/app/(app)/balances/BalanceModal";
 import type { Budget, BudgetEntry, ForecastRow, OccurrenceOverride, RecurringItem } from "@/lib/engine/types";
@@ -14,8 +15,8 @@ const TYPE_COLOR: Record<ForecastRow["type"], string> = {
   debt: "text-orange-700",
   savings: "text-blue-700",
   extra: "text-purple-700",
-  bill: "text-slate-900",
-  budget: "text-teal-700",
+  bill: "text-notion-text",
+  budget: "text-notion-budget",
 };
 
 export function ForecastClient({
@@ -52,8 +53,8 @@ export function ForecastClient({
         <div className="flex flex-col gap-6 lg:flex-row lg:items-start">
           <div className="min-w-0 flex-1">
             <div className="mb-6">
-              <h1 className="text-xl font-semibold">Forecast</h1>
-              <p className="text-slate-600">
+              <h1 className="text-xl font-semibold text-notion-text">Forecast</h1>
+              <p className="text-slate-500">
                 Total balance: {formatCentavos(totalBalance, currency)}
               </p>
               <div className="mt-2 flex flex-wrap gap-2">
@@ -62,7 +63,7 @@ export function ForecastClient({
                     key={balance.id}
                     type="button"
                     onClick={() => setEditingBalance(balance)}
-                    className="rounded-full bg-white px-3 py-1 text-sm shadow hover:bg-slate-100"
+                    className="rounded-full border border-notion-hairline bg-white px-3 py-1 text-sm text-notion-text hover:bg-notion-hover"
                   >
                     {balance.name}: {formatCentavos(balance.amount, currency)}
                   </button>
@@ -73,10 +74,10 @@ export function ForecastClient({
             {forecast.length === 0 ? (
               <p className="text-slate-500">No upcoming transactions yet.</p>
             ) : (
-              <div className="overflow-x-auto rounded-xl bg-white shadow">
+              <div className="overflow-x-auto rounded-lg border border-notion-hairline bg-white">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="border-b border-slate-200 text-left text-slate-500">
+                    <tr className="border-b border-notion-hairline text-left text-slate-500">
                       <th className="p-3">Date</th>
                       <th className="p-3">Name</th>
                       <th className="p-3">Type</th>
@@ -109,10 +110,20 @@ export function ForecastClient({
                                 }
                               : undefined
                           }
-                          className={`${clickable ? "cursor-pointer hover:opacity-80" : ""} ${balanceRangeColorClass(row.runningBalance, balanceRanges)}`}
+                          className={`border-b border-notion-hairline text-notion-text last:border-0 ${clickable ? "cursor-pointer hover:opacity-80" : ""} ${balanceRangeColorClass(row.runningBalance, balanceRanges)}`}
                         >
-                          <td className="p-3">{row.dueDate}</td>
-                          <td className="p-3">{row.name}</td>
+                          <td className="p-3">{formatFullDate(row.dueDate)}</td>
+                          <td className="p-3">
+                            {row.name}
+                            {row.edited && (
+                              <span
+                                className="ml-1.5 text-slate-400"
+                                title="Edited from its usual schedule"
+                              >
+                                ✎
+                              </span>
+                            )}
+                          </td>
                           <td className={`p-3 ${TYPE_COLOR[row.type]}`}>{row.type}</td>
                           <td className="p-3 text-right">{formatCentavos(row.amount, currency)}</td>
                           <td className="p-3 text-right font-medium">

@@ -92,6 +92,7 @@ describe("generateForecast overrides", () => {
         dueDate: "2026-01-12",
         type: "bill",
         runningBalance: -150000,
+        edited: true,
       },
       {
         sourceType: "recurring",
@@ -102,7 +103,88 @@ describe("generateForecast overrides", () => {
         dueDate: "2026-02-10",
         type: "bill",
         runningBalance: -350000,
+        edited: true,
       },
+    ]);
+  });
+});
+
+describe("generateForecast edited flag (Phase 7 edited-occurrence indicator)", () => {
+  const electricBill = monthlyItem({
+    id: "bill-1",
+    name: "Electric",
+    amount: -150000,
+    daysOfMonth: [10],
+  });
+  const groceries: Budget = {
+    id: "budget-1",
+    name: "Groceries",
+    monthlyAllocation: 500000,
+    allocation: 500000,
+    carryoverEnabled: false,
+    createdAt: "2026-01-01",
+    linkedIncomeId: null,
+    startDate: null,
+    interval: null,
+    unit: null,
+    weekdays: null,
+    daysOfMonth: null,
+    ordinal: null,
+    ordinalWeekday: null,
+    endsType: null,
+    endDate: null,
+    occurrenceCount: null,
+  };
+
+  it("marks a recurring row edited when a non-skipped override applies, and leaves untouched rows unmarked", () => {
+    const overrides: OccurrenceOverride[] = [
+      {
+        id: "ov-1",
+        recurringItemId: "bill-1",
+        originalDate: "2026-01-10",
+        newDate: "2026-01-12",
+        newAmount: null,
+        newName: null,
+        skipped: false,
+      },
+    ];
+
+    const result = generateForecast({
+      balances: [],
+      recurringItems: [electricBill],
+      overrides,
+      oneOffs: [],
+      today,
+      horizon,
+    });
+
+    expect(result.map((row) => ({ dueDate: row.dueDate, edited: row.edited }))).toEqual([
+      { dueDate: "2026-01-12", edited: true },
+      { dueDate: "2026-02-10", edited: undefined },
+      { dueDate: "2026-03-10", edited: undefined },
+    ]);
+  });
+
+  it("marks a future budget boundary row edited when a non-skipped budget override applies", () => {
+    const budgetOverrides: BudgetOccurrenceOverride[] = [
+      { id: "bo1", budgetId: "budget-1", originalDate: "2026-02-01", newDate: null, newAmount: -450000, skipped: false },
+    ];
+
+    const result = generateForecast({
+      balances: [],
+      recurringItems: [],
+      overrides: [],
+      oneOffs: [],
+      budgets: [groceries],
+      budgetEntries: [],
+      budgetOverrides,
+      today: "2026-01-15",
+      horizon: "2026-02-28",
+    });
+
+    expect(result.map((row) => ({ dueDate: row.dueDate, edited: row.edited }))).toEqual([
+      { dueDate: "2026-01-15", edited: undefined }, // remaining this cycle - never has an override
+      { dueDate: "2026-02-01", edited: true },
     ]);
   });
 });

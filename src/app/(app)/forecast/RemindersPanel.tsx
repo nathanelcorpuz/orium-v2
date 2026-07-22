@@ -34,12 +34,12 @@ function AddReminderForm() {
           type="text"
           placeholder="New reminder"
           required
-          className="flex-1 rounded border border-slate-300 p-2 text-sm"
+          className="flex-1 rounded border border-notion-hairline p-2 text-sm text-notion-text focus:border-notion-accent focus:outline-none"
         />
         <button
           type="submit"
           disabled={pending}
-          className="rounded bg-slate-900 px-3 py-2 text-sm text-white disabled:opacity-50"
+          className="rounded bg-notion-text px-3 py-2 text-sm text-white hover:opacity-90 disabled:opacity-50"
         >
           Add
         </button>
@@ -76,7 +76,7 @@ function ReminderItem({ reminder }: { reminder: ReminderRow }) {
             type="text"
             defaultValue={reminder.text}
             required
-            className="flex-1 rounded border border-slate-300 p-1 text-sm"
+            className="flex-1 rounded border border-notion-hairline p-1 text-sm text-notion-text focus:border-notion-accent focus:outline-none"
           />
           <button type="submit" disabled={editPending} className="text-xs text-slate-600 underline">
             Save
@@ -119,7 +119,7 @@ function ReminderItem({ reminder }: { reminder: ReminderRow }) {
 
   return (
     <div className="flex items-start justify-between gap-2 text-sm">
-      <span className="flex-1 break-words">{reminder.text}</span>
+      <span className="flex-1 break-words text-notion-text">{reminder.text}</span>
       <div className="flex shrink-0 gap-2">
         <button
           type="button"
@@ -142,8 +142,8 @@ function ReminderItem({ reminder }: { reminder: ReminderRow }) {
 
 export function RemindersPanel({ reminders }: { reminders: ReminderRow[] }) {
   return (
-    <aside className="w-full shrink-0 rounded-xl bg-white p-4 shadow lg:w-72">
-      <h2 className="mb-3 text-sm font-semibold text-slate-700">Reminders</h2>
+    <aside className="w-full shrink-0 rounded-lg border border-notion-hairline bg-white p-4 lg:w-72">
+      <h2 className="mb-3 text-sm font-semibold text-notion-text">Reminders</h2>
       <AddReminderForm />
       {reminders.length === 0 ? (
         <p className="text-sm text-slate-400">No reminders yet.</p>

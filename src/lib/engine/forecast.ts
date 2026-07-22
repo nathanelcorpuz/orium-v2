@@ -63,6 +63,7 @@ export function generateForecast(input: GenerateForecastInput): ForecastRow[] {
         amount: override?.newAmount ?? item.amount,
         dueDate: override?.newDate ?? date,
         type: item.type,
+        edited: override ? true : undefined,
       });
     }
   }
@@ -108,6 +109,7 @@ export function generateForecast(input: GenerateForecastInput): ForecastRow[] {
         amount: override?.newAmount ?? occurrence.amount,
         dueDate: override?.newDate ?? occurrence.date,
         type: "budget",
+        edited: override ? true : undefined,
       });
     }
 

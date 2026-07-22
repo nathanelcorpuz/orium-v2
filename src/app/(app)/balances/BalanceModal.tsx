@@ -54,7 +54,7 @@ export function BalanceModal({
             type="text"
             required
             defaultValue={balance?.name}
-            className="mt-1 w-full rounded border border-slate-300 p-2"
+            className="mt-1 w-full rounded border border-notion-hairline p-2 text-notion-text focus:border-notion-accent focus:outline-none"
           />
         </div>
         <div>
@@ -68,7 +68,7 @@ export function BalanceModal({
             step="0.01"
             required
             defaultValue={balance ? centavosToPesosString(balance.amount) : undefined}
-            className="mt-1 w-full rounded border border-slate-300 p-2"
+            className="mt-1 w-full rounded border border-notion-hairline p-2 text-notion-text focus:border-notion-accent focus:outline-none"
           />
         </div>
         <div>
@@ -79,7 +79,7 @@ export function BalanceModal({
             id="comments"
             name="comments"
             defaultValue={balance?.comments ?? ""}
-            className="mt-1 w-full rounded border border-slate-300 p-2"
+            className="mt-1 w-full rounded border border-notion-hairline p-2 text-notion-text focus:border-notion-accent focus:outline-none"
           />
         </div>
         {state.error && <p className="text-sm text-red-600">{state.error}</p>}
@@ -87,14 +87,14 @@ export function BalanceModal({
           <button
             type="button"
             onClick={onClose}
-            className="rounded border border-slate-300 px-4 py-2"
+            className="rounded border border-notion-hairline px-4 py-2 text-notion-text hover:bg-notion-hover"
           >
             Cancel
           </button>
           <button
             type="submit"
             disabled={pending}
-            className="rounded bg-slate-900 px-4 py-2 text-white disabled:opacity-50"
+            className="rounded bg-notion-text px-4 py-2 text-white hover:opacity-90 disabled:opacity-50"
           >
             {pending ? "Saving..." : "Save"}
           </button>
