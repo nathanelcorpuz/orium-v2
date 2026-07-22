@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { loadForecast } from "@/lib/forecastData";
 import { formatCentavos } from "@/lib/money";
-import { formatFullDate } from "@/lib/date";
+import { formatFullDate, formatMonthYear } from "@/lib/date";
 import { displayName } from "@/lib/displayName";
 import { monthlyEquivalent } from "@/lib/engine/monthlyTotals";
 import { remainingTotal, ruleEndDate } from "@/lib/engine/remaining";
@@ -166,7 +166,7 @@ export default async function Home() {
             <tbody>
               {peaksAndDrops.map((row) => (
                 <tr key={row.month} className="border-b border-notion-hairline text-notion-text last:border-0">
-                  <td className="p-3">{row.month}</td>
+                  <td className="p-3">{formatMonthYear(row.month)}</td>
                   <td className="p-3 text-right">{formatCentavos(row.peak, currency)}</td>
                   <td className="p-3 text-right">{formatCentavos(row.drop, currency)}</td>
                 </tr>
