@@ -19,6 +19,55 @@ const TYPE_COLOR: Record<ForecastRow["type"], string> = {
   budget: "text-notion-budget",
 };
 
+function ReservedBadge() {
+  return (
+    <span className="ml-1.5 rounded-full bg-notion-hover px-1.5 py-0.5 text-[10px] font-medium not-italic text-slate-500">
+      reserved
+    </span>
+  );
+}
+
+// A budget's cycle-boundary rows (SPEC.md T45) are a projection - "this much
+// of the allocation is reserved" - not a real transaction like a bill or a
+// logged spend (budget_entry rows), so they're visually distinct and, when
+// several budgets reset on the same date, collapsed into one summary row
+// instead of N near-identical lines. Removing them outright isn't an option:
+// forecast.ts relies on them to reserve the allocation against the running
+// balance, so the balance column would go stale-looking without a row to
+// explain the jump.
+type DisplayItem =
+  | { kind: "row"; row: ForecastRow; key: string }
+  | { kind: "budgetGroup"; key: string; date: string; total: number; count: number; runningBalance: number };
+
+function buildDisplayItems(forecast: ForecastRow[]): DisplayItem[] {
+  const items: DisplayItem[] = [];
+  let i = 0;
+  while (i < forecast.length) {
+    const row = forecast[i];
+    if (row.sourceType === "budget") {
+      let j = i;
+      let total = 0;
+      let runningBalance = row.runningBalance;
+      while (j < forecast.length && forecast[j].sourceType === "budget" && forecast[j].dueDate === row.dueDate) {
+        total += forecast[j].amount;
+        runningBalance = forecast[j].runningBalance;
+        j++;
+      }
+      const count = j - i;
+      if (count > 1) {
+        items.push({ kind: "budgetGroup", key: `budget-group-${row.dueDate}-${i}`, date: row.dueDate, total, count, runningBalance });
+      } else {
+        items.push({ kind: "row", row, key: `${row.sourceType}-${row.sourceId}-${row.originalDate}-${i}` });
+      }
+      i = j;
+    } else {
+      items.push({ kind: "row", row, key: `${row.sourceType}-${row.sourceId}-${row.originalDate}-${i}` });
+      i++;
+    }
+  }
+  return items;
+}
+
 export function ForecastClient({
   forecast,
   balances,
@@ -46,6 +95,7 @@ export function ForecastClient({
   const [selectedRow, setSelectedRow] = useState<ForecastRow | null>(null);
 
   const totalBalance = balances.reduce((sum, balance) => sum + balance.amount, 0);
+  const displayItems = buildDisplayItems(forecast);
 
   return (
     <div className="p-8">
@@ -86,7 +136,33 @@ export function ForecastClient({
                     </tr>
                   </thead>
                   <tbody>
-                    {forecast.map((row, index) => {
+                    {displayItems.map((item) => {
+                      if (item.kind === "budgetGroup") {
+                        // Several budgets reset the same date - one summary
+                        // row instead of N near-identical reservation rows
+                        // (SPEC.md T45). Not clickable: editing an individual
+                        // budget from here would be ambiguous, so that still
+                        // happens via the sidebar panel or the Budgets page.
+                        return (
+                          <tr
+                            key={item.key}
+                            className={`border-b border-notion-hairline text-notion-text last:border-0 ${balanceRangeColorClass(item.runningBalance, balanceRanges)}`}
+                          >
+                            <td className="p-3">{formatFullDate(item.date)}</td>
+                            <td className="p-3 italic text-slate-500">
+                              Budgets reserved
+                              <ReservedBadge />
+                            </td>
+                            <td className={`p-3 ${TYPE_COLOR.budget}`}>budget · {item.count}</td>
+                            <td className="p-3 text-right">{formatCentavos(item.total, currency)}</td>
+                            <td className="p-3 text-right font-medium">
+                              {formatCentavos(item.runningBalance, currency)}
+                            </td>
+                          </tr>
+                        );
+                      }
+
+                      const row = item.row;
                       // Only future budget rows are editable (SPEC.md T42
                       // part B) - the "remaining this cycle" row is always
                       // dated exactly `today` (originalDate never exceeds
@@ -94,9 +170,14 @@ export function ForecastClient({
                       // future transaction. Logging a spend on it happens
                       // through the Budgets panel or page instead.
                       const clickable = row.type !== "budget" || row.originalDate > today;
+                      // Budget boundary rows are a reservation/projection,
+                      // not a real transaction like a bill or a logged spend
+                      // (budget_entry rows are real, so excluded) - SPEC.md
+                      // T45.
+                      const isReservation = row.sourceType === "budget";
                       return (
                         <tr
-                          key={`${row.sourceType}-${row.sourceId}-${row.originalDate}-${index}`}
+                          key={item.key}
                           role={clickable ? "button" : undefined}
                           tabIndex={clickable ? 0 : undefined}
                           onClick={clickable ? () => setSelectedRow(row) : undefined}
@@ -114,7 +195,8 @@ export function ForecastClient({
                         >
                           <td className="p-3">{formatFullDate(row.dueDate)}</td>
                           <td className="p-3">
-                            {row.name}
+                            {isReservation ? <span className="italic">{row.name}</span> : row.name}
+                            {isReservation && <ReservedBadge />}
                             {row.edited && (
                               <span
                                 className="ml-1.5 text-slate-400"
