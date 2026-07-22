@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import { formatCentavos } from "@/lib/money";
 import { monthlyEquivalent } from "@/lib/engine/monthlyTotals";
 import { summarizeRecurrence } from "@/lib/recurrenceSummary";
@@ -39,13 +38,9 @@ export function BillsClient({ bills }: { bills: BillRow[] }) {
   );
 
   return (
-    <main className="min-h-screen bg-slate-50 p-8">
+    <div className="p-8">
       <div className="mx-auto max-w-2xl">
-        <Link href="/" className="text-sm text-slate-500 underline">
-          &larr; Home
-        </Link>
-
-        <div className="mb-6 mt-2 flex items-center justify-between">
+        <div className="mb-6 flex items-center justify-between">
           <div>
             <h1 className="text-xl font-semibold">Bills</h1>
             <p className="text-slate-600">Total monthly: {formatCentavos(totalMonthly)}</p>
@@ -126,6 +121,6 @@ export function BillsClient({ bills }: { bills: BillRow[] }) {
           />
         )}
       </div>
-    </main>
+    </div>
   );
 }

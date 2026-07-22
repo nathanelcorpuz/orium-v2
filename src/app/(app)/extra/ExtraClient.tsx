@@ -1,60 +1,63 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import { formatCentavos } from "@/lib/money";
-import { deleteBalance } from "./actions";
-import { BalanceModal, type BalanceRow } from "./BalanceModal";
+import { todayInManila } from "@/lib/date";
+import { deleteExtra } from "./actions";
+import { ExtraModal, type ExtraRow } from "./ExtraModal";
 
-export function BalancesClient({ balances }: { balances: BalanceRow[] }) {
-  const [modalState, setModalState] = useState<null | "new" | BalanceRow>(null);
+export function ExtraClient({ extras }: { extras: ExtraRow[] }) {
+  const [modalState, setModalState] = useState<null | "new" | ExtraRow>(null);
   const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null);
 
-  const total = balances.reduce((sum, balance) => sum + balance.amount, 0);
+  const today = todayInManila();
+  const totalRemaining = extras
+    .filter((extra) => extra.due_date >= today)
+    .reduce((sum, extra) => sum + extra.amount, 0);
 
   return (
-    <main className="min-h-screen bg-slate-50 p-8">
+    <div className="p-8">
       <div className="mx-auto max-w-2xl">
-        <Link href="/" className="text-sm text-slate-500 underline">
-          &larr; Home
-        </Link>
-
-        <div className="mb-6 mt-2 flex items-center justify-between">
+        <div className="mb-6 flex items-center justify-between">
           <div>
-            <h1 className="text-xl font-semibold">Balances</h1>
-            <p className="text-slate-600">Total: {formatCentavos(total)}</p>
+            <h1 className="text-xl font-semibold">Extras</h1>
+            <p className="text-slate-600">
+              Total remaining: <span className="text-purple-700">{formatCentavos(totalRemaining)}</span>
+            </p>
           </div>
           <button
             type="button"
             onClick={() => setModalState("new")}
             className="rounded bg-slate-900 px-4 py-2 text-white"
           >
-            Add balance
+            Add extra
           </button>
         </div>
 
-        {balances.length === 0 ? (
-          <p className="text-slate-500">No balances yet. Add your first account above.</p>
+        {extras.length === 0 ? (
+          <p className="text-slate-500">No extras yet. Add your first one above.</p>
         ) : (
           <ul className="space-y-2">
-            {balances.map((balance) => (
+            {extras.map((extra) => (
               <li
-                key={balance.id}
+                key={extra.id}
                 className="flex items-center justify-between rounded-xl bg-white p-4 shadow"
               >
                 <div>
-                  <p className="font-medium">{balance.name}</p>
-                  <p className="text-sm text-slate-600">{formatCentavos(balance.amount)}</p>
-                  {balance.comments && (
-                    <p className="text-sm text-slate-400">{balance.comments}</p>
+                  <p className="font-medium">{extra.name}</p>
+                  <p className="text-sm text-purple-700">
+                    {formatCentavos(extra.amount)}, due {extra.due_date}
+                  </p>
+                  {extra.comments && (
+                    <p className="text-sm text-slate-400">{extra.comments}</p>
                   )}
                 </div>
                 <div className="flex items-center gap-2">
-                  {confirmingDeleteId === balance.id ? (
+                  {confirmingDeleteId === extra.id ? (
                     <>
                       <span className="text-sm text-slate-600">Delete?</span>
-                      <form action={deleteBalance}>
-                        <input type="hidden" name="id" value={balance.id} />
+                      <form action={deleteExtra}>
+                        <input type="hidden" name="id" value={extra.id} />
                         <button
                           type="submit"
                           className="rounded border border-red-300 px-3 py-1 text-sm text-red-600"
@@ -74,14 +77,14 @@ export function BalancesClient({ balances }: { balances: BalanceRow[] }) {
                     <>
                       <button
                         type="button"
-                        onClick={() => setModalState(balance)}
+                        onClick={() => setModalState(extra)}
                         className="rounded border border-slate-300 px-3 py-1 text-sm"
                       >
                         Edit
                       </button>
                       <button
                         type="button"
-                        onClick={() => setConfirmingDeleteId(balance.id)}
+                        onClick={() => setConfirmingDeleteId(extra.id)}
                         className="rounded border border-red-300 px-3 py-1 text-sm text-red-600"
                       >
                         Delete
@@ -95,12 +98,12 @@ export function BalancesClient({ balances }: { balances: BalanceRow[] }) {
         )}
 
         {modalState !== null && (
-          <BalanceModal
-            balance={modalState === "new" ? null : modalState}
+          <ExtraModal
+            extra={modalState === "new" ? null : modalState}
             onClose={() => setModalState(null)}
           />
         )}
       </div>
-    </main>
+    </div>
   );
 }

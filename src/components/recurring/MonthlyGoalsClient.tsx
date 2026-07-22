@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import { formatCentavos } from "@/lib/money";
 import { remainingTotal } from "@/lib/engine/remaining";
 import { monthlyEquivalent } from "@/lib/engine/monthlyTotals";
@@ -73,13 +72,9 @@ export function MonthlyGoalsClient({
   );
 
   return (
-    <main className="min-h-screen bg-slate-50 p-8">
+    <div className="p-8">
       <div className="mx-auto max-w-2xl">
-        <Link href="/" className="text-sm text-slate-500 underline">
-          &larr; Home
-        </Link>
-
-        <div className="mb-6 mt-2 flex items-center justify-between">
+        <div className="mb-6 flex items-center justify-between">
           <div>
             <h1 className="text-xl font-semibold">{pageTitle}</h1>
             <p className="text-slate-600">
@@ -176,6 +171,6 @@ export function MonthlyGoalsClient({
           />
         )}
       </div>
-    </main>
+    </div>
   );
 }

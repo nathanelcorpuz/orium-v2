@@ -20,13 +20,9 @@ export default async function SettingsPage() {
   const balanceRanges = preferencesRes.data?.balance_ranges ?? DEFAULT_BALANCE_RANGES;
 
   return (
-    <main className="min-h-screen bg-slate-50 p-8">
+    <div className="p-8">
       <div className="mx-auto max-w-xl">
-        <Link href="/" className="text-sm text-slate-500 underline">
-          &larr; Home
-        </Link>
-
-        <h1 className="mb-6 mt-2 text-xl font-semibold">Settings</h1>
+        <h1 className="mb-6 text-xl font-semibold">Settings</h1>
 
         <div className="space-y-6">
           <ProfileForm email={user?.email ?? ""} name={name} />
@@ -54,6 +50,6 @@ export default async function SettingsPage() {
           </div>
         </div>
       </div>
-    </main>
+    </div>
   );
 }

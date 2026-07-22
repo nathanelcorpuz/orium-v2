@@ -2,9 +2,10 @@
 
 import { useActionState, useEffect, useRef, useState } from "react";
 import { Modal } from "@/components/Modal";
+import { SegmentedControl } from "@/components/SegmentedControl";
 import { centavosToPesosString } from "@/lib/money";
 import type { ForecastRow } from "@/lib/engine/types";
-import { deleteBudgetEntry, updateBudgetEntry, type BudgetActionState } from "@/app/budgets/actions";
+import { deleteBudgetEntry, updateBudgetEntry, type BudgetActionState } from "@/app/(app)/budgets/actions";
 import {
   editBudgetOccurrence,
   editOneOff,
@@ -73,25 +74,15 @@ export function EditSettleModal({
   return (
     <Modal title={row.name} onClose={onClose}>
       {!isBudget && !isBudgetEntry && (
-        <div className="mb-4 flex gap-2">
-          <button
-            type="button"
-            onClick={() => setMode("edit")}
-            className={`rounded px-3 py-1 text-sm ${
-              mode === "edit" ? "bg-slate-900 text-white" : "border border-slate-300"
-            }`}
-          >
-            Edit
-          </button>
-          <button
-            type="button"
-            onClick={() => setMode("settle")}
-            className={`rounded px-3 py-1 text-sm ${
-              mode === "settle" ? "bg-slate-900 text-white" : "border border-slate-300"
-            }`}
-          >
-            Settle
-          </button>
+        <div className="mb-4">
+          <SegmentedControl
+            options={[
+              { value: "edit", label: "Edit" },
+              { value: "settle", label: "Settle" },
+            ]}
+            value={mode}
+            onChange={setMode}
+          />
         </div>
       )}
 

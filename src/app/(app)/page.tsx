@@ -1,6 +1,4 @@
-import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import { logout } from "@/app/auth/actions";
 import { loadForecast } from "@/lib/forecastData";
 import { formatCentavos } from "@/lib/money";
 import { displayName } from "@/lib/displayName";
@@ -9,6 +7,7 @@ import { remainingTotal, ruleEndDate } from "@/lib/engine/remaining";
 import { computeMonthlyPeaksAndDrops } from "@/lib/engine/peaksAndDrops";
 import { computeBudgetCycleStatus } from "@/lib/engine/budgetCycles";
 import { daysBetween } from "@/lib/engine/date-utils";
+import { ProgressBar } from "@/components/ProgressBar";
 
 function DashboardCard({
   title,
@@ -70,52 +69,12 @@ export default async function Home() {
   const peaksAndDrops = computeMonthlyPeaksAndDrops(forecast, totalBalance, today, horizon);
 
   return (
-    <main className="min-h-screen bg-slate-50 p-8">
+    <div className="p-8">
       <div className="mx-auto max-w-5xl">
-        <div className="mb-6 flex items-center justify-between">
-          <div>
-            <h1 className="text-xl font-semibold">Dashboard</h1>
-            <p className="text-slate-600">Welcome, {greetingName}</p>
-          </div>
-          <form action={logout}>
-            <button type="submit" className="rounded bg-slate-900 px-4 py-2 text-white">
-              Log out
-            </button>
-          </form>
+        <div className="mb-6">
+          <h1 className="text-xl font-semibold">Dashboard</h1>
+          <p className="text-slate-600">Welcome, {greetingName}</p>
         </div>
-
-        <nav className="mb-6 flex flex-wrap gap-x-4 gap-y-2 text-sm">
-          <Link href="/balances" className="underline">
-            Balances
-          </Link>
-          <Link href="/bills" className="underline">
-            Bills
-          </Link>
-          <Link href="/income" className="underline">
-            Income
-          </Link>
-          <Link href="/debt" className="underline">
-            Debt
-          </Link>
-          <Link href="/savings" className="underline">
-            Savings
-          </Link>
-          <Link href="/budgets" className="underline">
-            Budgets
-          </Link>
-          <Link href="/extra" className="underline">
-            Extras
-          </Link>
-          <Link href="/forecast" className="underline">
-            Forecast
-          </Link>
-          <Link href="/history" className="underline">
-            History
-          </Link>
-          <Link href="/settings" className="underline">
-            Settings
-          </Link>
-        </nav>
 
         <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
           <DashboardCard title="Total Balance" value={formatCentavos(totalBalance, currency)} />
@@ -185,12 +144,7 @@ export default async function Home() {
                           : `${formatCentavos(status.remaining, currency)} left`}
                       </span>
                     </div>
-                    <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
-                      <div
-                        className={`h-full ${status.over > 0 ? "bg-red-500" : "bg-teal-600"}`}
-                        style={{ width: `${progressPercent}%` }}
-                      />
-                    </div>
+                    <ProgressBar percent={progressPercent} over={status.over > 0} />
                   </li>
                 );
               })}
@@ -220,6 +174,6 @@ export default async function Home() {
           </table>
         </div>
       </div>
-    </main>
+    </div>
   );
 }

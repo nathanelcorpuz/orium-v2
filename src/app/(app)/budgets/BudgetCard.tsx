@@ -4,6 +4,7 @@ import { useActionState, useEffect, useRef, useState } from "react";
 import { centavosToPesosString, formatCentavos } from "@/lib/money";
 import { todayInManila } from "@/lib/date";
 import { computeBudgetCycleStatus } from "@/lib/engine/budgetCycles";
+import { ProgressBar } from "@/components/ProgressBar";
 import {
   scheduleDescription,
   toEngineBudget,
@@ -271,12 +272,7 @@ export function BudgetCard({
         </div>
       </div>
 
-      <div className="mb-1 h-2 w-full overflow-hidden rounded-full bg-slate-100">
-        <div
-          className={`h-full ${status.over > 0 ? "bg-red-500" : "bg-teal-600"}`}
-          style={{ width: `${progressPercent}%` }}
-        />
-      </div>
+      <ProgressBar percent={progressPercent} over={status.over > 0} className="mb-1 h-2" />
       {status.over > 0 ? (
         <p className="mb-3 text-sm font-medium text-red-600">Over by {formatCentavos(status.over)}</p>
       ) : (

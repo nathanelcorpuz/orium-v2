@@ -5,7 +5,8 @@ import Link from "next/link";
 import { formatCentavos } from "@/lib/money";
 import { computeBudgetCycleStatus } from "@/lib/engine/budgetCycles";
 import type { Budget, BudgetEntry, ForecastRow, OccurrenceOverride, RecurringItem } from "@/lib/engine/types";
-import { logSpend, type BudgetActionState } from "@/app/budgets/actions";
+import { ProgressBar } from "@/components/ProgressBar";
+import { logSpend, type BudgetActionState } from "@/app/(app)/budgets/actions";
 
 const initialLogState: BudgetActionState = { error: null };
 
@@ -72,12 +73,7 @@ function BudgetPanelItem({
         )}
       </div>
 
-      <div className="mb-1 h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
-        <div
-          className={`h-full ${status.over > 0 ? "bg-red-500" : "bg-teal-600"}`}
-          style={{ width: `${progressPercent}%` }}
-        />
-      </div>
+      <ProgressBar percent={progressPercent} over={status.over > 0} className="mb-1 h-1.5" />
       <p className={`mb-2 text-xs ${status.over > 0 ? "font-medium text-red-600" : "text-slate-500"}`}>
         {statusLine}
       </p>

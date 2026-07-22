@@ -1,10 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import { formatCentavos } from "@/lib/money";
 import { balanceRangeColorClass } from "@/lib/balanceColor";
-import { BalanceModal, type BalanceRow } from "@/app/balances/BalanceModal";
+import { BalanceModal, type BalanceRow } from "@/app/(app)/balances/BalanceModal";
 import type { Budget, BudgetEntry, ForecastRow, OccurrenceOverride, RecurringItem } from "@/lib/engine/types";
 import { EditSettleModal } from "./EditSettleModal";
 import { RemindersPanel, type ReminderRow } from "./RemindersPanel";
@@ -48,13 +47,9 @@ export function ForecastClient({
   const totalBalance = balances.reduce((sum, balance) => sum + balance.amount, 0);
 
   return (
-    <main className="min-h-screen bg-slate-50 p-8">
+    <div className="p-8">
       <div className="mx-auto max-w-6xl">
-        <Link href="/" className="text-sm text-slate-500 underline">
-          &larr; Home
-        </Link>
-
-        <div className="mt-2 flex flex-col gap-6 lg:flex-row lg:items-start">
+        <div className="flex flex-col gap-6 lg:flex-row lg:items-start">
           <div className="min-w-0 flex-1">
             <div className="mb-6">
               <h1 className="text-xl font-semibold">Forecast</h1>
@@ -158,6 +153,6 @@ export function ForecastClient({
           onClose={() => setSelectedRow(null)}
         />
       )}
-    </main>
+    </div>
   );
 }

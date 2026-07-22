@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { formatCentavos } from "@/lib/money";
 
@@ -32,13 +31,9 @@ export default async function HistoryPage() {
   const currency = preferencesRes.data?.currency ?? "₱";
 
   return (
-    <main className="min-h-screen bg-slate-50 p-8">
+    <div className="p-8">
       <div className="mx-auto max-w-4xl">
-        <Link href="/" className="text-sm text-slate-500 underline">
-          &larr; Home
-        </Link>
-
-        <h1 className="mb-6 mt-2 text-xl font-semibold">History</h1>
+        <h1 className="mb-6 text-xl font-semibold">History</h1>
 
         {rows.length === 0 ? (
           <p className="text-slate-500">No settled transactions yet.</p>
@@ -93,6 +88,6 @@ export default async function HistoryPage() {
           </div>
         )}
       </div>
-    </main>
+    </div>
   );
 }

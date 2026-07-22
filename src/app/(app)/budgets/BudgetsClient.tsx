@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import { BudgetCard, type BudgetEntryRow, type IncomeItemRow, type OverrideRow } from "./BudgetCard";
 import { BudgetModal, type BudgetRow } from "./BudgetModal";
 
@@ -19,13 +18,9 @@ export function BudgetsClient({
   const [modalState, setModalState] = useState<null | "new" | BudgetRow>(null);
 
   return (
-    <main className="min-h-screen bg-slate-50 p-8">
+    <div className="p-8">
       <div className="mx-auto max-w-2xl">
-        <Link href="/" className="text-sm text-slate-500 underline">
-          &larr; Home
-        </Link>
-
-        <div className="mb-6 mt-2 flex items-center justify-between">
+        <div className="mb-6 flex items-center justify-between">
           <div>
             <h1 className="text-xl font-semibold">Budgets</h1>
             <p className="text-slate-600">Replenishing allocations for variable spending.</p>
@@ -64,6 +59,6 @@ export function BudgetsClient({
           />
         )}
       </div>
-    </main>
+    </div>
   );
 }

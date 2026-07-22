@@ -2,6 +2,7 @@
 
 import { useActionState, useEffect, useRef, useState } from "react";
 import { Modal } from "@/components/Modal";
+import { SegmentedControl } from "@/components/SegmentedControl";
 import { centavosToPesosString } from "@/lib/money";
 import { todayInManila } from "@/lib/date";
 import { RecurrencePicker, type RecurrenceValue } from "@/components/recurring/RecurrencePicker";
@@ -12,9 +13,10 @@ export type { BudgetRow } from "@/lib/budgetView";
 
 type ReplenishSource = "income" | "schedule";
 
-const SEGMENT_BASE = "flex-1 rounded-full border px-3 py-1.5 text-sm text-center";
-const SEGMENT_ON = `${SEGMENT_BASE} border-slate-900 bg-slate-900 text-white`;
-const SEGMENT_OFF = `${SEGMENT_BASE} border-slate-300 text-slate-600 hover:border-slate-400`;
+const REPLENISH_OPTIONS: { value: ReplenishSource; label: string }[] = [
+  { value: "income", label: "With an income" },
+  { value: "schedule", label: "On a schedule" },
+];
 
 const initialState: BudgetActionState = { error: null };
 
@@ -105,22 +107,7 @@ export function BudgetModal({
 
         <div>
           <p className="mb-1 block text-sm text-slate-600">Replenishes</p>
-          <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={() => setSource("income")}
-              className={source === "income" ? SEGMENT_ON : SEGMENT_OFF}
-            >
-              With an income
-            </button>
-            <button
-              type="button"
-              onClick={() => setSource("schedule")}
-              className={source === "schedule" ? SEGMENT_ON : SEGMENT_OFF}
-            >
-              On a schedule
-            </button>
-          </div>
+          <SegmentedControl options={REPLENISH_OPTIONS} value={source} onChange={setSource} />
           <input type="hidden" name="replenishSource" value={source} />
         </div>
 
