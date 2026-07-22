@@ -7,7 +7,7 @@ import type {
   RecurringItem,
 } from "./types";
 import { expandRecurrenceOccurrences } from "./recurrence";
-import { expandBudgetCycleOccurrences } from "./budgetCycles";
+import { expandBudgetCycleOccurrences, futureBudgetEntries } from "./budgetCycles";
 
 function toRecurrenceRule(item: RecurringItem): RecurrenceRule {
   return {
@@ -108,6 +108,27 @@ export function generateForecast(input: GenerateForecastInput): ForecastRow[] {
         amount: override?.newAmount ?? occurrence.amount,
         dueDate: override?.newDate ?? occurrence.date,
         type: "budget",
+      });
+    }
+
+    // SPEC.md T43: each future-dated entry gets its own row on its actual
+    // entry_date instead of being folded into a boundary row's total -
+    // expandBudgetCycleOccurrences above already subtracted these from
+    // whichever boundary row they'd otherwise inflate, so this doesn't
+    // double-count. Name matches the settlement-naming convention
+    // logSpend/updateBudgetEntry already use (budgets/actions.ts).
+    for (const futureEntry of futureBudgetEntries(budgetEntries, budget.id, today)) {
+      rows.push({
+        sourceType: "budget_entry",
+        sourceId: futureEntry.id,
+        originalDate: futureEntry.entryDate,
+        name: futureEntry.note ? `${budget.name} - ${futureEntry.note}` : budget.name,
+        amount: -futureEntry.amount,
+        dueDate: futureEntry.entryDate,
+        type: "budget",
+        budgetId: budget.id,
+        budgetName: budget.name,
+        note: futureEntry.note,
       });
     }
   }

@@ -16,14 +16,24 @@ import { addDays } from "./date-utils";
 // real overrides move a single occurrence by days, not years.
 const OVERRIDE_LOOKAHEAD_DAYS = 366;
 
+// computeBudgetCycleStatus needs to know the current cycle's END boundary
+// (SPEC.md T43) even when the caller has no real forecast horizon handy
+// (BudgetCard.tsx, BudgetsPanel.tsx, the Dashboard card) - this is the
+// default lookahead used to find it. Generous enough for any realistic
+// budget cadence (monthly, weekly, custom up to ~1yr); callers that DO have
+// a real horizon (expandBudgetCycleOccurrences, via forecastData.ts's 3yr
+// horizon) pass it explicitly for exact accuracy instead of relying on this.
+const DEFAULT_STATUS_LOOKAHEAD_DAYS = 366;
+
 export type BudgetScheduleSource = "linked_income" | "own_schedule" | "fallback";
 
 export interface BudgetCycleStatus {
   source: BudgetScheduleSource;
   currentCycleStart: string;
+  currentCycleEnd: string | null; // next boundary after currentCycleStart, if known within the lookahead/horizon; null if open-ended
   allocation: number; // centavos, this cycle's full replenishment
   carriedIn: number; // available - allocation; 0 if no prior cycle, may be negative
-  spent: number; // centavos, this cycle's logged spends
+  spent: number; // centavos, this cycle's logged spends (T43: includes future-dated entries within this cycle)
   remaining: number; // centavos, >= 0
   over: number; // centavos, >= 0 (> 0 when spent exceeds available)
 }
@@ -192,27 +202,36 @@ function spentInRange(entries: BudgetEntry[], budgetId: string, startInclusive: 
  * the very first boundary fold into cycle 0 (there's no "cycle -1").
  * availableₖ = allocation + (carryoverEnabled ? availableₖ₋₁ − spentₖ₋₁ : 0),
  * so carryover can go negative if a prior cycle overspent.
+ *
+ * SPEC.md T43: an entry dated after `today` is no longer excluded - it
+ * counts toward whichever cycle it actually falls in, same as a past entry.
+ * `currentCycleEnd` (the next boundary, found via `horizon` - defaulted for
+ * callers with no real forecast horizon) is what makes this possible: it
+ * bounds the current cycle's spending window so a future-dated entry that
+ * belongs to a LATER cycle doesn't leak into this one.
  */
 export function computeBudgetCycleStatus(
   budget: Budget,
-  allEntries: BudgetEntry[],
+  entries: BudgetEntry[],
   recurringItems: RecurringItem[],
   overrides: OccurrenceOverride[],
   today: string,
+  horizon: string = addDays(today, DEFAULT_STATUS_LOOKAHEAD_DAYS),
 ): BudgetCycleStatus {
-  // Anything dated after "today" hasn't happened yet from this status's
-  // point of view, regardless of which cycle it would nominally fall into.
-  const entries = allEntries.filter((e) => e.entryDate <= today);
-  const { boundaries, source } = resolveBoundaries(budget, recurringItems, overrides, today);
+  const { boundaries: allBoundaries, source } = resolveBoundaries(budget, recurringItems, overrides, horizon);
+  const boundaries = allBoundaries.filter((d) => d <= today);
+  const nextBoundary = allBoundaries.find((d) => d > today) ?? null;
 
   if (boundaries.length === 0) {
     // The schedule hasn't produced any occurrence by today (e.g. an own
     // schedule or linked income that starts in the future) - a single
-    // ongoing cycle with no prior history to carry over.
-    const spent = spentInRange(entries, budget.id, null, null);
+    // ongoing cycle with no prior history to carry over, bounded above by
+    // the schedule's first-ever boundary if one exists within `horizon`.
+    const spent = spentInRange(entries, budget.id, null, nextBoundary);
     return {
       source,
       currentCycleStart: today,
+      currentCycleEnd: nextBoundary,
       allocation: budget.allocation,
       carriedIn: 0,
       spent,
@@ -225,7 +244,10 @@ export function computeBudgetCycleStatus(
   let spent = 0;
   for (let i = 0; i < boundaries.length; i++) {
     const rangeStart = i === 0 ? null : boundaries[i];
-    const rangeEnd = i + 1 < boundaries.length ? boundaries[i + 1] : null;
+    // Every cycle except the current (last) one is fully bounded by the
+    // next PAST boundary already in `boundaries`. The current cycle's
+    // upper bound is `nextBoundary` instead of unbounded - see docstring.
+    const rangeEnd = i + 1 < boundaries.length ? boundaries[i + 1] : nextBoundary;
     const cycleSpent = spentInRange(entries, budget.id, rangeStart, rangeEnd);
     if (i > 0) {
       available = budget.allocation + (budget.carryoverEnabled ? available - spent : 0);
@@ -236,6 +258,7 @@ export function computeBudgetCycleStatus(
   return {
     source,
     currentCycleStart: boundaries[boundaries.length - 1],
+    currentCycleEnd: nextBoundary,
     allocation: budget.allocation,
     carriedIn: available - budget.allocation,
     spent,
@@ -244,12 +267,33 @@ export function computeBudgetCycleStatus(
   };
 }
 
+// Entries dated after `today` (SPEC.md T43) - these render as their own
+// Forecast rows (forecast.ts) rather than being folded silently into a
+// cycle-boundary row's amount. Exported so forecast.ts can build those rows
+// directly; expandBudgetCycleOccurrences below uses it to subtract the same
+// entries from whichever boundary row they'd otherwise inflate, so the two
+// never double-count.
+export function futureBudgetEntries(entries: BudgetEntry[], budgetId: string, today: string): BudgetEntry[] {
+  return entries
+    .filter((e) => e.budgetId === budgetId && e.entryDate > today)
+    .sort((a, b) => (a.entryDate < b.entryDate ? -1 : a.entryDate > b.entryDate ? 1 : 0));
+}
+
 /**
  * Forecast rows for a budget (SPEC.md "Forecast integration"): one row for
  * the current cycle's remaining amount dated today (omitted when 0), and
  * one row per future cycle boundary within the horizon at the full
- * allocation. Not yet called by forecast.ts - T39 wires this in once
- * forecastData.ts actually fetches budgets/budget_entries.
+ * allocation.
+ *
+ * SPEC.md T43: a future-dated entry gets its OWN Forecast row (built by
+ * forecast.ts from futureBudgetEntries, not from here) instead of just
+ * inflating a boundary row's total. So each boundary row here is reduced by
+ * whichever future entries fall inside its own cycle - the current cycle's
+ * "remaining" row by future entries before the next boundary, each future
+ * "allocation" row by future entries before ITS next boundary - floored at
+ * 0. No carryover is projected forward into future allocation rows here,
+ * same simplification as before T43: a budget's own future spending is
+ * unknowable beyond what's already been logged.
  */
 export function expandBudgetCycleOccurrences(
   budget: Budget,
@@ -261,16 +305,25 @@ export function expandBudgetCycleOccurrences(
 ): BudgetOccurrence[] {
   const occurrences: BudgetOccurrence[] = [];
 
-  const status = computeBudgetCycleStatus(budget, entries, recurringItems, overrides, today);
-  if (status.remaining > 0) {
-    occurrences.push({ date: today, amount: -status.remaining });
+  const status = computeBudgetCycleStatus(budget, entries, recurringItems, overrides, today, horizon);
+  const futureEntries = futureBudgetEntries(entries, budget.id, today);
+
+  const currentCycleFutureSpend = spentInRange(futureEntries, budget.id, status.currentCycleStart, status.currentCycleEnd);
+  const unknownRemaining = Math.max(status.remaining - currentCycleFutureSpend, 0);
+  if (unknownRemaining > 0) {
+    occurrences.push({ date: today, amount: -unknownRemaining });
   }
 
   const { boundaries } = resolveBoundaries(budget, recurringItems, overrides, horizon);
-  for (const date of boundaries) {
-    if (date > today) {
-      occurrences.push({ date, amount: -budget.allocation });
-    }
+  const futureBoundaries = boundaries.filter((date) => date > today);
+  for (let i = 0; i < futureBoundaries.length; i++) {
+    const start = futureBoundaries[i];
+    const end = i + 1 < futureBoundaries.length ? futureBoundaries[i + 1] : null;
+    const knownSpend = spentInRange(futureEntries, budget.id, start, end);
+    const remainingAllocation = Math.max(budget.allocation - knownSpend, 0);
+    // Guard against -0 (Math.max(...,0) - knownSpend can land exactly on 0)
+    // - avoids a footgun for anything doing strict equality on this amount.
+    occurrences.push({ date: start, amount: remainingAllocation > 0 ? -remainingAllocation : 0 });
   }
 
   return occurrences;

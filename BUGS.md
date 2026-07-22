@@ -4,12 +4,15 @@ Format per bug: steps to reproduce → what happened → what was expected. Clau
 
 ## Open
 
+(none currently)
+
+## Fixed
+
 ### Bug #3 — Future-dated spend is listed but not counted in cycle totals
 - **Reproduce**: on the Budgets page, log a spend dated later than today but still inside the current cycle (e.g. today 2026-07-22, entry dated 2026-07-23 on the monthly-on-the-1st "food" budget). Observed with the seeded test account on 2026-07-21.
 - **What happened**: the entry shows in the budget's current-cycle entries list, but is excluded from "₱X of ₱Y spent this cycle", the progress bar, "remaining", the Dashboard "Budgets this cycle" card, and the Forecast current-cycle row — the list and every total disagree.
-- **Expected**: the user confirmed (2026-07-21) that future-dated spends are a real use case and upgraded this to a feature — **T43** in SPEC.md: future-dated entries count in all cycle totals (list and totals always agree) AND render as their own Forecast rows on their entry date. This bug closes when T43 ships; see SPEC.md "Forecast integration" for the full scope.
-
-## Fixed
+- **Expected**: the user confirmed (2026-07-21) that future-dated spends are a real use case and upgraded this to a feature rather than a plain fix.
+- **Fixed by**: **T43** in SPEC.md — `computeBudgetCycleStatus`/`expandBudgetCycleOccurrences` in `src/lib/engine/budgetCycles.ts` now count a future-dated entry toward whichever cycle it actually falls in; `BudgetCard.tsx`'s entries list is bounded the same way. Browser-verified 2026-07-21 with the pre-existing "sinigang" repro entry — Budgets card, Dashboard card, and Forecast now all agree. See SPEC.md "Forecast integration" for the full write-up.
 
 ### Bug #2 — Greeting name wrong by default
 - **Reproduce**: log in with an account that has no profile name set; view Dashboard greeting.

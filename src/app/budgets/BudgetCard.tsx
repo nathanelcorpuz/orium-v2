@@ -185,8 +185,17 @@ export function BudgetCard({
   const available = status.allocation + status.carriedIn;
   const progressPercent =
     available > 0 ? Math.min((status.spent / available) * 100, 100) : status.spent > 0 ? 100 : 0;
+  // Bounded above by currentCycleEnd (SPEC.md T43) - without this, an entry
+  // dated into a FUTURE cycle (not just later this cycle) used to leak into
+  // this card's list even though the totals above never counted it
+  // (Bug #3). It belongs on Forecast as its own row instead - see
+  // forecast.ts's futureBudgetEntries.
   const currentCycleEntries = entries
-    .filter((entry) => entry.entry_date >= status.currentCycleStart)
+    .filter(
+      (entry) =>
+        entry.entry_date >= status.currentCycleStart &&
+        (status.currentCycleEnd === null || entry.entry_date < status.currentCycleEnd),
+    )
     .sort((a, b) => (a.entry_date < b.entry_date ? 1 : -1));
 
   const [logState, logAction, logPending] = useActionState(logSpend, initialLogState);

@@ -120,7 +120,7 @@ export interface BudgetOccurrenceOverride {
 }
 
 export interface ForecastRow {
-  sourceType: "recurring" | "one_off" | "budget";
+  sourceType: "recurring" | "one_off" | "budget" | "budget_entry";
   sourceId: string;
   originalDate: string;
   name: string;
@@ -128,6 +128,13 @@ export interface ForecastRow {
   dueDate: string;
   type: RecurringItemType | "extra" | "budget";
   runningBalance: number; // centavos
+  // budget_entry rows only (SPEC.md T43): the parent budget's id/name and
+  // the entry's own note, separate from `name` (which combines them for
+  // display) so EditSettleModal can prefill updateBudgetEntry's form
+  // without re-parsing the combined string.
+  budgetId?: string;
+  budgetName?: string;
+  note?: string | null;
 }
 
 export interface GenerateForecastInput {

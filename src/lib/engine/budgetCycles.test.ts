@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { computeBudgetCycleStatus, expandBudgetCycleOccurrences, resolveBoundaries } from "./budgetCycles";
+import {
+  computeBudgetCycleStatus,
+  expandBudgetCycleOccurrences,
+  futureBudgetEntries,
+  resolveBoundaries,
+} from "./budgetCycles";
 import type { Budget, BudgetEntry, OccurrenceOverride, RecurringItem } from "./types";
 
 function budget(overrides: Partial<Budget>): Budget {
@@ -275,6 +280,86 @@ describe("computeBudgetCycleStatus - boundary-date entries", () => {
     const status = computeBudgetCycleStatus(b, entries, [], [], "2026-03-10");
     expect(status.currentCycleStart).toBe("2026-03-01");
     expect(status.spent).toBe(50000);
+  });
+});
+
+describe("computeBudgetCycleStatus - future-dated entries (T43)", () => {
+  it("a future entry still inside the current cycle counts toward spent/remaining", () => {
+    const b = budget({ allocation: 500000 });
+    // Fallback boundaries land on the 1st; today Jan 15, entry Jan 25 - both
+    // still inside the Jan1-Feb1 cycle even though the entry is dated after today.
+    const entries: BudgetEntry[] = [entry({ entryDate: "2026-01-25", amount: 100000 })];
+    const status = computeBudgetCycleStatus(b, entries, [], [], "2026-01-15");
+    expect(status.currentCycleEnd).toBe("2026-02-01");
+    expect(status.spent).toBe(100000);
+    expect(status.remaining).toBe(400000);
+  });
+
+  it("a future entry in a LATER cycle does not leak into the current cycle's spent", () => {
+    const b = budget({ allocation: 500000 });
+    // Today Jan 15 (Jan1-Feb1 cycle); entry Mar 10 belongs to a much later
+    // cycle and must not inflate the current cycle's spent/reduce remaining.
+    const entries: BudgetEntry[] = [entry({ entryDate: "2026-03-10", amount: 100000 })];
+    const status = computeBudgetCycleStatus(b, entries, [], [], "2026-01-15");
+    expect(status.spent).toBe(0);
+    expect(status.remaining).toBe(500000);
+  });
+
+  it("currentCycleEnd is null once the schedule's boundaries run out (income ended)", () => {
+    const b = budget({ linkedIncomeId: "income-1", allocation: 500000 });
+    const inc = income({ endsType: "on_date", endDate: "2026-03-31" }); // last occurrence Mar 1
+    const status = computeBudgetCycleStatus(b, [], [inc], [], "2026-06-15");
+    expect(status.currentCycleEnd).toBeNull();
+  });
+});
+
+describe("futureBudgetEntries", () => {
+  it("returns only this budget's entries dated after today, sorted ascending", () => {
+    const entries: BudgetEntry[] = [
+      entry({ id: "e1", entryDate: "2026-02-10", amount: 100000 }),
+      entry({ id: "e2", entryDate: "2026-01-05", amount: 200000 }), // past - excluded
+      entry({ id: "e3", entryDate: "2026-01-20", amount: 300000 }),
+      entry({ id: "e4", budgetId: "other-budget", entryDate: "2026-02-01", amount: 400000 }), // different budget - excluded
+    ];
+    const result = futureBudgetEntries(entries, "budget-1", "2026-01-15");
+    expect(result.map((e) => e.id)).toEqual(["e3", "e1"]);
+  });
+});
+
+describe("expandBudgetCycleOccurrences - future-dated entries (T43)", () => {
+  it("reduces the current-cycle remaining row by a future entry within this cycle, instead of ignoring it", () => {
+    const b = budget({ allocation: 500000 });
+    const entries: BudgetEntry[] = [
+      entry({ id: "e1", entryDate: "2026-01-10", amount: 100000 }), // past
+      entry({ id: "e2", entryDate: "2026-01-25", amount: 50000 }), // future, still this cycle
+    ];
+    // remaining = 500000 - (100000 + 50000) = 350000; the boundary row here
+    // only carries the UNKNOWN portion (350000 - the 50000 already dated) -
+    // the future entry itself gets its own separate row (forecast.ts), so
+    // together they still total the true 350000 remaining, without double-
+    // counting. Horizon stays within January so no future boundary rows
+    // appear, isolating just this row's calculation.
+    const occurrences = expandBudgetCycleOccurrences(b, entries, [], [], "2026-01-15", "2026-01-31");
+    expect(occurrences).toEqual([{ date: "2026-01-15", amount: -300000 }]);
+  });
+
+  it("reduces a future boundary's allocation row by a future entry inside that specific cycle", () => {
+    const b = budget({ allocation: 500000 });
+    const entries: BudgetEntry[] = [entry({ entryDate: "2026-02-10", amount: 200000 })]; // in the Feb cycle
+    const occurrences = expandBudgetCycleOccurrences(b, entries, [], [], "2026-01-15", "2026-03-31");
+    expect(occurrences).toEqual([
+      { date: "2026-01-15", amount: -500000 }, // nothing spent in Jan yet
+      { date: "2026-02-01", amount: -300000 }, // 500000 - 200000 known future spend
+      { date: "2026-03-01", amount: -500000 }, // untouched
+    ]);
+  });
+
+  it("clamps a future allocation row at 0 (not negative) when known future spend meets or exceeds it", () => {
+    const b = budget({ allocation: 500000 });
+    const entries: BudgetEntry[] = [entry({ entryDate: "2026-02-10", amount: 600000 })];
+    const occurrences = expandBudgetCycleOccurrences(b, entries, [], [], "2026-01-15", "2026-02-28");
+    const febRow = occurrences.find((o) => o.date === "2026-02-01");
+    expect(febRow?.amount).toBe(0);
   });
 });
 

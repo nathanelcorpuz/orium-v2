@@ -407,6 +407,106 @@ describe("generateForecast budget occurrence overrides (T42 part B)", () => {
   });
 });
 
+describe("generateForecast future-dated budget entries (T43)", () => {
+  const groceries: Budget = {
+    id: "budget-1",
+    name: "Groceries",
+    monthlyAllocation: 500000,
+    allocation: 500000,
+    carryoverEnabled: false,
+    createdAt: "2026-01-01",
+    linkedIncomeId: null,
+    startDate: null,
+    interval: null,
+    unit: null,
+    weekdays: null,
+    daysOfMonth: null,
+    ordinal: null,
+    ordinalWeekday: null,
+    endsType: null,
+    endDate: null,
+    occurrenceCount: null,
+  };
+
+  it("renders a future entry as its own editable row without double-counting the balance impact", () => {
+    const entries: BudgetEntry[] = [
+      { id: "e1", budgetId: "budget-1", entryDate: "2026-01-25", amount: 50000, note: "early groceries" },
+    ];
+
+    const result = generateForecast({
+      balances: [],
+      recurringItems: [],
+      overrides: [],
+      oneOffs: [],
+      budgets: [groceries],
+      budgetEntries: entries,
+      today: "2026-01-15",
+      horizon: "2026-01-31", // no future boundary rows - isolates this case
+    });
+
+    expect(result).toEqual([
+      expect.objectContaining({
+        sourceType: "budget",
+        dueDate: "2026-01-15",
+        amount: -400000, // 500000 allocation - 50000 already accounted for via the entry row below
+      }),
+      expect.objectContaining({
+        sourceType: "budget_entry",
+        sourceId: "e1",
+        dueDate: "2026-01-25",
+        name: "Groceries - early groceries",
+        amount: -50000,
+        type: "budget",
+        budgetId: "budget-1",
+        budgetName: "Groceries",
+        note: "early groceries",
+      }),
+    ]);
+    // The two rows together still total the true remaining (450000), not
+    // double-counted.
+    expect(result[0].amount + result[1].amount).toBe(-450000);
+  });
+
+  it("falls back to just the budget name when the entry has no note", () => {
+    const entries: BudgetEntry[] = [{ id: "e1", budgetId: "budget-1", entryDate: "2026-01-25", amount: 50000, note: null }];
+
+    const result = generateForecast({
+      balances: [],
+      recurringItems: [],
+      overrides: [],
+      oneOffs: [],
+      budgets: [groceries],
+      budgetEntries: entries,
+      today: "2026-01-15",
+      horizon: "2026-01-31",
+    });
+
+    expect(result.find((row) => row.sourceType === "budget_entry")?.name).toBe("Groceries");
+  });
+
+  it("reduces a future cycle's allocation row while the entry still appears as its own row that cycle", () => {
+    const entries: BudgetEntry[] = [{ id: "e2", budgetId: "budget-1", entryDate: "2026-02-10", amount: 200000, note: null }];
+
+    const result = generateForecast({
+      balances: [],
+      recurringItems: [],
+      overrides: [],
+      oneOffs: [],
+      budgets: [groceries],
+      budgetEntries: entries,
+      today: "2026-01-15",
+      horizon: "2026-03-31",
+    });
+
+    expect(result.map((row) => ({ sourceType: row.sourceType, dueDate: row.dueDate, amount: row.amount }))).toEqual([
+      { sourceType: "budget", dueDate: "2026-01-15", amount: -500000 }, // nothing spent in Jan yet
+      { sourceType: "budget", dueDate: "2026-02-01", amount: -300000 }, // 500000 - 200000 known future spend
+      { sourceType: "budget_entry", dueDate: "2026-02-10", amount: -200000 },
+      { sourceType: "budget", dueDate: "2026-03-01", amount: -500000 }, // untouched
+    ]);
+  });
+});
+
 describe("generateForecast start/end date bounds", () => {
   it("delays occurrences until start_date and cuts them off at end_date through the full pipeline", () => {
     const item = monthlyItem({

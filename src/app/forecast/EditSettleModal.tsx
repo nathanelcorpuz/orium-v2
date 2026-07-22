@@ -4,6 +4,7 @@ import { useActionState, useEffect, useRef, useState } from "react";
 import { Modal } from "@/components/Modal";
 import { centavosToPesosString } from "@/lib/money";
 import type { ForecastRow } from "@/lib/engine/types";
+import { deleteBudgetEntry, updateBudgetEntry, type BudgetActionState } from "@/app/budgets/actions";
 import {
   editBudgetOccurrence,
   editOneOff,
@@ -14,6 +15,7 @@ import {
 } from "./actions";
 
 const initialState: ForecastActionState = { error: null };
+const initialEntryState: BudgetActionState = { error: null };
 
 export function EditSettleModal({
   row,
@@ -29,6 +31,13 @@ export function EditSettleModal({
   // Name (it's a computed label, not stored), so they skip the edit/settle
   // toggle entirely and get a dedicated Amount+Date form plus a Skip button.
   const isBudget = row.sourceType === "budget";
+  // Future-dated budget entries (SPEC.md T43) are editable directly from
+  // the Forecast, same as boundary rows, but they're a DIFFERENT underlying
+  // record (a budget_entries row, not a cycle boundary) - reuses the
+  // existing updateBudgetEntry/deleteBudgetEntry actions from the Budgets
+  // page (budgets/actions.ts) rather than a new action, since those already
+  // do exactly what's needed here (including revalidating /forecast).
+  const isBudgetEntry = row.sourceType === "budget_entry";
   const [mode, setMode] = useState<"edit" | "settle">("edit");
   const editAction =
     row.sourceType === "recurring"
@@ -41,6 +50,10 @@ export function EditSettleModal({
     settleOccurrence,
     initialState,
   );
+  const [entryState, entryFormAction, entryPending] = useActionState(
+    updateBudgetEntry,
+    initialEntryState,
+  );
   const submitted = useRef(false);
 
   useEffect(() => {
@@ -48,16 +61,18 @@ export function EditSettleModal({
       submitted.current &&
       !editPending &&
       !settlePending &&
+      !entryPending &&
       !editState.error &&
-      !settleState.error
+      !settleState.error &&
+      !entryState.error
     ) {
       onClose();
     }
-  }, [editPending, settlePending, editState, settleState, onClose]);
+  }, [editPending, settlePending, entryPending, editState, settleState, entryState, onClose]);
 
   return (
     <Modal title={row.name} onClose={onClose}>
-      {!isBudget && (
+      {!isBudget && !isBudgetEntry && (
         <div className="mb-4 flex gap-2">
           <button
             type="button"
@@ -80,7 +95,83 @@ export function EditSettleModal({
         </div>
       )}
 
-      {isBudget ? (
+      {isBudgetEntry ? (
+        <>
+          <form
+            action={entryFormAction}
+            onSubmit={() => {
+              submitted.current = true;
+            }}
+            className="space-y-4"
+          >
+            <input type="hidden" name="id" value={row.sourceId} />
+            <input type="hidden" name="budgetId" value={row.budgetId} />
+            <input type="hidden" name="budgetName" value={row.budgetName} />
+            <div>
+              <label className="block text-sm text-slate-600" htmlFor="amountPesos">
+                Amount ({currency})
+              </label>
+              <input
+                id="amountPesos"
+                name="amountPesos"
+                type="number"
+                step="0.01"
+                required
+                defaultValue={centavosToPesosString(-row.amount)}
+                className="mt-1 w-full rounded border border-slate-300 p-2"
+              />
+            </div>
+            <div>
+              <label className="block text-sm text-slate-600" htmlFor="entryDate">
+                Date
+              </label>
+              <input
+                id="entryDate"
+                name="entryDate"
+                type="date"
+                required
+                defaultValue={row.dueDate}
+                className="mt-1 w-full rounded border border-slate-300 p-2"
+              />
+            </div>
+            <div>
+              <label className="block text-sm text-slate-600" htmlFor="note">
+                Note
+              </label>
+              <input
+                id="note"
+                name="note"
+                type="text"
+                defaultValue={row.note ?? ""}
+                className="mt-1 w-full rounded border border-slate-300 p-2"
+              />
+            </div>
+            {entryState.error && <p className="text-sm text-red-600">{entryState.error}</p>}
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={onClose}
+                className="rounded border border-slate-300 px-4 py-2"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={entryPending}
+                className="rounded bg-slate-900 px-4 py-2 text-white disabled:opacity-50"
+              >
+                {entryPending ? "Saving..." : "Save"}
+              </button>
+            </div>
+          </form>
+          <form action={deleteBudgetEntry} onSubmit={onClose} className="mt-3 border-t border-slate-100 pt-3">
+            <input type="hidden" name="id" value={row.sourceId} />
+            <button type="submit" className="text-sm text-red-600 underline">
+              Delete this entry
+            </button>
+          </form>
+        </>
+      ) : isBudget ? (
         <>
           <form
             action={editFormAction}
