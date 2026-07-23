@@ -101,8 +101,15 @@ export interface BudgetEntry {
   id: string;
   budgetId: string;
   entryDate: string; // YYYY-MM-DD
-  amount: number; // centavos, positive = money spent
+  amount: number; // centavos, always a positive magnitude - direction gives the sign
   note: string | null;
+  // Budgets v3 (SPEC.md Phase 10, migration 0009): "incoming" (replenishment
+  // - a settled linked income or a manual add) or "outgoing" (a logged
+  // spend or a manual take) against the budget's running total, consumed by
+  // budgetLedger.ts. Optional for now since the old cycle model
+  // (budgetCycles.ts) doesn't read it and some existing call sites don't
+  // fetch the column yet - required once the ledger model is fully wired in.
+  direction?: "incoming" | "outgoing";
 }
 
 // Per-occurrence override for a budget's own *future* forecast rows
