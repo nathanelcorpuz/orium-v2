@@ -9,8 +9,8 @@ export function ProfileForm({ email, name }: { email: string; name: string }) {
   const [state, formAction, pending] = useActionState(updateProfile, initialState);
 
   return (
-    <div className="rounded-xl bg-white p-4 shadow">
-      <h2 className="mb-3 text-sm font-semibold text-slate-700">Profile</h2>
+    <div className="rounded-lg border border-notion-hairline bg-white p-4">
+      <h2 className="mb-3 text-sm font-semibold text-notion-text">Profile</h2>
       <form action={formAction} className="space-y-4">
         <div>
           <label className="block text-sm text-slate-600" htmlFor="email">
@@ -21,7 +21,7 @@ export function ProfileForm({ email, name }: { email: string; name: string }) {
             type="email"
             value={email}
             disabled
-            className="mt-1 w-full rounded border border-slate-200 bg-slate-100 p-2 text-slate-500"
+            className="mt-1 w-full rounded border border-notion-hairline bg-notion-hover p-2 text-slate-500"
           />
         </div>
         <div>
@@ -33,7 +33,7 @@ export function ProfileForm({ email, name }: { email: string; name: string }) {
             name="name"
             type="text"
             defaultValue={name}
-            className="mt-1 w-full rounded border border-slate-300 p-2"
+            className="mt-1 w-full rounded border border-notion-hairline p-2 text-notion-text focus:border-notion-accent focus:outline-none"
           />
         </div>
         {state.error && <p className="text-sm text-red-600">{state.error}</p>}
@@ -41,7 +41,7 @@ export function ProfileForm({ email, name }: { email: string; name: string }) {
         <button
           type="submit"
           disabled={pending}
-          className="rounded bg-slate-900 px-4 py-2 text-white disabled:opacity-50"
+          className="rounded bg-notion-text px-4 py-2 text-white hover:opacity-90 disabled:opacity-50"
         >
           {pending ? "Saving..." : "Save profile"}
         </button>

@@ -38,7 +38,7 @@ export function DeleteAccountButton() {
                 type="text"
                 value={confirmation}
                 onChange={(event) => setConfirmation(event.target.value)}
-                className="mt-1 w-full rounded border border-slate-300 p-2"
+                className="mt-1 w-full rounded border border-notion-hairline p-2 text-notion-text focus:border-notion-accent focus:outline-none"
               />
             </div>
             {state.error && <p className="text-sm text-red-600">{state.error}</p>}
@@ -46,7 +46,7 @@ export function DeleteAccountButton() {
               <button
                 type="button"
                 onClick={() => setOpen(false)}
-                className="rounded border border-slate-300 px-4 py-2"
+                className="rounded border border-notion-hairline px-4 py-2 text-notion-text hover:bg-notion-hover"
               >
                 Cancel
               </button>

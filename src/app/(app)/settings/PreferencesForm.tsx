@@ -24,8 +24,8 @@ export function PreferencesForm({
   const [state, formAction, pending] = useActionState(updatePreferences, initialState);
 
   return (
-    <div className="rounded-xl bg-white p-4 shadow">
-      <h2 className="mb-3 text-sm font-semibold text-slate-700">Preferences</h2>
+    <div className="rounded-lg border border-notion-hairline bg-white p-4">
+      <h2 className="mb-3 text-sm font-semibold text-notion-text">Preferences</h2>
       <form action={formAction} className="space-y-4">
         <div>
           <label className="block text-sm text-slate-600" htmlFor="currency">
@@ -38,7 +38,7 @@ export function PreferencesForm({
             required
             maxLength={5}
             defaultValue={currency}
-            className="mt-1 w-24 rounded border border-slate-300 p-2"
+            className="mt-1 w-24 rounded border border-notion-hairline p-2 text-notion-text focus:border-notion-accent focus:outline-none"
           />
         </div>
 
@@ -60,7 +60,7 @@ export function PreferencesForm({
                   step="0.01"
                   required
                   defaultValue={centavosToPesosString(balanceRanges[index] ?? 0)}
-                  className="w-32 rounded border border-slate-300 p-2"
+                  className="w-32 rounded border border-notion-hairline p-2 text-notion-text focus:border-notion-accent focus:outline-none"
                 />
               </div>
             ))}
@@ -72,7 +72,7 @@ export function PreferencesForm({
         <button
           type="submit"
           disabled={pending}
-          className="rounded bg-slate-900 px-4 py-2 text-white disabled:opacity-50"
+          className="rounded bg-notion-text px-4 py-2 text-white hover:opacity-90 disabled:opacity-50"
         >
           {pending ? "Saving..." : "Save preferences"}
         </button>

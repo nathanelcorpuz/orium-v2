@@ -11,11 +11,11 @@ export function LegalPage({
 }) {
   return (
     <main className="min-h-screen bg-slate-50 p-8">
-      <div className="mx-auto max-w-3xl rounded-xl bg-white p-8 shadow">
+      <div className="mx-auto max-w-3xl rounded-lg border border-notion-hairline bg-white p-8">
         <Link href="/" className="text-sm text-slate-500 underline">
           &larr; Home
         </Link>
-        <h1 className="mb-1 mt-4 text-2xl font-semibold">{title}</h1>
+        <h1 className="mb-1 mt-4 text-2xl font-semibold text-notion-text">{title}</h1>
         <p className="mb-6 text-sm text-slate-500">Last updated: {lastUpdated}</p>
         <div className="space-y-4 text-sm leading-relaxed text-slate-700">{children}</div>
       </div>
@@ -24,7 +24,7 @@ export function LegalPage({
 }
 
 export function LegalHeading({ children }: { children: React.ReactNode }) {
-  return <h2 className="mt-6 text-base font-semibold text-slate-900">{children}</h2>;
+  return <h2 className="mt-6 text-base font-semibold text-notion-text">{children}</h2>;
 }
 
 export function LegalList({ children }: { children: React.ReactNode }) {

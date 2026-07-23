@@ -6,7 +6,7 @@ const TYPE_COLOR: Record<string, string> = {
   debt: "text-orange-700",
   savings: "text-blue-700",
   extra: "text-purple-700",
-  bill: "text-slate-900",
+  bill: "text-notion-text",
   budget: "text-teal-700",
 };
 
@@ -33,15 +33,15 @@ export default async function HistoryPage() {
   return (
     <div className="p-8">
       <div className="mx-auto max-w-4xl">
-        <h1 className="mb-6 text-xl font-semibold">History</h1>
+        <h1 className="mb-6 text-xl font-semibold text-notion-text">History</h1>
 
         {rows.length === 0 ? (
           <p className="text-slate-500">No settled transactions yet.</p>
         ) : (
-          <div className="overflow-x-auto rounded-xl bg-white shadow">
+          <div className="overflow-x-auto rounded-lg border border-notion-hairline bg-white">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-slate-200 text-left text-slate-500">
+                <tr className="border-b border-notion-hairline text-left text-slate-500">
                   <th className="p-3">Name</th>
                   <th className="p-3">Type</th>
                   <th className="p-3 text-right">Forecasted</th>
@@ -69,7 +69,7 @@ export default async function HistoryPage() {
                   const isBudget = row.type === "budget";
                   const budgetHasRealForecast = isBudget && row.forecasted_amount !== 0;
                   return (
-                    <tr key={row.id} className="border-b border-slate-100 last:border-0">
+                    <tr key={row.id} className="border-b border-notion-hairline text-notion-text last:border-0">
                       <td className="p-3">{row.name}</td>
                       <td className="p-3">
                         {isBudget ? (

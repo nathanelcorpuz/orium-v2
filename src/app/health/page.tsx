@@ -15,8 +15,8 @@ export default async function HealthPage() {
 
   return (
     <main className="flex min-h-screen items-center justify-center bg-slate-50 p-8">
-      <div className="rounded-xl bg-white p-8 shadow">
-        <h1 className="mb-4 text-xl font-semibold">Supabase Health Check</h1>
+      <div className="rounded-lg border border-notion-hairline bg-white p-8">
+        <h1 className="mb-4 text-xl font-semibold text-notion-text">Supabase Health Check</h1>
         {connected ? (
           <p className="text-green-600">✅ Connected to Supabase.</p>
         ) : (

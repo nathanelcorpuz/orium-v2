@@ -301,14 +301,14 @@ export function EditSettleModal({
             <button
               type="button"
               onClick={onClose}
-              className="rounded border border-slate-300 px-4 py-2"
+              className="rounded border border-notion-hairline px-4 py-2 text-notion-text hover:bg-notion-hover"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={editPending}
-              className="rounded bg-slate-900 px-4 py-2 text-white disabled:opacity-50"
+              className="rounded bg-notion-text px-4 py-2 text-white hover:opacity-90 disabled:opacity-50"
             >
               {editPending ? "Saving..." : "Save"}
             </button>
@@ -365,14 +365,14 @@ export function EditSettleModal({
             <button
               type="button"
               onClick={onClose}
-              className="rounded border border-slate-300 px-4 py-2"
+              className="rounded border border-notion-hairline px-4 py-2 text-notion-text hover:bg-notion-hover"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={settlePending}
-              className="rounded bg-slate-900 px-4 py-2 text-white disabled:opacity-50"
+              className="rounded bg-notion-text px-4 py-2 text-white hover:opacity-90 disabled:opacity-50"
             >
               {settlePending ? "Settling..." : "Settle"}
             </button>

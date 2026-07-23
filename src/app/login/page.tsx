@@ -22,7 +22,7 @@ export default function LoginPage() {
             name="email"
             type="email"
             required
-            className="mt-1 w-full rounded border border-slate-300 p-2"
+            className="mt-1 w-full rounded border border-notion-hairline p-2 text-notion-text focus:border-notion-accent focus:outline-none"
           />
         </div>
         <div>
@@ -34,14 +34,14 @@ export default function LoginPage() {
             name="password"
             type="password"
             required
-            className="mt-1 w-full rounded border border-slate-300 p-2"
+            className="mt-1 w-full rounded border border-notion-hairline p-2 text-notion-text focus:border-notion-accent focus:outline-none"
           />
         </div>
         {state.error && <p className="text-sm text-red-600">{state.error}</p>}
         <button
           type="submit"
           disabled={pending}
-          className="w-full rounded bg-slate-900 py-2 text-white disabled:opacity-50"
+          className="w-full rounded bg-notion-text py-2 text-white hover:opacity-90 disabled:opacity-50"
         >
           {pending ? "Logging in..." : "Log in"}
         </button>

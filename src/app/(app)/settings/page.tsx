@@ -22,17 +22,17 @@ export default async function SettingsPage() {
   return (
     <div className="p-8">
       <div className="mx-auto max-w-xl">
-        <h1 className="mb-6 text-xl font-semibold">Settings</h1>
+        <h1 className="mb-6 text-xl font-semibold text-notion-text">Settings</h1>
 
         <div className="space-y-6">
           <ProfileForm email={user?.email ?? ""} name={name} />
           <PreferencesForm currency={currency} balanceRanges={balanceRanges} />
 
-          <div className="rounded-xl bg-white p-4 shadow">
-            <h2 className="mb-3 text-sm font-semibold text-slate-700">Account</h2>
+          <div className="rounded-lg border border-notion-hairline bg-white p-4">
+            <h2 className="mb-3 text-sm font-semibold text-notion-text">Account</h2>
             <div className="flex flex-wrap items-center gap-3">
               <form action={logout}>
-                <button type="submit" className="rounded bg-slate-900 px-4 py-2 text-white">
+                <button type="submit" className="rounded bg-notion-text px-4 py-2 text-white hover:opacity-90">
                   Log out
                 </button>
               </form>
