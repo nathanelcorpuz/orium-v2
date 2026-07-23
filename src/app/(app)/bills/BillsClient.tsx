@@ -42,13 +42,13 @@ export function BillsClient({ bills }: { bills: BillRow[] }) {
       <div className="mx-auto max-w-2xl">
         <div className="mb-6 flex items-center justify-between">
           <div>
-            <h1 className="text-xl font-semibold">Bills</h1>
-            <p className="text-slate-600">Total monthly: {formatCentavos(totalMonthly)}</p>
+            <h1 className="text-xl font-semibold text-notion-text">Bills</h1>
+            <p className="text-slate-500">Total monthly: {formatCentavos(totalMonthly)}</p>
           </div>
           <button
             type="button"
             onClick={() => setModalState("new")}
-            className="rounded bg-slate-900 px-4 py-2 text-white"
+            className="rounded bg-notion-text px-4 py-2 text-white hover:opacity-90"
           >
             Add bill
           </button>
@@ -61,10 +61,10 @@ export function BillsClient({ bills }: { bills: BillRow[] }) {
             {bills.map((bill) => (
               <li
                 key={bill.id}
-                className="flex items-center justify-between rounded-xl bg-white p-4 shadow"
+                className="flex items-center justify-between rounded-lg border border-notion-hairline bg-white p-4"
               >
                 <div>
-                  <p className="font-medium">{bill.name}</p>
+                  <p className="font-medium text-notion-text">{bill.name}</p>
                   <p className="text-sm text-slate-600">{formatCentavos(Math.abs(bill.amount))}</p>
                   <p className="text-sm text-slate-400">{summarizeRecurrence(billRule(bill))}</p>
                   {bill.comments && <p className="text-sm text-slate-400">{bill.comments}</p>}
@@ -85,7 +85,7 @@ export function BillsClient({ bills }: { bills: BillRow[] }) {
                       <button
                         type="button"
                         onClick={() => setConfirmingDeleteId(null)}
-                        className="rounded border border-slate-300 px-3 py-1 text-sm"
+                        className="rounded border border-notion-hairline px-3 py-1 text-sm text-notion-text hover:bg-notion-hover"
                       >
                         Cancel
                       </button>
@@ -95,7 +95,7 @@ export function BillsClient({ bills }: { bills: BillRow[] }) {
                       <button
                         type="button"
                         onClick={() => setModalState(bill)}
-                        className="rounded border border-slate-300 px-3 py-1 text-sm"
+                        className="rounded border border-notion-hairline px-3 py-1 text-sm text-notion-text hover:bg-notion-hover"
                       >
                         Edit
                       </button>

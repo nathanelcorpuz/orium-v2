@@ -31,11 +31,12 @@ const ENDS_OPTIONS: { value: RecurrenceEndsType; label: string }[] = [
 ];
 
 const PILL_BASE = "rounded-full border px-3 py-1 text-sm";
-const PILL_ON = `${PILL_BASE} border-slate-900 bg-slate-900 text-white`;
-const PILL_OFF = `${PILL_BASE} border-slate-300 text-slate-600 hover:border-slate-400`;
+const PILL_ON = `${PILL_BASE} border-notion-text bg-notion-text text-white`;
+const PILL_OFF = `${PILL_BASE} border-notion-hairline text-slate-600 hover:bg-notion-hover`;
 const CHIP_BASE = "rounded border px-2 py-1 text-sm";
-const CHIP_ON = `${CHIP_BASE} border-slate-900 bg-slate-900 text-white`;
-const CHIP_OFF = `${CHIP_BASE} border-slate-300 text-slate-600 hover:border-slate-400`;
+const CHIP_ON = `${CHIP_BASE} border-notion-text bg-notion-text text-white`;
+const CHIP_OFF = `${CHIP_BASE} border-notion-hairline text-slate-600 hover:bg-notion-hover`;
+const INPUT = "rounded border border-notion-hairline p-1 text-notion-text focus:border-notion-accent focus:outline-none";
 
 /**
  * Shared recurrence rule editor (SPEC.md T35), used by Bills/Income/Debt/
@@ -111,7 +112,7 @@ export function RecurrencePicker({
       </div>
 
       {selectedPresetId === "custom" && (
-        <div className="space-y-3 rounded border border-slate-200 p-3">
+        <div className="space-y-3 rounded border border-notion-hairline p-3">
           <div className="flex items-center gap-2">
             <span className="text-sm text-slate-600">Repeat every</span>
             <input
@@ -121,7 +122,7 @@ export function RecurrencePicker({
               onChange={(e) =>
                 setValue((v) => ({ ...v, interval: Math.max(1, Number(e.target.value) || 1) }))
               }
-              className="w-16 rounded border border-slate-300 p-1"
+              className={`w-16 ${INPUT}`}
             />
             <select
               value={value.unit}
@@ -135,7 +136,7 @@ export function RecurrencePicker({
                   ordinalWeekday: null,
                 }))
               }
-              className="rounded border border-slate-300 p-1"
+              className={INPUT}
             >
               {UNIT_OPTIONS.map((opt) => (
                 <option key={opt.value} value={opt.value}>
@@ -184,7 +185,7 @@ export function RecurrencePicker({
                   onClick={() =>
                     setValue((v) => ({ ...v, daysOfMonth: v.daysOfMonth ?? [1], ordinal: null, ordinalWeekday: null }))
                   }
-                  className={monthMode === "days" ? "font-semibold text-slate-900 underline" : "text-slate-500"}
+                  className={monthMode === "days" ? "font-semibold text-notion-text underline" : "text-slate-500"}
                 >
                   On day(s)
                 </button>
@@ -193,7 +194,7 @@ export function RecurrencePicker({
                   onClick={() =>
                     setValue((v) => ({ ...v, daysOfMonth: null, ordinal: v.ordinal ?? 1, ordinalWeekday: v.ordinalWeekday ?? 0 }))
                   }
-                  className={monthMode === "ordinal" ? "font-semibold text-slate-900 underline" : "text-slate-500"}
+                  className={monthMode === "ordinal" ? "font-semibold text-notion-text underline" : "text-slate-500"}
                 >
                   On a weekday pattern
                 </button>
@@ -228,7 +229,7 @@ export function RecurrencePicker({
                   <select
                     value={value.ordinal ?? 1}
                     onChange={(e) => setValue((v) => ({ ...v, ordinal: Number(e.target.value) }))}
-                    className="rounded border border-slate-300 p-1"
+                    className={INPUT}
                   >
                     {ORDINAL_OPTIONS.map((opt) => (
                       <option key={opt.value} value={opt.value}>
@@ -239,7 +240,7 @@ export function RecurrencePicker({
                   <select
                     value={value.ordinalWeekday ?? 0}
                     onChange={(e) => setValue((v) => ({ ...v, ordinalWeekday: Number(e.target.value) }))}
-                    className="rounded border border-slate-300 p-1"
+                    className={INPUT}
                   >
                     {WEEKDAY_LABELS.map((label, weekday) => (
                       <option key={weekday} value={weekday}>
@@ -263,7 +264,7 @@ export function RecurrencePicker({
                 type="button"
                 key={opt.value}
                 onClick={() => setValue((v) => ({ ...v, endsType: opt.value }))}
-                className={value.endsType === opt.value ? "font-semibold text-slate-900 underline" : "text-slate-500"}
+                className={value.endsType === opt.value ? "font-semibold text-notion-text underline" : "text-slate-500"}
               >
                 {opt.label}
               </button>
@@ -274,7 +275,7 @@ export function RecurrencePicker({
               type="date"
               value={value.endDate ?? ""}
               onChange={(e) => setValue((v) => ({ ...v, endDate: e.target.value || null }))}
-              className="rounded border border-slate-300 p-1"
+              className={INPUT}
             />
           )}
           {value.endsType === "after_count" && (
@@ -286,7 +287,7 @@ export function RecurrencePicker({
               onChange={(e) =>
                 setValue((v) => ({ ...v, occurrenceCount: e.target.value ? Number(e.target.value) : null }))
               }
-              className="w-40 rounded border border-slate-300 p-1"
+              className={`w-40 ${INPUT}`}
             />
           )}
         </div>

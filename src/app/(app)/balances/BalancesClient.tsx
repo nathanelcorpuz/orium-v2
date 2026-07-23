@@ -16,13 +16,13 @@ export function BalancesClient({ balances }: { balances: BalanceRow[] }) {
       <div className="mx-auto max-w-2xl">
         <div className="mb-6 flex items-center justify-between">
           <div>
-            <h1 className="text-xl font-semibold">Balances</h1>
-            <p className="text-slate-600">Total: {formatCentavos(total)}</p>
+            <h1 className="text-xl font-semibold text-notion-text">Balances</h1>
+            <p className="text-slate-500">Total: {formatCentavos(total)}</p>
           </div>
           <button
             type="button"
             onClick={() => setModalState("new")}
-            className="rounded bg-slate-900 px-4 py-2 text-white"
+            className="rounded bg-notion-text px-4 py-2 text-white hover:opacity-90"
           >
             Add balance
           </button>
@@ -35,10 +35,10 @@ export function BalancesClient({ balances }: { balances: BalanceRow[] }) {
             {balances.map((balance) => (
               <li
                 key={balance.id}
-                className="flex items-center justify-between rounded-xl bg-white p-4 shadow"
+                className="flex items-center justify-between rounded-lg border border-notion-hairline bg-white p-4"
               >
                 <div>
-                  <p className="font-medium">{balance.name}</p>
+                  <p className="font-medium text-notion-text">{balance.name}</p>
                   <p className="text-sm text-slate-600">{formatCentavos(balance.amount)}</p>
                   {balance.comments && (
                     <p className="text-sm text-slate-400">{balance.comments}</p>
@@ -60,7 +60,7 @@ export function BalancesClient({ balances }: { balances: BalanceRow[] }) {
                       <button
                         type="button"
                         onClick={() => setConfirmingDeleteId(null)}
-                        className="rounded border border-slate-300 px-3 py-1 text-sm"
+                        className="rounded border border-notion-hairline px-3 py-1 text-sm text-notion-text hover:bg-notion-hover"
                       >
                         Cancel
                       </button>
@@ -70,7 +70,7 @@ export function BalancesClient({ balances }: { balances: BalanceRow[] }) {
                       <button
                         type="button"
                         onClick={() => setModalState(balance)}
-                        className="rounded border border-slate-300 px-3 py-1 text-sm"
+                        className="rounded border border-notion-hairline px-3 py-1 text-sm text-notion-text hover:bg-notion-hover"
                       >
                         Edit
                       </button>

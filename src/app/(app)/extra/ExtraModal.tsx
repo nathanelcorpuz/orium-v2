@@ -52,13 +52,13 @@ export function ExtraModal({ extra, onClose }: { extra: ExtraRow | null; onClose
             type="text"
             required
             defaultValue={extra?.name}
-            className="mt-1 w-full rounded border border-slate-300 p-2"
+            className="mt-1 w-full rounded border border-notion-hairline p-2 text-notion-text focus:border-notion-accent focus:outline-none"
           />
         </div>
         <fieldset>
           <legend className="block text-sm text-slate-600">Direction</legend>
           <div className="mt-1 flex flex-col gap-2 sm:flex-row sm:gap-4">
-            <label className="flex items-center gap-1 text-sm">
+            <label className="flex items-center gap-1 text-sm text-notion-text">
               <input
                 type="radio"
                 name="direction"
@@ -68,7 +68,7 @@ export function ExtraModal({ extra, onClose }: { extra: ExtraRow | null; onClose
               />
               Money in (e.g. refund, gift received)
             </label>
-            <label className="flex items-center gap-1 text-sm">
+            <label className="flex items-center gap-1 text-sm text-notion-text">
               <input
                 type="radio"
                 name="direction"
@@ -92,7 +92,7 @@ export function ExtraModal({ extra, onClose }: { extra: ExtraRow | null; onClose
             min="0"
             required
             defaultValue={extra ? centavosToPesosString(Math.abs(extra.amount)) : undefined}
-            className="mt-1 w-full rounded border border-slate-300 p-2"
+            className="mt-1 w-full rounded border border-notion-hairline p-2 text-notion-text focus:border-notion-accent focus:outline-none"
           />
         </div>
         <div>
@@ -105,7 +105,7 @@ export function ExtraModal({ extra, onClose }: { extra: ExtraRow | null; onClose
             type="date"
             required
             defaultValue={extra?.due_date}
-            className="mt-1 w-full rounded border border-slate-300 p-2"
+            className="mt-1 w-full rounded border border-notion-hairline p-2 text-notion-text focus:border-notion-accent focus:outline-none"
           />
         </div>
         <div>
@@ -116,7 +116,7 @@ export function ExtraModal({ extra, onClose }: { extra: ExtraRow | null; onClose
             id="comments"
             name="comments"
             defaultValue={extra?.comments ?? ""}
-            className="mt-1 w-full rounded border border-slate-300 p-2"
+            className="mt-1 w-full rounded border border-notion-hairline p-2 text-notion-text focus:border-notion-accent focus:outline-none"
           />
         </div>
         {state.error && <p className="text-sm text-red-600">{state.error}</p>}
@@ -124,14 +124,14 @@ export function ExtraModal({ extra, onClose }: { extra: ExtraRow | null; onClose
           <button
             type="button"
             onClick={onClose}
-            className="rounded border border-slate-300 px-4 py-2"
+            className="rounded border border-notion-hairline px-4 py-2 text-notion-text hover:bg-notion-hover"
           >
             Cancel
           </button>
           <button
             type="submit"
             disabled={pending}
-            className="rounded bg-slate-900 px-4 py-2 text-white disabled:opacity-50"
+            className="rounded bg-notion-text px-4 py-2 text-white hover:opacity-90 disabled:opacity-50"
           >
             {pending ? "Saving..." : "Save"}
           </button>

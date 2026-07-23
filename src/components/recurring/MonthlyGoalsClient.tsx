@@ -76,11 +76,11 @@ export function MonthlyGoalsClient({
       <div className="mx-auto max-w-2xl">
         <div className="mb-6 flex items-center justify-between">
           <div>
-            <h1 className="text-xl font-semibold">{pageTitle}</h1>
-            <p className="text-slate-600">
+            <h1 className="text-xl font-semibold text-notion-text">{pageTitle}</h1>
+            <p className="text-slate-500">
               Total monthly: <span className={amountColorClass}>{formatCentavos(totalMonthly)}</span>
             </p>
-            <p className="text-slate-600">
+            <p className="text-slate-500">
               Total remaining:{" "}
               <span className={amountColorClass}>{formatCentavos(totalRemaining)}</span>
             </p>
@@ -88,7 +88,7 @@ export function MonthlyGoalsClient({
           <button
             type="button"
             onClick={() => setModalState("new")}
-            className="rounded bg-slate-900 px-4 py-2 text-white"
+            className="rounded bg-notion-text px-4 py-2 text-white hover:opacity-90"
           >
             Add {noun}
           </button>
@@ -103,10 +103,10 @@ export function MonthlyGoalsClient({
               return (
                 <li
                   key={item.id}
-                  className="flex items-center justify-between rounded-xl bg-white p-4 shadow"
+                  className="flex items-center justify-between rounded-lg border border-notion-hairline bg-white p-4"
                 >
                   <div>
-                    <p className="font-medium">{item.name}</p>
+                    <p className="font-medium text-notion-text">{item.name}</p>
                     <p className={`text-sm ${amountColorClass}`}>{formatCentavos(Math.abs(item.amount))}</p>
                     <p className="text-sm text-slate-400">{summarizeRecurrence(goalRule(item))}</p>
                     <p className="text-sm text-slate-400">
@@ -130,7 +130,7 @@ export function MonthlyGoalsClient({
                         <button
                           type="button"
                           onClick={() => setConfirmingDeleteId(null)}
-                          className="rounded border border-slate-300 px-3 py-1 text-sm"
+                          className="rounded border border-notion-hairline px-3 py-1 text-sm text-notion-text hover:bg-notion-hover"
                         >
                           Cancel
                         </button>
@@ -140,7 +140,7 @@ export function MonthlyGoalsClient({
                         <button
                           type="button"
                           onClick={() => setModalState(item)}
-                          className="rounded border border-slate-300 px-3 py-1 text-sm"
+                          className="rounded border border-notion-hairline px-3 py-1 text-sm text-notion-text hover:bg-notion-hover"
                         >
                           Edit
                         </button>
