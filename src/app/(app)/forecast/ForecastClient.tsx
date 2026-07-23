@@ -75,39 +75,59 @@ export function ForecastClient({
                     </tr>
                   </thead>
                   <tbody>
-                    {forecast.map((row, index) => (
-                      <tr
-                        key={`${row.sourceType}-${row.sourceId}-${row.originalDate}-${index}`}
-                        role="button"
-                        tabIndex={0}
-                        onClick={() => setSelectedRow(row)}
-                        onKeyDown={(event) => {
-                          if (event.key === "Enter" || event.key === " ") {
-                            event.preventDefault();
-                            setSelectedRow(row);
+                    {forecast.map((row, index) => {
+                      // Phase 11 (T59): an income-linked budget_replenish row
+                      // settles automatically when its linked income is
+                      // settled (T56's hook, extended) - it's never
+                      // independently clickable, unlike an own-schedule
+                      // ("replenish every") budget_replenish row, which is.
+                      const isClickable = row.sourceType !== "budget_replenish" || row.budgetSettleable === true;
+                      return (
+                        <tr
+                          key={`${row.sourceType}-${row.sourceId}-${row.originalDate}-${index}`}
+                          role={isClickable ? "button" : undefined}
+                          tabIndex={isClickable ? 0 : undefined}
+                          onClick={isClickable ? () => setSelectedRow(row) : undefined}
+                          onKeyDown={
+                            isClickable
+                              ? (event) => {
+                                  if (event.key === "Enter" || event.key === " ") {
+                                    event.preventDefault();
+                                    setSelectedRow(row);
+                                  }
+                                }
+                              : undefined
                           }
-                        }}
-                        className={`cursor-pointer border-b border-notion-hairline text-notion-text last:border-0 hover:opacity-80 ${balanceRangeColorClass(row.runningBalance, balanceRanges)}`}
-                      >
-                        <td className="p-3">{formatFullDate(row.dueDate)}</td>
-                        <td className="p-3">
-                          {row.name}
-                          {row.edited && (
-                            <span
-                              className="ml-1.5 text-slate-400"
-                              title="Edited from its usual schedule"
-                            >
-                              ✎
-                            </span>
-                          )}
-                        </td>
-                        <td className={`p-3 ${TYPE_COLOR[row.type]}`}>{row.type}</td>
-                        <td className="p-3 text-right">{formatCentavos(row.amount, currency)}</td>
-                        <td className="p-3 text-right font-medium">
-                          {formatCentavos(row.runningBalance, currency)}
-                        </td>
-                      </tr>
-                    ))}
+                          className={`border-b border-notion-hairline text-notion-text last:border-0 ${isClickable ? "cursor-pointer hover:opacity-80" : ""} ${balanceRangeColorClass(row.runningBalance, balanceRanges)}`}
+                        >
+                          <td className="p-3">{formatFullDate(row.dueDate)}</td>
+                          <td className="p-3">
+                            {!isClickable ? <span className="italic text-slate-500">{row.name}</span> : row.name}
+                            {row.edited && (
+                              <span
+                                className="ml-1.5 text-slate-400"
+                                title="Edited from its usual schedule"
+                              >
+                                ✎
+                              </span>
+                            )}
+                            {!isClickable && (
+                              <span
+                                className="ml-1.5 rounded-full bg-notion-hover px-1.5 py-0.5 text-xs text-slate-500"
+                                title="Replenishes automatically when its linked income is settled"
+                              >
+                                auto
+                              </span>
+                            )}
+                          </td>
+                          <td className={`p-3 ${TYPE_COLOR[row.type]}`}>{row.type}</td>
+                          <td className="p-3 text-right">{formatCentavos(row.amount, currency)}</td>
+                          <td className="p-3 text-right font-medium">
+                            {formatCentavos(row.runningBalance, currency)}
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>

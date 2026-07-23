@@ -53,12 +53,21 @@ export default async function HistoryPage() {
               </thead>
               <tbody>
                 {rows.map((row) => {
-                  // Budget settlements have no real forecast to compare
+                  // Most budget settlements have no real forecast to compare
                   // against - forecasted_amount/forecasted_balance are 0 and
                   // forecasted_date mirrors actual_date (SPEC.md "Logging a
                   // spend"), so showing them as real numbers would be
-                  // misleading rather than just absent.
+                  // misleading rather than just absent. Phase 11 (T59) is
+                  // the one exception: settling a projected replenish
+                  // occurrence (own-schedule or income-linked) writes a real,
+                  // non-zero forecasted_amount/date - those get a genuine
+                  // forecast-vs-actual comparison like any other type.
+                  // forecasted_balance stays "—" regardless (it's never a
+                  // real value for a budget row - see writeLedgerEntry/
+                  // settleOccurrence/settleBudgetReplenish, all of which
+                  // write 0 there).
                   const isBudget = row.type === "budget";
+                  const budgetHasRealForecast = isBudget && row.forecasted_amount !== 0;
                   return (
                     <tr key={row.id} className="border-b border-slate-100 last:border-0">
                       <td className="p-3">{row.name}</td>
@@ -72,10 +81,10 @@ export default async function HistoryPage() {
                         )}
                       </td>
                       <td className="p-3 text-right">
-                        {isBudget ? "—" : formatCentavos(row.forecasted_amount, currency)}
+                        {isBudget && !budgetHasRealForecast ? "—" : formatCentavos(row.forecasted_amount, currency)}
                       </td>
                       <td className="p-3 text-right">{formatCentavos(row.actual_amount, currency)}</td>
-                      <td className="p-3">{isBudget ? "—" : row.forecasted_date}</td>
+                      <td className="p-3">{isBudget && !budgetHasRealForecast ? "—" : row.forecasted_date}</td>
                       <td className="p-3">{row.actual_date}</td>
                       <td className="p-3 text-right font-medium">
                         {isBudget ? "—" : formatCentavos(row.forecasted_balance, currency)}

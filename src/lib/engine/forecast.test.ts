@@ -299,6 +299,161 @@ describe("generateForecast budgets (Phase 10 running ledger, T57)", () => {
   });
 });
 
+describe("generateForecast budget replenish schedule (Phase 11, T59)", () => {
+  const weeklyMonday = {
+    startDate: "2026-01-05",
+    interval: 1,
+    unit: "week" as const,
+    weekdays: [1],
+    endsType: "never" as const,
+  };
+
+  it("projects a deduction row for an own-schedule ('replenish every') budget", () => {
+    const weeklyBudget = testBudget(weeklyMonday);
+
+    const result = generateForecast({
+      balances: [],
+      recurringItems: [],
+      overrides: [],
+      oneOffs: [],
+      budgets: [weeklyBudget],
+      budgetEntries: [],
+      today: "2026-01-01",
+      horizon: "2026-01-20",
+    });
+
+    expect(
+      result.map((row) => ({
+        sourceType: row.sourceType,
+        dueDate: row.dueDate,
+        amount: row.amount,
+        budgetSettleable: row.budgetSettleable,
+      })),
+    ).toEqual([
+      { sourceType: "budget_replenish", dueDate: "2026-01-05", amount: -500000, budgetSettleable: true },
+      { sourceType: "budget_replenish", dueDate: "2026-01-12", amount: -500000, budgetSettleable: true },
+      { sourceType: "budget_replenish", dueDate: "2026-01-19", amount: -500000, budgetSettleable: true },
+    ]);
+  });
+
+  it("projects an income-linked budget's deduction on its linked income's occurrence dates, not independently settleable", () => {
+    const income = monthlyItem({ id: "income-1", type: "income", amount: 2000000, daysOfMonth: [5] });
+    const linkedBudget = testBudget({ linkedIncomeId: "income-1" });
+
+    const result = generateForecast({
+      balances: [],
+      recurringItems: [income],
+      overrides: [],
+      oneOffs: [],
+      budgets: [linkedBudget],
+      budgetEntries: [],
+      today: "2026-01-01",
+      horizon: "2026-02-28",
+    });
+
+    const replenishRows = result.filter((row) => row.sourceType === "budget_replenish");
+    expect(
+      replenishRows.map((row) => ({ dueDate: row.dueDate, amount: row.amount, budgetSettleable: row.budgetSettleable })),
+    ).toEqual([
+      { dueDate: "2026-01-05", amount: -500000, budgetSettleable: undefined },
+      { dueDate: "2026-02-05", amount: -500000, budgetSettleable: undefined },
+    ]);
+  });
+
+  it("moves the linked budget's deduction along with a moved income occurrence, keyed by the original date", () => {
+    const income = monthlyItem({ id: "income-1", type: "income", amount: 2000000, daysOfMonth: [5] });
+    const linkedBudget = testBudget({ linkedIncomeId: "income-1" });
+    const moved: OccurrenceOverride = {
+      id: "ov-1",
+      recurringItemId: "income-1",
+      originalDate: "2026-01-05",
+      newDate: "2026-01-07",
+      newAmount: null,
+      newName: null,
+      skipped: false,
+    };
+
+    const result = generateForecast({
+      balances: [],
+      recurringItems: [income],
+      overrides: [moved],
+      oneOffs: [],
+      budgets: [linkedBudget],
+      budgetEntries: [],
+      today: "2026-01-01",
+      horizon: "2026-01-31",
+    });
+
+    const replenishRow = result.find((row) => row.sourceType === "budget_replenish");
+    expect(replenishRow?.dueDate).toBe("2026-01-07");
+    expect(replenishRow?.originalDate).toBe("2026-01-05");
+  });
+
+  it("produces no deduction when the linked income's occurrence is skipped", () => {
+    const income = monthlyItem({ id: "income-1", type: "income", amount: 2000000, daysOfMonth: [5] });
+    const linkedBudget = testBudget({ linkedIncomeId: "income-1" });
+    const skip: OccurrenceOverride = {
+      id: "ov-1",
+      recurringItemId: "income-1",
+      originalDate: "2026-01-05",
+      newDate: null,
+      newAmount: null,
+      newName: null,
+      skipped: true,
+    };
+
+    const result = generateForecast({
+      balances: [],
+      recurringItems: [income],
+      overrides: [skip],
+      oneOffs: [],
+      budgets: [linkedBudget],
+      budgetEntries: [],
+      today: "2026-01-01",
+      horizon: "2026-01-31",
+    });
+
+    expect(result.some((row) => row.sourceType === "budget_replenish")).toBe(false);
+  });
+
+  it("suppresses an occurrence already marked settled/skipped in budget_replenish_overrides", () => {
+    const weeklyBudget = testBudget(weeklyMonday);
+
+    const result = generateForecast({
+      balances: [],
+      recurringItems: [],
+      overrides: [],
+      oneOffs: [],
+      budgets: [weeklyBudget],
+      budgetEntries: [],
+      budgetReplenishOverrides: [{ id: "bro-1", budgetId: "budget-1", originalDate: "2026-01-05", skipped: true }],
+      today: "2026-01-01",
+      horizon: "2026-01-20",
+    });
+
+    expect(result.map((row) => row.dueDate)).toEqual(["2026-01-12", "2026-01-19"]);
+  });
+
+  it("reduces the running balance by the projected deduction, same as any other row", () => {
+    const weeklyBudget = testBudget(weeklyMonday);
+
+    const result = generateForecast({
+      balances: [{ id: "bal-1", name: "Cash", amount: 1000000 }],
+      recurringItems: [],
+      overrides: [],
+      oneOffs: [],
+      budgets: [weeklyBudget],
+      budgetEntries: [],
+      today: "2026-01-01",
+      horizon: "2026-01-05",
+    });
+
+    expect(result).toEqual([
+      expect.objectContaining({ dueDate: "2026-01-05", amount: -500000, runningBalance: 500000 }),
+    ]);
+  });
+});
+
 describe("generateForecast future-dated budget entries (T43, simplified by T57)", () => {
   const groceries = testBudget({});
 

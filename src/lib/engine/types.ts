@@ -94,6 +94,18 @@ export interface Budget {
   occurrenceCount: number | null;
 }
 
+// Phase 11 (SPEC.md T59): marks a budget's projected replenish occurrence
+// (see ForecastRow's "budget_replenish" sourceType below) as handled -
+// settled or skipped - so it stops re-projecting, mirroring
+// OccurrenceOverride for recurring items but without move/edit fields (v1
+// scope: settle or leave projected).
+export interface BudgetReplenishOverride {
+  id: string;
+  budgetId: string;
+  originalDate: string; // YYYY-MM-DD, identifies which projected occurrence this covers
+  skipped: boolean;
+}
+
 export interface BudgetEntry {
   id: string;
   budgetId: string;
@@ -111,9 +123,12 @@ export interface BudgetEntry {
 
 export interface ForecastRow {
   // "budget" (a projected cycle-boundary/reservation row) existed under the
-  // old model and is gone as of T57 - every budget-related row is now a
-  // "budget_entry" (a real future-dated ledger entry).
-  sourceType: "recurring" | "one_off" | "budget_entry";
+  // old model and was gone as of T57 in favor of just "budget_entry" (a
+  // real future-dated ledger entry). Phase 11 (T59) adds "budget_replenish"
+  // back - a projected future replenish occurrence (own schedule or linked
+  // income's), a real deduction from cash flow once settled, not a soft
+  // reservation like the old "budget" rows were.
+  sourceType: "recurring" | "one_off" | "budget_entry" | "budget_replenish";
   sourceId: string;
   originalDate: string;
   name: string;
@@ -121,13 +136,20 @@ export interface ForecastRow {
   dueDate: string;
   type: RecurringItemType | "extra" | "budget";
   runningBalance: number; // centavos
-  // budget_entry rows only (SPEC.md T43): the parent budget's id/name and
-  // the entry's own note, separate from `name` (which combines them for
-  // display) so EditSettleModal can prefill updateBudgetEntry's form
+  // budget_entry and budget_replenish rows: the parent budget's id/name and
+  // the entry's own note (budget_entry only), separate from `name` (which
+  // combines them for display) so EditSettleModal can prefill its forms
   // without re-parsing the combined string.
   budgetId?: string;
   budgetName?: string;
   note?: string | null;
+  // budget_replenish rows only (SPEC.md T59): true when this row can be
+  // settled directly from the Forecast - only for a budget on its own
+  // schedule. An income-linked budget's row instead settles automatically
+  // when its linked income is settled (extending T56's existing hook), so
+  // it's never independently clickable - omitted (not false) for every
+  // other row, same convention as `edited`.
+  budgetSettleable?: true;
   // True when a non-skipped occurrence_overrides row applied to this
   // occurrence (SPEC.md Phase 7 "edited-occurrence indicator") - omitted
   // rather than false so existing forecast.test.ts literals using toEqual
@@ -143,6 +165,7 @@ export interface GenerateForecastInput {
   oneOffs: OneOffItem[];
   budgets?: Budget[];
   budgetEntries?: BudgetEntry[];
+  budgetReplenishOverrides?: BudgetReplenishOverride[];
   today: string; // YYYY-MM-DD
   horizon: string; // YYYY-MM-DD
 }

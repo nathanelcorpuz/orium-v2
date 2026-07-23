@@ -7,6 +7,7 @@ import type {
   Balance,
   Budget,
   BudgetEntry,
+  BudgetReplenishOverride,
   ForecastRow,
   GenerateForecastInput,
   OccurrenceOverride,
@@ -37,6 +38,7 @@ export type ForecastData = {
   overrides: OccurrenceOverride[];
   budgets: Budget[];
   budgetEntries: BudgetEntry[];
+  budgetReplenishOverrides: BudgetReplenishOverride[];
   currency: string;
   balanceRanges: number[];
   today: string;
@@ -48,31 +50,46 @@ export async function loadForecast(): Promise<ForecastData> {
   const today = todayInManila();
   const horizon = addYears(today, 3);
 
-  const [balancesRes, recurringRes, overridesRes, oneOffsRes, budgetsRes, entriesRes, preferencesRes] =
-    await Promise.all([
-      supabase.from("balances").select("id, name, amount, comments"),
-      supabase
-        .from("recurring_items")
-        .select(
-          "id, name, type, amount, start_date, end_date, interval, unit, weekdays, days_of_month, ordinal, ordinal_weekday, ends_type, occurrence_count",
-        ),
-      supabase
-        .from("occurrence_overrides")
-        .select("id, recurring_item_id, original_date, new_date, new_amount, new_name, skipped"),
-      supabase.from("one_off_items").select("id, name, amount, due_date"),
-      supabase.from("budgets").select(BUDGET_COLUMNS),
-      // Every entry, not just future ones - the Dashboard's budget card
-      // needs full history to compute a running total (budgetLedger.ts).
-      supabase.from("budget_entries").select("id, budget_id, entry_date, amount, note, direction"),
-      supabase.from("preferences").select("currency, balance_ranges").single(),
-    ]);
+  const [
+    balancesRes,
+    recurringRes,
+    overridesRes,
+    oneOffsRes,
+    budgetsRes,
+    entriesRes,
+    replenishOverridesRes,
+    preferencesRes,
+  ] = await Promise.all([
+    supabase.from("balances").select("id, name, amount, comments"),
+    supabase
+      .from("recurring_items")
+      .select(
+        "id, name, type, amount, start_date, end_date, interval, unit, weekdays, days_of_month, ordinal, ordinal_weekday, ends_type, occurrence_count",
+      ),
+    supabase
+      .from("occurrence_overrides")
+      .select("id, recurring_item_id, original_date, new_date, new_amount, new_name, skipped"),
+    supabase.from("one_off_items").select("id, name, amount, due_date"),
+    supabase.from("budgets").select(BUDGET_COLUMNS),
+    // Every entry, not just future ones - the Dashboard's budget card
+    // needs full history to compute a running total (budgetLedger.ts).
+    supabase.from("budget_entries").select("id, budget_id, entry_date, amount, note, direction"),
+    supabase.from("budget_replenish_overrides").select("id, budget_id, original_date, skipped"),
+    supabase.from("preferences").select("currency, balance_ranges").single(),
+  ]);
 
   // These queries determine the forecast's correctness - silently treating a
   // failed one as empty would show a wrong forecast with no indication
   // anything failed. Preferences failure is left as a graceful fallback
   // below (formatting only).
   const criticalError =
-    balancesRes.error ?? recurringRes.error ?? overridesRes.error ?? oneOffsRes.error ?? budgetsRes.error ?? entriesRes.error;
+    balancesRes.error ??
+    recurringRes.error ??
+    overridesRes.error ??
+    oneOffsRes.error ??
+    budgetsRes.error ??
+    entriesRes.error ??
+    replenishOverridesRes.error;
   if (criticalError) {
     throw new Error(`Failed to load forecast data: ${criticalError.message}`);
   }
@@ -132,6 +149,13 @@ export async function loadForecast(): Promise<ForecastData> {
     toEngineEntries(entriesByBudgetId.get(budget.id) ?? [], budget.id),
   );
 
+  const budgetReplenishOverrides: BudgetReplenishOverride[] = (replenishOverridesRes.data ?? []).map((row) => ({
+    id: row.id,
+    budgetId: row.budget_id,
+    originalDate: row.original_date,
+    skipped: row.skipped,
+  }));
+
   const input: GenerateForecastInput = {
     balances,
     recurringItems,
@@ -139,6 +163,7 @@ export async function loadForecast(): Promise<ForecastData> {
     oneOffs,
     budgets,
     budgetEntries,
+    budgetReplenishOverrides,
     today,
     horizon,
   };
@@ -150,6 +175,7 @@ export async function loadForecast(): Promise<ForecastData> {
     overrides,
     budgets,
     budgetEntries,
+    budgetReplenishOverrides,
     currency: preferencesRes.data?.currency ?? DEFAULT_CURRENCY,
     balanceRanges: preferencesRes.data?.balance_ranges ?? DEFAULT_BALANCE_RANGES,
     today,

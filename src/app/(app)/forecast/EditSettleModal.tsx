@@ -7,7 +7,13 @@ import { centavosToPesosString } from "@/lib/money";
 import { formatFullDate } from "@/lib/date";
 import type { ForecastRow } from "@/lib/engine/types";
 import { deleteBudgetEntry, updateBudgetEntry, type BudgetActionState } from "@/app/(app)/budgets/actions";
-import { editOneOff, editRecurringOccurrence, settleOccurrence, type ForecastActionState } from "./actions";
+import {
+  editOneOff,
+  editRecurringOccurrence,
+  settleBudgetReplenish,
+  settleOccurrence,
+  type ForecastActionState,
+} from "./actions";
 
 const initialState: ForecastActionState = { error: null };
 const initialEntryState: BudgetActionState = { error: null };
@@ -30,6 +36,13 @@ export function EditSettleModal({
   // (budgets/actions.ts) rather than new ones, since those already do
   // exactly what's needed here (including revalidating /forecast).
   const isBudgetEntry = row.sourceType === "budget_entry";
+  // Phase 11 (T59): a projected replenish occurrence for a budget on its
+  // own schedule ("replenish every") - settle-only, no Edit tab (there's
+  // nothing to move/rename before settling, per budget_replenish_overrides'
+  // v1 scope). Only ever reached for row.budgetSettleable rows -
+  // ForecastClient never makes an income-linked budget_replenish row
+  // clickable, since those settle automatically via their linked income.
+  const isBudgetReplenish = row.sourceType === "budget_replenish";
   const [mode, setMode] = useState<"edit" | "settle">("edit");
   const editAction = row.sourceType === "recurring" ? editRecurringOccurrence : editOneOff;
   const [editState, editFormAction, editPending] = useActionState(editAction, initialState);
@@ -41,6 +54,10 @@ export function EditSettleModal({
     updateBudgetEntry,
     initialEntryState,
   );
+  const [replenishState, replenishFormAction, replenishPending] = useActionState(
+    settleBudgetReplenish,
+    initialState,
+  );
   const submitted = useRef(false);
 
   useEffect(() => {
@@ -49,17 +66,29 @@ export function EditSettleModal({
       !editPending &&
       !settlePending &&
       !entryPending &&
+      !replenishPending &&
       !editState.error &&
       !settleState.error &&
-      !entryState.error
+      !entryState.error &&
+      !replenishState.error
     ) {
       onClose();
     }
-  }, [editPending, settlePending, entryPending, editState, settleState, entryState, onClose]);
+  }, [
+    editPending,
+    settlePending,
+    entryPending,
+    replenishPending,
+    editState,
+    settleState,
+    entryState,
+    replenishState,
+    onClose,
+  ]);
 
   return (
     <Modal title={row.name} onClose={onClose}>
-      {!isBudgetEntry && (
+      {!isBudgetEntry && !isBudgetReplenish && (
         <div className="mb-4">
           <SegmentedControl
             options={[
@@ -72,7 +101,70 @@ export function EditSettleModal({
         </div>
       )}
 
-      {isBudgetEntry ? (
+      {isBudgetReplenish ? (
+        <form
+          action={replenishFormAction}
+          onSubmit={() => {
+            submitted.current = true;
+          }}
+          className="space-y-4"
+        >
+          <input type="hidden" name="budgetId" value={row.budgetId} />
+          <input type="hidden" name="budgetName" value={row.budgetName} />
+          <input type="hidden" name="originalDate" value={row.originalDate} />
+          <input type="hidden" name="forecastedAmount" value={row.amount} />
+          <input type="hidden" name="forecastedDate" value={row.dueDate} />
+          <input type="hidden" name="forecastedBalance" value={row.runningBalance} />
+          <p className="text-sm text-slate-500">
+            Forecasted: {formatFullDate(row.dueDate)}, {centavosToPesosString(Math.abs(row.amount))} {currency}
+          </p>
+          <div>
+            <label className="block text-sm text-slate-600" htmlFor="actualAmountPesos">
+              Actual amount ({currency})
+            </label>
+            <input
+              id="actualAmountPesos"
+              name="actualAmountPesos"
+              type="number"
+              step="0.01"
+              min="0"
+              required
+              defaultValue={centavosToPesosString(Math.abs(row.amount))}
+              className="mt-1 w-full rounded border border-notion-hairline p-2 text-notion-text focus:border-notion-accent focus:outline-none"
+            />
+          </div>
+          <div>
+            <label className="block text-sm text-slate-600" htmlFor="actualDate">
+              Actual date
+            </label>
+            <input
+              id="actualDate"
+              name="actualDate"
+              type="date"
+              required
+              defaultValue={row.dueDate}
+              className="mt-1 w-full rounded border border-notion-hairline p-2 text-notion-text focus:border-notion-accent focus:outline-none"
+            />
+          </div>
+          {replenishState.error && <p className="text-sm text-red-600">{replenishState.error}</p>}
+          <div className="flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded border border-notion-hairline px-4 py-2 text-notion-text hover:bg-notion-hover"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={replenishPending}
+              className="rounded bg-notion-text px-4 py-2 text-white hover:opacity-90 disabled:opacity-50"
+            >
+              {replenishPending ? "Settling..." : "Settle"}
+            </button>
+          </div>
+        </form>
+      ) : isBudgetEntry ? (
         <>
           <form
             action={entryFormAction}
