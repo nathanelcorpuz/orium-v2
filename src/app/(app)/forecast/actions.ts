@@ -207,6 +207,48 @@ export async function settleOccurrence(
       { onConflict: "recurring_item_id,original_date" },
     );
     if (error) return { error: error.message };
+
+    // Budget replenishment (SPEC.md T56): settling an income occurrence is
+    // the trigger, not a projected date - any budget linked to this income
+    // gets its allocation added as a fresh incoming ledger entry, dated at
+    // the actual settle date rather than the forecasted one (the money
+    // really landed then).
+    if (type === "income") {
+      const { data: linkedBudgets, error: linkedBudgetsError } = await supabase
+        .from("budgets")
+        .select("id, name, allocation")
+        .eq("linked_income_id", sourceId);
+      if (linkedBudgetsError) return { error: linkedBudgetsError.message };
+
+      for (const linkedBudget of linkedBudgets ?? []) {
+        const replenishNote = `Replenished from ${name}`;
+
+        const { error: entryError } = await supabase.from("budget_entries").insert({
+          user_id: user.id,
+          budget_id: linkedBudget.id,
+          entry_date: fields.actualDate,
+          amount: linkedBudget.allocation,
+          note: replenishNote,
+          direction: "incoming",
+        });
+        if (entryError) return { error: entryError.message };
+
+        const { error: budgetSettlementError } = await supabase.from("settlements").insert({
+          user_id: user.id,
+          source_type: "budget",
+          source_id: linkedBudget.id,
+          name: `${linkedBudget.name} - ${replenishNote}`,
+          type: "budget",
+          forecasted_amount: 0,
+          actual_amount: linkedBudget.allocation,
+          forecasted_date: fields.actualDate,
+          actual_date: fields.actualDate,
+          forecasted_balance: 0,
+        });
+        if (budgetSettlementError) return { error: budgetSettlementError.message };
+      }
+      if (linkedBudgets && linkedBudgets.length > 0) revalidatePath("/budgets");
+    }
   } else {
     const { error } = await supabase.from("one_off_items").delete().eq("id", sourceId);
     if (error) return { error: error.message };

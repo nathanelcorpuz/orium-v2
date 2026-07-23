@@ -119,13 +119,19 @@ export function generateForecast(input: GenerateForecastInput): ForecastRow[] {
     // whichever boundary row they'd otherwise inflate, so this doesn't
     // double-count. Name matches the settlement-naming convention
     // logSpend/updateBudgetEntry already use (budgets/actions.ts).
+    //
+    // SPEC.md Phase 10/T56: a future-dated entry can now be "incoming" too
+    // (e.g. settling an income dated after today replenishes its linked
+    // budget on that future date) - amount follows direction instead of
+    // always negating, same convention the ledger itself uses. Undirected
+    // (pre-Phase-10) entries default to outgoing, unchanged.
     for (const futureEntry of futureBudgetEntries(budgetEntries, budget.id, today)) {
       rows.push({
         sourceType: "budget_entry",
         sourceId: futureEntry.id,
         originalDate: futureEntry.entryDate,
         name: futureEntry.note ? `${budget.name} - ${futureEntry.note}` : budget.name,
-        amount: -futureEntry.amount,
+        amount: futureEntry.direction === "incoming" ? futureEntry.amount : -futureEntry.amount,
         dueDate: futureEntry.entryDate,
         type: "budget",
         budgetId: budget.id,

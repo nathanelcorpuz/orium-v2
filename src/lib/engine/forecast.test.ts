@@ -589,6 +589,28 @@ describe("generateForecast future-dated budget entries (T43)", () => {
       { sourceType: "budget", dueDate: "2026-03-01", amount: -500000 }, // untouched
     ]);
   });
+
+  it("renders a future incoming entry (e.g. a replenishment - SPEC.md T56) as a positive row, not negated", () => {
+    const entries: BudgetEntry[] = [
+      { id: "e3", budgetId: "budget-1", entryDate: "2026-01-25", amount: 500000, note: "Replenished from Salary", direction: "incoming" },
+    ];
+
+    const result = generateForecast({
+      balances: [],
+      recurringItems: [],
+      overrides: [],
+      oneOffs: [],
+      budgets: [groceries],
+      budgetEntries: entries,
+      today: "2026-01-15",
+      horizon: "2026-01-31",
+    });
+
+    expect(result).toEqual([
+      expect.objectContaining({ sourceType: "budget", dueDate: "2026-01-15", amount: -500000 }), // unaffected - an incoming entry isn't a spend
+      expect.objectContaining({ sourceType: "budget_entry", dueDate: "2026-01-25", amount: 500000 }),
+    ]);
+  });
 });
 
 describe("generateForecast start/end date bounds", () => {
