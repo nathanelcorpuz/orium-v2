@@ -4,21 +4,14 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { parseCentavos } from "@/lib/money";
 import { todayInManila } from "@/lib/date";
-import { toEngineBudget, toEngineIncomes, toEngineOverrides, type BudgetRow } from "@/lib/budgetView";
-import { deleteStaleBudgetOverrides } from "@/lib/staleOverrides";
-
-const BUDGET_COLUMNS =
-  "id, name, monthly_allocation, allocation, carryover_enabled, created_at, linked_income_id, start_date, interval, unit, weekdays, days_of_month, ordinal, ordinal_weekday, ends_type, end_date, occurrence_count";
 
 export type BudgetActionState = { error: string | null };
 
-// Phase 10 (SPEC.md T55): a budget is just a name, a replenish amount, and
-// an optional linked income - no more "own schedule" replenish option and
-// no more carryover checkbox (carryover is implicit in a running ledger,
-// there's nothing to opt out of). carryover_enabled/the schedule columns
-// are still written with harmless fixed values below rather than dropped,
-// same additive-then-drop pattern as monthly_allocation - see SPEC.md
-// "Budgets v3" for why they can't just be deleted yet.
+// Phase 10 (SPEC.md T55/T57): a budget is just a name, a replenish amount,
+// and an optional linked income - no more "own schedule" replenish option
+// and no more carryover checkbox (carryover is implicit in a running
+// ledger, there's nothing to opt out of). Migration 0010 dropped the now-
+// dead schedule/carryover columns entirely.
 function readBudgetForm(
   formData: FormData,
 ): { error: string } | { error: null; name: string; allocation: number; linkedIncomeId: string | null } {
@@ -49,21 +42,10 @@ export async function createBudget(
     user_id: user.id,
     name: fields.name,
     allocation: fields.allocation,
-    // Mirrors `allocation` - monthly_allocation is still NOT NULL until
-    // migration 0007 drops it (deferred until nothing reads it; see SPEC.md).
+    // Mirrors `allocation` - monthly_allocation is still NOT NULL until a
+    // (still-deferred, see SPEC.md) migration drops it.
     monthly_allocation: fields.allocation,
-    carryover_enabled: true,
     linked_income_id: fields.linkedIncomeId,
-    start_date: null,
-    interval: null,
-    unit: null,
-    weekdays: null,
-    days_of_month: null,
-    ordinal: null,
-    ordinal_weekday: null,
-    ends_type: null,
-    end_date: null,
-    occurrence_count: null,
   });
   if (error) return { error: error.message };
 
@@ -88,44 +70,10 @@ export async function updateBudget(
       name: fields.name,
       allocation: fields.allocation,
       monthly_allocation: fields.allocation,
-      carryover_enabled: true,
       linked_income_id: fields.linkedIncomeId,
-      start_date: null,
-      interval: null,
-      unit: null,
-      weekdays: null,
-      days_of_month: null,
-      ordinal: null,
-      ordinal_weekday: null,
-      ends_type: null,
-      end_date: null,
-      occurrence_count: null,
     })
     .eq("id", id);
   if (error) return { error: error.message };
-
-  const { data: updatedRow } = await supabase.from("budgets").select(BUDGET_COLUMNS).eq("id", id).single();
-  if (updatedRow) {
-    const [incomesRes, incomeOverridesRes] = await Promise.all([
-      supabase
-        .from("recurring_items")
-        .select(
-          "id, name, type, amount, start_date, interval, unit, weekdays, days_of_month, ordinal, ordinal_weekday, ends_type, end_date, occurrence_count",
-        )
-        .eq("type", "income"),
-      supabase
-        .from("occurrence_overrides")
-        .select("id, recurring_item_id, original_date, new_date, new_amount, new_name, skipped"),
-    ]);
-
-    await deleteStaleBudgetOverrides(
-      supabase,
-      id,
-      toEngineBudget(updatedRow as BudgetRow),
-      toEngineIncomes(incomesRes.data ?? []),
-      toEngineOverrides(incomeOverridesRes.data ?? []),
-    );
-  }
 
   revalidatePath("/budgets");
   revalidatePath("/forecast");

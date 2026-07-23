@@ -9,9 +9,7 @@ export default async function BudgetsPage() {
   const [budgetsRes, entriesRes, incomesRes] = await Promise.all([
     supabase
       .from("budgets")
-      .select(
-        "id, name, monthly_allocation, allocation, carryover_enabled, created_at, linked_income_id, start_date, interval, unit, weekdays, days_of_month, ordinal, ordinal_weekday, ends_type, end_date, occurrence_count",
-      )
+      .select("id, name, monthly_allocation, allocation, created_at, linked_income_id")
       .order("name", { ascending: true }),
     // Every entry, not just the current month - a budget's running total
     // (SPEC.md Phase 10, budgetLedger.ts) needs its full history; the month

@@ -7,9 +7,8 @@ import type { BudgetEntry } from "./types";
 // A budget's current total is just sum(incoming) - sum(outgoing) for
 // entries dated today or earlier - carryover is implicit (there's no cycle
 // to reset), and overspending is allowed to go negative, same as a real
-// account. New module alongside the untouched budgetCycles.ts (T37's cycle
-// model) - not yet wired into forecast.ts or any page; see SPEC.md Phase 10
-// for the staged cutover.
+// account. As of T57 this is the only budget engine module - the old
+// cycle/allocation/carryover model (budgetCycles.ts) has been deleted.
 
 function signedAmount(entry: BudgetEntry): number {
   return entry.direction === "incoming" ? entry.amount : -entry.amount;

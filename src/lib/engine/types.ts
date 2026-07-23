@@ -65,36 +65,16 @@ export interface OneOffItem {
   dueDate: string; // YYYY-MM-DD
 }
 
+// Budgets v3 - a running ledger (SPEC.md Phase 10, T57 cutover). The old
+// cycle/allocation/carryover model (Phase 6B) and its schedule/carryover
+// columns are gone - migration 0010 dropped them along with
+// budget_occurrence_overrides once nothing read them anymore.
 export interface Budget {
   id: string;
   name: string;
-
-  // Pre-6B baseline (T24/T25). Still used by the currently-deployed
-  // Budgets page (BudgetCard.tsx) via currentMonthBudgetStatus/
-  // expandBudgetOccurrences in budgets.ts - untouched by T37, since those
-  // are the only live UI consumers left. Dropped once T38 ships (see
-  // migration 0007).
-  monthlyAllocation: number; // centavos
-
-  // Budgets v2 (SPEC.md Phase 6B, migration 0006). allocation/
-  // carryoverEnabled are DB NOT NULL; the rest describe the budget's own
-  // schedule and are null when relying on linkedIncomeId or the fallback.
-  // Consumed by budgetCycles.ts (T37) - not yet wired into forecast.ts;
-  // that's T39.
-  allocation: number; // centavos, >= 0
-  carryoverEnabled: boolean;
-  createdAt: string; // YYYY-MM-DD; anchors the fallback schedule's cycle 0 (see budgetCycles.ts)
+  allocation: number; // centavos, >= 0 - how much gets added when this budget replenishes
   linkedIncomeId: string | null;
-  startDate: string | null;
-  interval: number | null;
-  unit: RecurrenceUnit | null;
-  weekdays: number[] | null;
-  daysOfMonth: number[] | null;
-  ordinal: number | null;
-  ordinalWeekday: number | null;
-  endsType: RecurrenceEndsType | null;
-  endDate: string | null;
-  occurrenceCount: number | null;
+  createdAt: string; // YYYY-MM-DD
 }
 
 export interface BudgetEntry {
@@ -106,28 +86,17 @@ export interface BudgetEntry {
   // Budgets v3 (SPEC.md Phase 10, migration 0009): "incoming" (replenishment
   // - a settled linked income or a manual add) or "outgoing" (a logged
   // spend or a manual take) against the budget's running total, consumed by
-  // budgetLedger.ts. Optional for now since the old cycle model
-  // (budgetCycles.ts) doesn't read it and some existing call sites don't
-  // fetch the column yet - required once the ledger model is fully wired in.
+  // budgetLedger.ts. DB NOT NULL as of migration 0009; kept optional here
+  // only so a handful of pre-Phase-10 test literals that never set it don't
+  // need touching.
   direction?: "incoming" | "outgoing";
 }
 
-// Per-occurrence override for a budget's own *future* forecast rows
-// (SPEC.md T42 part B) - mirrors OccurrenceOverride, but only ever keyed
-// against a future cycle-boundary date. The "remaining this cycle" row
-// (always dated today) has no override concept and never looks this up -
-// see forecast.ts's budget merge loop, the only place these are applied.
-export interface BudgetOccurrenceOverride {
-  id: string;
-  budgetId: string;
-  originalDate: string; // YYYY-MM-DD, a raw future boundary date
-  newDate: string | null;
-  newAmount: number | null; // centavos
-  skipped: boolean;
-}
-
 export interface ForecastRow {
-  sourceType: "recurring" | "one_off" | "budget" | "budget_entry";
+  // "budget" (a projected cycle-boundary/reservation row) existed under the
+  // old model and is gone as of T57 - every budget-related row is now a
+  // "budget_entry" (a real future-dated ledger entry).
+  sourceType: "recurring" | "one_off" | "budget_entry";
   sourceId: string;
   originalDate: string;
   name: string;
@@ -142,11 +111,11 @@ export interface ForecastRow {
   budgetId?: string;
   budgetName?: string;
   note?: string | null;
-  // True when a non-skipped occurrence_overrides/budget_occurrence_overrides
-  // row applied to this occurrence (SPEC.md Phase 7 "edited-occurrence
-  // indicator") - omitted rather than false so existing forecast.test.ts
-  // literals using toEqual don't need updating (toEqual treats a missing key
-  // the same as an explicit `undefined`).
+  // True when a non-skipped occurrence_overrides row applied to this
+  // occurrence (SPEC.md Phase 7 "edited-occurrence indicator") - omitted
+  // rather than false so existing forecast.test.ts literals using toEqual
+  // don't need updating (toEqual treats a missing key the same as an
+  // explicit `undefined`).
   edited?: true;
 }
 
@@ -157,7 +126,6 @@ export interface GenerateForecastInput {
   oneOffs: OneOffItem[];
   budgets?: Budget[];
   budgetEntries?: BudgetEntry[];
-  budgetOverrides?: BudgetOccurrenceOverride[];
   today: string; // YYYY-MM-DD
   horizon: string; // YYYY-MM-DD
 }

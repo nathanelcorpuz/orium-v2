@@ -1,7 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Budget, OccurrenceOverride, RecurrenceRule, RecurringItem } from "./engine/types";
+import type { RecurrenceRule } from "./engine/types";
 import { expandRecurrenceOccurrences } from "./engine/recurrence";
-import { resolveBoundaries } from "./engine/budgetCycles";
 
 // SPEC.md T42 part A: editing a recurring item's rule directly from its own
 // page (Bills/Income/Debt/Savings) shouldn't leave per-occurrence overrides
@@ -29,36 +28,5 @@ export async function deleteStaleOverrides(
 
   if (staleIds.length > 0) {
     await supabase.from("occurrence_overrides").delete().in("id", staleIds);
-  }
-}
-
-// Same idea, for a budget's own future-row overrides (SPEC.md T42 part B):
-// editing a budget's allocation/replenish-source runs this too. A budget's
-// boundaries aren't a single expandable rule (linked income / own schedule /
-// fallback - see budgetCycles.ts), so instead of a tight date-window
-// expansion, resolveBoundaries is asked "what are the real boundaries up to
-// and including this override's date" and the date must be the last one
-// returned to still be valid.
-export async function deleteStaleBudgetOverrides(
-  supabase: SupabaseClient,
-  budgetId: string,
-  newBudget: Budget,
-  recurringItems: RecurringItem[],
-  incomeOverrides: OccurrenceOverride[],
-): Promise<void> {
-  const { data: overrides } = await supabase
-    .from("budget_occurrence_overrides")
-    .select("id, original_date")
-    .eq("budget_id", budgetId);
-
-  const staleIds = (overrides ?? [])
-    .filter((o) => {
-      const { boundaries } = resolveBoundaries(newBudget, recurringItems, incomeOverrides, o.original_date);
-      return !boundaries.includes(o.original_date);
-    })
-    .map((o) => o.id);
-
-  if (staleIds.length > 0) {
-    await supabase.from("budget_occurrence_overrides").delete().in("id", staleIds);
   }
 }

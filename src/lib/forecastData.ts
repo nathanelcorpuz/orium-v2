@@ -7,7 +7,6 @@ import type {
   Balance,
   Budget,
   BudgetEntry,
-  BudgetOccurrenceOverride,
   ForecastRow,
   GenerateForecastInput,
   OccurrenceOverride,
@@ -15,8 +14,7 @@ import type {
   RecurringItem,
 } from "@/lib/engine/types";
 
-const BUDGET_COLUMNS =
-  "id, name, monthly_allocation, allocation, carryover_enabled, created_at, linked_income_id, start_date, interval, unit, weekdays, days_of_month, ordinal, ordinal_weekday, ends_type, end_date, occurrence_count";
+const BUDGET_COLUMNS = "id, name, monthly_allocation, allocation, created_at, linked_income_id";
 
 const DEFAULT_BALANCE_RANGES = [0, 500000, 2000000, 5000000, 10000000];
 const DEFAULT_CURRENCY = "₱";
@@ -49,48 +47,31 @@ export async function loadForecast(): Promise<ForecastData> {
   const today = todayInManila();
   const horizon = addYears(today, 3);
 
-  const [
-    balancesRes,
-    recurringRes,
-    overridesRes,
-    oneOffsRes,
-    budgetsRes,
-    entriesRes,
-    budgetOverridesRes,
-    preferencesRes,
-  ] = await Promise.all([
-    supabase.from("balances").select("id, name, amount, comments"),
-    supabase
-      .from("recurring_items")
-      .select(
-        "id, name, type, amount, start_date, end_date, interval, unit, weekdays, days_of_month, ordinal, ordinal_weekday, ends_type, occurrence_count",
-      ),
-    supabase
-      .from("occurrence_overrides")
-      .select("id, recurring_item_id, original_date, new_date, new_amount, new_name, skipped"),
-    supabase.from("one_off_items").select("id, name, amount, due_date"),
-    supabase.from("budgets").select(BUDGET_COLUMNS),
-    // Not bounded by cycle - see src/app/budgets/page.tsx for why (T38).
-    // direction (Phase 10, migration 0009) is fetched so the still-live old
-    // cycle model (budgetCycles.ts) can correctly ignore ledger credits
-    // instead of miscounting them as spends - see spentInRange there.
-    supabase.from("budget_entries").select("id, budget_id, entry_date, amount, note, direction"),
-    supabase.from("budget_occurrence_overrides").select("id, budget_id, original_date, new_date, new_amount, skipped"),
-    supabase.from("preferences").select("currency, balance_ranges").single(),
-  ]);
+  const [balancesRes, recurringRes, overridesRes, oneOffsRes, budgetsRes, entriesRes, preferencesRes] =
+    await Promise.all([
+      supabase.from("balances").select("id, name, amount, comments"),
+      supabase
+        .from("recurring_items")
+        .select(
+          "id, name, type, amount, start_date, end_date, interval, unit, weekdays, days_of_month, ordinal, ordinal_weekday, ends_type, occurrence_count",
+        ),
+      supabase
+        .from("occurrence_overrides")
+        .select("id, recurring_item_id, original_date, new_date, new_amount, new_name, skipped"),
+      supabase.from("one_off_items").select("id, name, amount, due_date"),
+      supabase.from("budgets").select(BUDGET_COLUMNS),
+      // Every entry, not just future ones - the Dashboard's budget card
+      // needs full history to compute a running total (budgetLedger.ts).
+      supabase.from("budget_entries").select("id, budget_id, entry_date, amount, note, direction"),
+      supabase.from("preferences").select("currency, balance_ranges").single(),
+    ]);
 
   // These queries determine the forecast's correctness - silently treating a
   // failed one as empty would show a wrong forecast with no indication
   // anything failed. Preferences failure is left as a graceful fallback
   // below (formatting only).
   const criticalError =
-    balancesRes.error ??
-    recurringRes.error ??
-    overridesRes.error ??
-    oneOffsRes.error ??
-    budgetsRes.error ??
-    entriesRes.error ??
-    budgetOverridesRes.error;
+    balancesRes.error ?? recurringRes.error ?? overridesRes.error ?? oneOffsRes.error ?? budgetsRes.error ?? entriesRes.error;
   if (criticalError) {
     throw new Error(`Failed to load forecast data: ${criticalError.message}`);
   }
@@ -150,15 +131,6 @@ export async function loadForecast(): Promise<ForecastData> {
     toEngineEntries(entriesByBudgetId.get(budget.id) ?? [], budget.id),
   );
 
-  const budgetOverrides: BudgetOccurrenceOverride[] = (budgetOverridesRes.data ?? []).map((row) => ({
-    id: row.id,
-    budgetId: row.budget_id,
-    originalDate: row.original_date,
-    newDate: row.new_date,
-    newAmount: row.new_amount,
-    skipped: row.skipped,
-  }));
-
   const input: GenerateForecastInput = {
     balances,
     recurringItems,
@@ -166,7 +138,6 @@ export async function loadForecast(): Promise<ForecastData> {
     oneOffs,
     budgets,
     budgetEntries,
-    budgetOverrides,
     today,
     horizon,
   };

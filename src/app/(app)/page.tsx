@@ -6,9 +6,8 @@ import { displayName } from "@/lib/displayName";
 import { monthlyEquivalent } from "@/lib/engine/monthlyTotals";
 import { remainingTotal, ruleEndDate } from "@/lib/engine/remaining";
 import { computeMonthlyPeaksAndDrops } from "@/lib/engine/peaksAndDrops";
-import { computeBudgetCycleStatus } from "@/lib/engine/budgetCycles";
+import { computeBudgetBalance } from "@/lib/engine/budgetLedger";
 import { daysBetween } from "@/lib/engine/date-utils";
-import { ProgressBar } from "@/components/ProgressBar";
 
 function DashboardCard({
   title,
@@ -33,7 +32,7 @@ export default async function Home() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const { forecast, balances, recurringItems, overrides, budgets, budgetEntries, currency, today, horizon } =
+  const { forecast, balances, recurringItems, budgets, budgetEntries, currency, today, horizon } =
     await loadForecast();
 
   const profileName = (user?.user_metadata?.name as string | undefined) ?? "";
@@ -123,29 +122,19 @@ export default async function Home() {
         </div>
 
         <div className="mb-6 rounded-lg border border-notion-hairline bg-white p-4">
-          <h2 className="mb-2 text-sm font-semibold text-notion-text">Budgets this cycle</h2>
+          <h2 className="mb-2 text-sm font-semibold text-notion-text">Budgets</h2>
           {budgets.length === 0 ? (
             <p className="text-sm text-slate-400">No budgets yet.</p>
           ) : (
-            <ul className="space-y-2">
+            <ul className="space-y-1">
               {budgets.map((budget) => {
-                const entries = budgetEntries.filter((entry) => entry.budgetId === budget.id);
-                const status = computeBudgetCycleStatus(budget, entries, recurringItems, overrides, today);
-                const available = status.allocation + status.carriedIn;
-                const progressPercent =
-                  available > 0 ? Math.min((status.spent / available) * 100, 100) : status.spent > 0 ? 100 : 0;
-
+                const balance = computeBudgetBalance(budgetEntries, budget.id, today);
                 return (
-                  <li key={budget.id}>
-                    <div className="mb-1 flex items-center justify-between gap-2 text-sm">
-                      <span className="truncate text-notion-text">{budget.name}</span>
-                      <span className={status.over > 0 ? "font-medium text-red-600" : "text-slate-500"}>
-                        {status.over > 0
-                          ? `Over by ${formatCentavos(status.over, currency)}`
-                          : `${formatCentavos(status.remaining, currency)} left`}
-                      </span>
-                    </div>
-                    <ProgressBar percent={progressPercent} over={status.over > 0} />
+                  <li key={budget.id} className="flex items-center justify-between gap-2 text-sm">
+                    <span className="truncate text-notion-text">{budget.name}</span>
+                    <span className={balance < 0 ? "font-medium text-red-600" : "text-slate-500"}>
+                      {formatCentavos(balance, currency)}
+                    </span>
                   </li>
                 );
               })}

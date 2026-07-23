@@ -7,14 +7,7 @@ import { centavosToPesosString } from "@/lib/money";
 import { formatFullDate } from "@/lib/date";
 import type { ForecastRow } from "@/lib/engine/types";
 import { deleteBudgetEntry, updateBudgetEntry, type BudgetActionState } from "@/app/(app)/budgets/actions";
-import {
-  editBudgetOccurrence,
-  editOneOff,
-  editRecurringOccurrence,
-  settleOccurrence,
-  skipBudgetOccurrence,
-  type ForecastActionState,
-} from "./actions";
+import { editOneOff, editRecurringOccurrence, settleOccurrence, type ForecastActionState } from "./actions";
 
 const initialState: ForecastActionState = { error: null };
 const initialEntryState: BudgetActionState = { error: null };
@@ -28,25 +21,17 @@ export function EditSettleModal({
   currency: string;
   onClose: () => void;
 }) {
-  // Budget rows have no Settle equivalent - logging a spend (Budgets page /
-  // Forecast sidebar panel) already covers that - and no per-occurrence
-  // Name (it's a computed label, not stored), so they skip the edit/settle
-  // toggle entirely and get a dedicated Amount+Date form plus a Skip button.
-  const isBudget = row.sourceType === "budget";
-  // Future-dated budget entries (SPEC.md T43) are editable directly from
-  // the Forecast, same as boundary rows, but they're a DIFFERENT underlying
-  // record (a budget_entries row, not a cycle boundary) - reuses the
-  // existing updateBudgetEntry/deleteBudgetEntry actions from the Budgets
-  // page (budgets/actions.ts) rather than a new action, since those already
-  // do exactly what's needed here (including revalidating /forecast).
+  // Future-dated budget entries (SPEC.md T43/T57) are editable directly from
+  // the Forecast - a real budget_entries row (spend, replenishment, or
+  // manual add/take), not a projected occurrence, so they skip the edit/
+  // settle toggle entirely (no Settle equivalent - a ledger entry already
+  // *is* the actual transaction) and reuse the existing
+  // updateBudgetEntry/deleteBudgetEntry actions from the Budgets page
+  // (budgets/actions.ts) rather than new ones, since those already do
+  // exactly what's needed here (including revalidating /forecast).
   const isBudgetEntry = row.sourceType === "budget_entry";
   const [mode, setMode] = useState<"edit" | "settle">("edit");
-  const editAction =
-    row.sourceType === "recurring"
-      ? editRecurringOccurrence
-      : row.sourceType === "one_off"
-        ? editOneOff
-        : editBudgetOccurrence;
+  const editAction = row.sourceType === "recurring" ? editRecurringOccurrence : editOneOff;
   const [editState, editFormAction, editPending] = useActionState(editAction, initialState);
   const [settleState, settleFormAction, settlePending] = useActionState(
     settleOccurrence,
@@ -74,7 +59,7 @@ export function EditSettleModal({
 
   return (
     <Modal title={row.name} onClose={onClose}>
-      {!isBudget && !isBudgetEntry && (
+      {!isBudgetEntry && (
         <div className="mb-4">
           <SegmentedControl
             options={[
@@ -101,15 +86,21 @@ export function EditSettleModal({
             <input type="hidden" name="budgetName" value={row.budgetName} />
             <div>
               <label className="block text-sm text-slate-600" htmlFor="amountPesos">
-                Amount ({currency})
+                Amount ({currency}) — {row.amount > 0 ? "incoming" : "outgoing"}
               </label>
               <input
                 id="amountPesos"
                 name="amountPesos"
                 type="number"
                 step="0.01"
+                min="0"
                 required
-                defaultValue={centavosToPesosString(-row.amount)}
+                // budget_entries.amount is always a positive magnitude
+                // (direction carries the sign) - row.amount here already
+                // carries that sign (SPEC.md T57), so Math.abs undoes it for
+                // display regardless of direction, unlike the old
+                // always-negative assumption (-row.amount).
+                defaultValue={centavosToPesosString(Math.abs(row.amount))}
                 className="mt-1 w-full rounded border border-notion-hairline p-2 text-notion-text focus:border-notion-accent focus:outline-none"
               />
             </div>
@@ -160,70 +151,6 @@ export function EditSettleModal({
             <input type="hidden" name="id" value={row.sourceId} />
             <button type="submit" className="text-sm text-red-600 underline">
               Delete this entry
-            </button>
-          </form>
-        </>
-      ) : isBudget ? (
-        <>
-          <form
-            action={editFormAction}
-            onSubmit={() => {
-              submitted.current = true;
-            }}
-            className="space-y-4"
-          >
-            <input type="hidden" name="sourceId" value={row.sourceId} />
-            <input type="hidden" name="originalDate" value={row.originalDate} />
-            <div>
-              <label className="block text-sm text-slate-600" htmlFor="amountPesos">
-                Amount ({currency})
-              </label>
-              <input
-                id="amountPesos"
-                name="amountPesos"
-                type="number"
-                step="0.01"
-                required
-                defaultValue={centavosToPesosString(row.amount)}
-                className="mt-1 w-full rounded border border-notion-hairline p-2 text-notion-text focus:border-notion-accent focus:outline-none"
-              />
-            </div>
-            <div>
-              <label className="block text-sm text-slate-600" htmlFor="date">
-                Date
-              </label>
-              <input
-                id="date"
-                name="date"
-                type="date"
-                required
-                defaultValue={row.dueDate}
-                className="mt-1 w-full rounded border border-notion-hairline p-2 text-notion-text focus:border-notion-accent focus:outline-none"
-              />
-            </div>
-            {editState.error && <p className="text-sm text-red-600">{editState.error}</p>}
-            <div className="flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={onClose}
-                className="rounded border border-notion-hairline px-4 py-2 text-notion-text hover:bg-notion-hover"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={editPending}
-                className="rounded bg-notion-text px-4 py-2 text-white hover:opacity-90 disabled:opacity-50"
-              >
-                {editPending ? "Saving..." : "Save"}
-              </button>
-            </div>
-          </form>
-          <form action={skipBudgetOccurrence} onSubmit={onClose} className="mt-3 border-t border-notion-hairline pt-3">
-            <input type="hidden" name="sourceId" value={row.sourceId} />
-            <input type="hidden" name="originalDate" value={row.originalDate} />
-            <button type="submit" className="text-sm text-red-600 underline">
-              Skip this occurrence
             </button>
           </form>
         </>
