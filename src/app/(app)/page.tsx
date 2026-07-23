@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { loadForecast } from "@/lib/forecastData";
 import { formatCentavos } from "@/lib/money";
-import { formatFullDate, formatMonthYear } from "@/lib/date";
+import { formatFullDate, MONTH_ABBR } from "@/lib/date";
 import { displayName } from "@/lib/displayName";
 import { monthlyEquivalent } from "@/lib/engine/monthlyTotals";
 import { remainingTotal, ruleEndDate } from "@/lib/engine/remaining";
@@ -10,6 +10,29 @@ import { findLowestBalancePoint } from "@/lib/engine/lowestBalance";
 import { budgetReplenishRule, computeBudgetBalance, replenishProgress } from "@/lib/engine/budgetLedger";
 import { daysBetween } from "@/lib/engine/date-utils";
 import { ProgressBar } from "@/components/ProgressBar";
+
+// T48: reshapes computeMonthlyPeaksAndDrops's flat "YYYY-MM" list into a
+// year x month grid for display - one row per year, one column per calendar
+// month (Jan-Dec). Purely presentational; the engine's data shape is
+// untouched.
+function groupPeaksAndDropsByYear(
+  rows: { month: string; peak: number; drop: number }[],
+): { year: number; months: ({ month: string; peak: number; drop: number } | undefined)[] }[] {
+  const byYear = new Map<number, Map<number, (typeof rows)[number]>>();
+  for (const row of rows) {
+    const [year, month] = row.month.split("-").map(Number);
+    if (!byYear.has(year)) byYear.set(year, new Map());
+    byYear.get(year)!.set(month, row);
+  }
+  return [...byYear.entries()]
+    .sort(([a], [b]) => a - b)
+    .map(([year, months]) => ({
+      year,
+      // 12 slots (Jan-Dec), undefined where the horizon doesn't cover that
+      // month - keeps positional alignment with the grid's month columns.
+      months: Array.from({ length: 12 }, (_, i) => months.get(i + 1)),
+    }));
+}
 
 function DashboardCard({
   title,
@@ -69,6 +92,7 @@ export default async function Home() {
   const daysUntilDebtFree = debtFreeDate ? daysBetween(today, debtFreeDate) : null;
 
   const peaksAndDrops = computeMonthlyPeaksAndDrops(forecast, totalBalance, today, horizon);
+  const peaksAndDropsByYear = groupPeaksAndDropsByYear(peaksAndDrops);
   const lowestBalance = findLowestBalancePoint(forecast, totalBalance, today);
 
   return (
@@ -187,17 +211,33 @@ export default async function Home() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-notion-hairline text-left text-slate-500">
-                <th className="p-3">Month</th>
-                <th className="p-3 text-right">Peak</th>
-                <th className="p-3 text-right">Drop</th>
+                <th className="p-3">Year</th>
+                {MONTH_ABBR.map((label) => (
+                  <th key={label} className="min-w-[104px] p-3 text-right">
+                    {label}
+                  </th>
+                ))}
               </tr>
             </thead>
             <tbody>
-              {peaksAndDrops.map((row) => (
-                <tr key={row.month} className="border-b border-notion-hairline text-notion-text last:border-0">
-                  <td className="p-3">{formatMonthYear(row.month)}</td>
-                  <td className="p-3 text-right">{formatCentavos(row.peak, currency)}</td>
-                  <td className="p-3 text-right">{formatCentavos(row.drop, currency)}</td>
+              {peaksAndDropsByYear.map(({ year, months }) => (
+                <tr key={year} className="border-b border-notion-hairline text-notion-text last:border-0">
+                  <td className="p-3 font-medium">{year}</td>
+                  {months.map((entry, i) =>
+                    entry ? (
+                      <td key={i} className="p-3 text-right">
+                        <p className="text-xs text-slate-400">
+                          {MONTH_ABBR[i]} {year}
+                        </p>
+                        <p>{formatCentavos(entry.peak, currency)}</p>
+                        <p className="text-slate-500">{formatCentavos(entry.drop, currency)}</p>
+                      </td>
+                    ) : (
+                      <td key={i} className="p-3 text-right text-slate-300">
+                        —
+                      </td>
+                    ),
+                  )}
                 </tr>
               ))}
             </tbody>
