@@ -262,7 +262,9 @@ describe("generateForecast budgets", () => {
       name: "Groceries",
       monthlyAllocation: 500000,
       allocation: 500000,
-      carryoverEnabled: true,
+      // false: this test is about merge/sort behavior, not carryover math
+      // (covered in budgetCycles.test.ts's dedicated Bug #4 block).
+      carryoverEnabled: false,
       createdAt: "2026-01-01",
       linkedIncomeId: null,
       startDate: null,

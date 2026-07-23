@@ -291,9 +291,16 @@ export function futureBudgetEntries(entries: BudgetEntry[], budgetId: string, to
  * whichever future entries fall inside its own cycle - the current cycle's
  * "remaining" row by future entries before the next boundary, each future
  * "allocation" row by future entries before ITS next boundary - floored at
- * 0. No carryover is projected forward into future allocation rows here,
- * same simplification as before T43: a budget's own future spending is
- * unknowable beyond what's already been logged.
+ * 0.
+ *
+ * SPEC.md Bug #4: the very next future boundary also carries forward
+ * whatever's left unspent in the CURRENT cycle (when carryover is enabled) -
+ * that leftover is fully known as of `today`, so e.g. logging a spend now
+ * correctly reduces it. Boundaries beyond that one do NOT keep compounding
+ * this projection forward - what happens during a not-yet-started cycle is
+ * genuinely unknowable, and assuming zero spending forever would make
+ * carryover-enabled budgets balloon without bound across a multi-year
+ * horizon (a 3-year weekly budget would compound ~150 times).
  */
 export function expandBudgetCycleOccurrences(
   budget: Budget,
@@ -314,13 +321,18 @@ export function expandBudgetCycleOccurrences(
     occurrences.push({ date: today, amount: -unknownRemaining });
   }
 
+  // What's left of the current cycle, fully known as of `today` - this is
+  // what the very next future boundary (and only that one) carries forward.
+  const currentCycleCarry = status.allocation + status.carriedIn - status.spent;
+
   const { boundaries } = resolveBoundaries(budget, recurringItems, overrides, horizon);
   const futureBoundaries = boundaries.filter((date) => date > today);
   for (let i = 0; i < futureBoundaries.length; i++) {
     const start = futureBoundaries[i];
     const end = i + 1 < futureBoundaries.length ? futureBoundaries[i + 1] : null;
     const knownSpend = spentInRange(futureEntries, budget.id, start, end);
-    const remainingAllocation = Math.max(budget.allocation - knownSpend, 0);
+    const available = budget.allocation + (i === 0 && budget.carryoverEnabled ? currentCycleCarry : 0);
+    const remainingAllocation = Math.max(available - knownSpend, 0);
     // Guard against -0 (Math.max(...,0) - knownSpend can land exactly on 0)
     // - avoids a footgun for anything doing strict equality on this amount.
     occurrences.push({ date: start, amount: remainingAllocation > 0 ? -remainingAllocation : 0 });

@@ -344,7 +344,10 @@ describe("expandBudgetCycleOccurrences - future-dated entries (T43)", () => {
   });
 
   it("reduces a future boundary's allocation row by a future entry inside that specific cycle", () => {
-    const b = budget({ allocation: 500000 });
+    // carryoverEnabled: false to isolate this from the Bug #4 carryover
+    // projection covered separately below - this test is only about a known
+    // future entry reducing its own cycle's row.
+    const b = budget({ allocation: 500000, carryoverEnabled: false });
     const entries: BudgetEntry[] = [entry({ entryDate: "2026-02-10", amount: 200000 })]; // in the Feb cycle
     const occurrences = expandBudgetCycleOccurrences(b, entries, [], [], "2026-01-15", "2026-03-31");
     expect(occurrences).toEqual([
@@ -355,7 +358,9 @@ describe("expandBudgetCycleOccurrences - future-dated entries (T43)", () => {
   });
 
   it("clamps a future allocation row at 0 (not negative) when known future spend meets or exceeds it", () => {
-    const b = budget({ allocation: 500000 });
+    // carryoverEnabled: false - otherwise the whole unspent Jan allocation
+    // would carry into Feb and this spend would no longer exceed it.
+    const b = budget({ allocation: 500000, carryoverEnabled: false });
     const entries: BudgetEntry[] = [entry({ entryDate: "2026-02-10", amount: 600000 })];
     const occurrences = expandBudgetCycleOccurrences(b, entries, [], [], "2026-01-15", "2026-02-28");
     const febRow = occurrences.find((o) => o.date === "2026-02-01");
@@ -391,7 +396,9 @@ describe("expandBudgetCycleOccurrences", () => {
   });
 
   it("emits one row per future boundary at the full allocation", () => {
-    const b = budget({ allocation: 500000 });
+    // carryoverEnabled: false - see the dedicated Bug #4 describe block below
+    // for what happens to the first future row when it's on.
+    const b = budget({ allocation: 500000, carryoverEnabled: false });
     const occurrences = expandBudgetCycleOccurrences(b, [], [], [], "2026-01-15", "2026-04-30");
     expect(occurrences).toEqual([
       { date: "2026-01-15", amount: -500000 },
@@ -402,13 +409,56 @@ describe("expandBudgetCycleOccurrences", () => {
   });
 
   it("stops generating future rows once the income source ends", () => {
-    const b = budget({ linkedIncomeId: "income-1", allocation: 500000 });
+    const b = budget({ linkedIncomeId: "income-1", allocation: 500000, carryoverEnabled: false });
     const inc = income({ endsType: "on_date", endDate: "2026-02-28" }); // last occurrence Feb1
     const occurrences = expandBudgetCycleOccurrences(b, [], [inc], [], "2026-01-15", "2026-04-30");
     expect(occurrences).toEqual([
       { date: "2026-01-15", amount: -500000 },
       { date: "2026-02-01", amount: -500000 },
     ]);
+  });
+});
+
+describe("expandBudgetCycleOccurrences - carryover projection into the next boundary (Bug #4)", () => {
+  it("carries the current cycle's unspent remainder into the very next future boundary only", () => {
+    const b = budget({ allocation: 500000, carryoverEnabled: true });
+    // Nothing spent yet this cycle (Jan), so the full 500000 is unspent and,
+    // with carryover on, legitimately available on top of Feb's own fresh
+    // allocation - Feb's row should reserve 500000 + 500000 = 1000000. Mar's
+    // row, one step further out, stays at the flat allocation.
+    const occurrences = expandBudgetCycleOccurrences(b, [], [], [], "2026-01-15", "2026-03-31");
+    expect(occurrences).toEqual([
+      { date: "2026-01-15", amount: -500000 },
+      { date: "2026-02-01", amount: -1000000 },
+      { date: "2026-03-01", amount: -500000 },
+    ]);
+  });
+
+  it("logging a spend today reduces the next boundary's reserved amount by exactly that spend", () => {
+    const b = budget({ allocation: 500000, carryoverEnabled: true });
+    const before = expandBudgetCycleOccurrences(b, [], [], [], "2026-01-15", "2026-02-28");
+    const beforeFeb = before.find((o) => o.date === "2026-02-01");
+
+    const entries: BudgetEntry[] = [entry({ entryDate: "2026-01-15", amount: 50000 })]; // spent today
+    const after = expandBudgetCycleOccurrences(b, entries, [], [], "2026-01-15", "2026-02-28");
+    const afterFeb = after.find((o) => o.date === "2026-02-01");
+
+    expect(beforeFeb?.amount).toBe(-1000000);
+    expect(afterFeb?.amount).toBe(-950000); // 1000000 - 50000 already spent
+  });
+
+  it("does not project carryover when carryover is disabled", () => {
+    const b = budget({ allocation: 500000, carryoverEnabled: false });
+    const occurrences = expandBudgetCycleOccurrences(b, [], [], [], "2026-01-15", "2026-02-28");
+    expect(occurrences.find((o) => o.date === "2026-02-01")?.amount).toBe(-500000);
+  });
+
+  it("does not compound the projection into boundaries beyond the first", () => {
+    // If Feb's own leftover (after Feb's known spend) were also carried into
+    // Mar, Mar would balloon well past a flat -500000 - it must not.
+    const b = budget({ allocation: 500000, carryoverEnabled: true });
+    const occurrences = expandBudgetCycleOccurrences(b, [], [], [], "2026-01-15", "2026-03-31");
+    expect(occurrences.find((o) => o.date === "2026-03-01")?.amount).toBe(-500000);
   });
 });
 
