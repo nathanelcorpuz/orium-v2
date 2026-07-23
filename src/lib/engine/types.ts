@@ -66,15 +66,32 @@ export interface OneOffItem {
 }
 
 // Budgets v3 - a running ledger (SPEC.md Phase 10, T57 cutover). The old
-// cycle/allocation/carryover model (Phase 6B) and its schedule/carryover
-// columns are gone - migration 0010 dropped them along with
-// budget_occurrence_overrides once nothing read them anymore.
+// cycle/allocation/carryover model (Phase 6B) is gone. Phase 11 (T58)
+// re-adds a schedule, but only to drive *when* a budget replenishes, not a
+// cycle/boundary/carryover concept - the ledger balance math
+// (computeBudgetBalance) is unaffected.
 export interface Budget {
   id: string;
   name: string;
   allocation: number; // centavos, >= 0 - how much gets added when this budget replenishes
   linkedIncomeId: string | null;
   createdAt: string; // YYYY-MM-DD
+
+  // Phase 11 (T58): a budget's own replenish schedule ("replenish every"),
+  // set only when linkedIncomeId is null (DB-enforced mutual exclusivity -
+  // migration 0011). Same rule shape as RecurringItem/RecurrenceRule; every
+  // field is null together when the budget has no own schedule (it's
+  // either income-linked or manual).
+  startDate: string | null;
+  interval: number | null;
+  unit: RecurrenceUnit | null;
+  weekdays: number[] | null;
+  daysOfMonth: number[] | null;
+  ordinal: number | null;
+  ordinalWeekday: number | null;
+  endsType: RecurrenceEndsType | null;
+  endDate: string | null;
+  occurrenceCount: number | null;
 }
 
 export interface BudgetEntry {

@@ -14,7 +14,8 @@ import type {
   RecurringItem,
 } from "@/lib/engine/types";
 
-const BUDGET_COLUMNS = "id, name, monthly_allocation, allocation, created_at, linked_income_id";
+const BUDGET_COLUMNS =
+  "id, name, monthly_allocation, allocation, created_at, linked_income_id, start_date, interval, unit, weekdays, days_of_month, ordinal, ordinal_weekday, ends_type, end_date, occurrence_count";
 
 const DEFAULT_BALANCE_RANGES = [0, 500000, 2000000, 5000000, 10000000];
 const DEFAULT_CURRENCY = "₱";

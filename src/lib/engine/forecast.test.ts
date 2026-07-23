@@ -27,8 +27,9 @@ function monthlyItem(overrides: Partial<RecurringItem>): RecurringItem {
   };
 }
 
-// Phase 10 (T57): a budget is just id/name/allocation/linkedIncomeId/
-// createdAt now - see budgetLedger.ts.
+// Phase 10 (T57) + Phase 11 (T58): id/name/allocation/linkedIncomeId/
+// createdAt plus the optional own-replenish-schedule fields (null by
+// default - most tests don't need a schedule) - see budgetLedger.ts.
 function testBudget(overrides: Partial<Budget>): Budget {
   return {
     id: "budget-1",
@@ -36,6 +37,16 @@ function testBudget(overrides: Partial<Budget>): Budget {
     allocation: 500000,
     linkedIncomeId: null,
     createdAt: "2026-01-01",
+    startDate: null,
+    interval: null,
+    unit: null,
+    weekdays: null,
+    daysOfMonth: null,
+    ordinal: null,
+    ordinalWeekday: null,
+    endsType: null,
+    endDate: null,
+    occurrenceCount: null,
     ...overrides,
   };
 }

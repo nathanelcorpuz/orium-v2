@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { computeBudgetBalance, futureBudgetLedgerEntries } from "./budgetLedger";
-import type { BudgetEntry } from "./types";
+import {
+  budgetReplenishRule,
+  computeBudgetBalance,
+  futureBudgetLedgerEntries,
+  futureBudgetReplenishDates,
+  replenishProgress,
+} from "./budgetLedger";
+import type { Budget, BudgetEntry, RecurringItem } from "./types";
 
 function entry(overrides: Partial<BudgetEntry>): BudgetEntry {
   return {
@@ -72,5 +78,146 @@ describe("futureBudgetLedgerEntries", () => {
   it("returns an empty array when nothing is future-dated", () => {
     const entries: BudgetEntry[] = [entry({ entryDate: "2026-01-01" })];
     expect(futureBudgetLedgerEntries(entries, "budget-1", "2026-01-15")).toEqual([]);
+  });
+});
+
+// Phase 11 (SPEC.md T58): a budget's replenish schedule - its own
+// ("replenish every"), or its linked income's - and the "days until
+// replenish" / progress-bar math derived from it.
+
+function budget(overrides: Partial<Budget>): Budget {
+  return {
+    id: "budget-1",
+    name: "Groceries",
+    allocation: 500000,
+    linkedIncomeId: null,
+    createdAt: "2026-01-01",
+    startDate: null,
+    interval: null,
+    unit: null,
+    weekdays: null,
+    daysOfMonth: null,
+    ordinal: null,
+    ordinalWeekday: null,
+    endsType: null,
+    endDate: null,
+    occurrenceCount: null,
+    ...overrides,
+  };
+}
+
+// Weekly on Mondays, starting 2026-01-05 (a Monday): 2026-01-05, 01-12, 01-19, 01-26, ...
+const weeklyMonday = {
+  startDate: "2026-01-05",
+  interval: 1,
+  unit: "week" as const,
+  weekdays: [1],
+  daysOfMonth: null,
+  ordinal: null,
+  ordinalWeekday: null,
+  endsType: "never" as const,
+  endDate: null,
+  occurrenceCount: null,
+};
+
+function income(overrides: Partial<RecurringItem>): RecurringItem {
+  return {
+    id: "income-1",
+    name: "Freelance",
+    type: "income",
+    amount: 2000000,
+    ...weeklyMonday,
+    ...overrides,
+  };
+}
+
+describe("budgetReplenishRule", () => {
+  it("returns null for a manual budget (no own schedule, no linked income)", () => {
+    expect(budgetReplenishRule(budget({}), null)).toBeNull();
+  });
+
+  it("returns the budget's own rule when it has one", () => {
+    const rule = budgetReplenishRule(budget({ ...weeklyMonday }), null);
+    expect(rule).toEqual({
+      startDate: "2026-01-05",
+      interval: 1,
+      unit: "week",
+      weekdays: [1],
+      daysOfMonth: null,
+      ordinal: null,
+      ordinalWeekday: null,
+      endsType: "never",
+      endDate: null,
+      occurrenceCount: null,
+    });
+  });
+
+  it("returns the linked income's rule for an income-linked budget", () => {
+    const linkedIncome = income({ startDate: "2026-02-02", weekdays: [2] });
+    const rule = budgetReplenishRule(budget({ linkedIncomeId: "income-1" }), linkedIncome);
+    expect(rule).toEqual(
+      expect.objectContaining({ startDate: "2026-02-02", unit: "week", weekdays: [2] }),
+    );
+  });
+
+  it("returns null for an income-linked budget when the income isn't provided", () => {
+    expect(budgetReplenishRule(budget({ linkedIncomeId: "income-1" }), null)).toBeNull();
+  });
+});
+
+describe("futureBudgetReplenishDates", () => {
+  it("returns [] when the rule is null", () => {
+    expect(futureBudgetReplenishDates(null, "2026-01-01", "2026-12-31")).toEqual([]);
+  });
+
+  it("delegates to expandRecurrenceOccurrences for a resolved rule", () => {
+    expect(futureBudgetReplenishDates(weeklyMonday, "2026-01-01", "2026-01-20")).toEqual([
+      "2026-01-05",
+      "2026-01-12",
+      "2026-01-19",
+    ]);
+  });
+});
+
+describe("replenishProgress", () => {
+  it("returns all-null for a manual budget (null rule)", () => {
+    expect(replenishProgress(null, "2026-01-10")).toEqual({
+      previousDate: null,
+      nextDate: null,
+      daysUntil: null,
+      fraction: null,
+    });
+  });
+
+  it("computes previous/next/daysUntil/fraction mid-period", () => {
+    // asOf 2026-01-10 sits between 2026-01-05 (previous Monday) and
+    // 2026-01-12 (next Monday) - 5 of the 7 days elapsed.
+    const result = replenishProgress(weeklyMonday, "2026-01-10");
+    expect(result.previousDate).toBe("2026-01-05");
+    expect(result.nextDate).toBe("2026-01-12");
+    expect(result.daysUntil).toBe(2);
+    expect(result.fraction).toBeCloseTo(5 / 7);
+  });
+
+  it("treats asOf landing exactly on a replenish day as fully elapsed", () => {
+    const result = replenishProgress(weeklyMonday, "2026-01-05");
+    expect(result).toEqual({ previousDate: "2026-01-05", nextDate: "2026-01-05", daysUntil: 0, fraction: 1 });
+  });
+
+  it("has no previousDate (and null fraction) before the rule's first occurrence", () => {
+    const result = replenishProgress(weeklyMonday, "2026-01-01");
+    expect(result.previousDate).toBeNull();
+    expect(result.nextDate).toBe("2026-01-05");
+    expect(result.daysUntil).toBe(4);
+    expect(result.fraction).toBeNull();
+  });
+
+  it("has no nextDate (and null daysUntil/fraction) once an on_date rule has run out", () => {
+    const endedRule = { ...weeklyMonday, endsType: "on_date" as const, endDate: "2026-01-19" };
+    const result = replenishProgress(endedRule, "2026-01-25");
+    expect(result.previousDate).toBe("2026-01-19");
+    expect(result.nextDate).toBeNull();
+    expect(result.daysUntil).toBeNull();
+    expect(result.fraction).toBeNull();
   });
 });

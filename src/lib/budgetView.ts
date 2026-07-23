@@ -11,6 +11,18 @@ export type BudgetRow = {
   allocation: number;
   created_at: string;
   linked_income_id: string | null;
+  // Phase 11 (T58): a budget's own replenish schedule ("replenish every"),
+  // set only when linked_income_id is null - see engine/types.ts Budget.
+  start_date: string | null;
+  interval: number | null;
+  unit: "day" | "week" | "month" | "year" | null;
+  weekdays: number[] | null;
+  days_of_month: number[] | null;
+  ordinal: number | null;
+  ordinal_weekday: number | null;
+  ends_type: "never" | "on_date" | "after_count" | null;
+  end_date: string | null;
+  occurrence_count: number | null;
 };
 
 export type BudgetEntryRow = {
@@ -30,6 +42,16 @@ export function toEngineBudget(budget: BudgetRow): Budget {
     allocation: budget.allocation,
     createdAt: budget.created_at.slice(0, 10),
     linkedIncomeId: budget.linked_income_id,
+    startDate: budget.start_date,
+    interval: budget.interval,
+    unit: budget.unit,
+    weekdays: budget.weekdays,
+    daysOfMonth: budget.days_of_month,
+    ordinal: budget.ordinal,
+    ordinalWeekday: budget.ordinal_weekday,
+    endsType: budget.ends_type,
+    endDate: budget.end_date,
+    occurrenceCount: budget.occurrence_count,
   };
 }
 
