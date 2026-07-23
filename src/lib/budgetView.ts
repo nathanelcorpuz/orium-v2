@@ -40,6 +40,10 @@ export type BudgetEntryRow = {
   entry_date: string;
   amount: number;
   note: string | null;
+  // Phase 10 (migration 0009): 'incoming' (replenishment) or 'outgoing' (a
+  // spend or manual take) - see budgetLedger.ts. Optional since some
+  // existing call sites (the pre-Phase-10 cycle model) don't fetch it.
+  direction?: "incoming" | "outgoing";
 };
 
 export type IncomeItemRow = {
@@ -129,6 +133,7 @@ export function toEngineEntries(entries: BudgetEntryRow[], budgetId: string): Bu
     entryDate: entry.entry_date,
     amount: entry.amount,
     note: entry.note,
+    direction: entry.direction,
   }));
 }
 

@@ -2,35 +2,50 @@
 
 import { useActionState, useEffect, useRef, useState } from "react";
 import { centavosToPesosString, formatCentavos } from "@/lib/money";
-import { todayInManila } from "@/lib/date";
-import { computeBudgetCycleStatus } from "@/lib/engine/budgetCycles";
-import { ProgressBar } from "@/components/ProgressBar";
+import { formatFullDate, todayInManila } from "@/lib/date";
+import { computeBudgetBalance } from "@/lib/engine/budgetLedger";
+import type { BudgetEntry } from "@/lib/engine/types";
+import type { BudgetRow } from "@/lib/budgetView";
 import {
-  scheduleDescription,
-  toEngineBudget,
-  toEngineEntries,
-  toEngineIncomes,
-  toEngineOverrides,
-  type BudgetEntryRow,
-  type BudgetRow,
-  type IncomeItemRow,
-  type OverrideRow,
-} from "@/lib/budgetView";
-import {
+  addFunds,
   deleteBudget,
   deleteBudgetEntry,
   logSpend,
+  takeFunds,
   updateBudgetEntry,
   type BudgetActionState,
 } from "./actions";
 
-export type { BudgetEntryRow, IncomeItemRow, OverrideRow } from "@/lib/budgetView";
+// Simplified, page-local shapes (SPEC.md Phase 10/T55) - the fuller
+// budgetView.ts versions of these still exist for actions.ts's own
+// server-side needs, but this page's UI only ever needs id/name for an
+// income and id/entry_date/amount/note/direction for an entry.
+export type BudgetEntryRow = {
+  id: string;
+  entry_date: string;
+  amount: number;
+  note: string | null;
+  direction?: "incoming" | "outgoing";
+};
+
+export type IncomeItemRow = { id: string; name: string };
 
 const initialLogState: BudgetActionState = { error: null };
 
-// One current-cycle entry (SPEC.md T42 part B: entries are now editable, not
-// just create/delete). Its own component so each entry gets an independent
-// useActionState/edit-mode instead of one shared across the whole list.
+function toEngineEntries(entries: BudgetEntryRow[], budgetId: string): BudgetEntry[] {
+  return entries.map((entry) => ({
+    id: entry.id,
+    budgetId,
+    entryDate: entry.entry_date,
+    amount: entry.amount,
+    note: entry.note,
+    direction: entry.direction,
+  }));
+}
+
+// One ledger entry (spend, manual add, or manual take - SPEC.md Phase 10).
+// Its own component so each entry gets an independent useActionState/edit-
+// mode instead of one shared across the whole list.
 function BudgetEntryListItem({
   entry,
   budgetId,
@@ -72,7 +87,7 @@ function BudgetEntryListItem({
             required
             defaultValue={centavosToPesosString(entry.amount)}
             aria-label="Amount"
-            className="w-20 rounded border border-slate-300 p-1 text-xs"
+            className="w-20 rounded border border-notion-hairline p-1 text-xs text-notion-text"
           />
           <input
             name="entryDate"
@@ -80,14 +95,14 @@ function BudgetEntryListItem({
             required
             defaultValue={entry.entry_date}
             aria-label="Date"
-            className="rounded border border-slate-300 p-1 text-xs"
+            className="rounded border border-notion-hairline p-1 text-xs text-notion-text"
           />
           <input
             name="note"
             type="text"
             defaultValue={entry.note ?? ""}
             aria-label="Note"
-            className="min-w-[6rem] flex-1 rounded border border-slate-300 p-1 text-xs"
+            className="min-w-[6rem] flex-1 rounded border border-notion-hairline p-1 text-xs text-notion-text"
           />
           <button type="submit" disabled={editPending} className="text-xs text-slate-600 underline">
             {editPending ? "Saving..." : "Save"}
@@ -128,14 +143,18 @@ function BudgetEntryListItem({
     );
   }
 
+  const isIncoming = entry.direction === "incoming";
   return (
-    <li className="flex items-center justify-between gap-2 text-sm text-slate-600">
+    <li className="flex items-center justify-between gap-2 text-sm text-notion-text">
       <span className="truncate">
-        {entry.entry_date}
+        {formatFullDate(entry.entry_date)}
         {entry.note && ` - ${entry.note}`}
       </span>
       <span className="flex items-center gap-2">
-        <span>{formatCentavos(entry.amount)}</span>
+        <span className={isIncoming ? "text-green-700" : "text-slate-600"}>
+          {isIncoming ? "+" : "-"}
+          {formatCentavos(entry.amount)}
+        </span>
         <button
           type="button"
           onClick={() => setMode("edit")}
@@ -161,73 +180,71 @@ export function BudgetCard({
   budget,
   entries,
   incomes,
-  overrides,
   onEdit,
 }: {
   budget: BudgetRow;
   entries: BudgetEntryRow[];
   incomes: IncomeItemRow[];
-  overrides: OverrideRow[];
   onEdit: () => void;
 }) {
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [monthFilter, setMonthFilter] = useState(""); // "" = all time
   const today = todayInManila();
 
-  const incomeNameById = new Map(incomes.map((income) => [income.id, income.name]));
-  const engineBudget = toEngineBudget(budget);
+  // The running total only counts what's actually happened so far
+  // (budgetLedger.ts) - a future-dated entry hasn't landed yet, so it
+  // doesn't count here; it shows up on the Forecast page instead, same
+  // pattern T43 established for future spends.
+  const balance = computeBudgetBalance(toEngineEntries(entries, budget.id), budget.id, today);
 
-  const status = computeBudgetCycleStatus(
-    engineBudget,
-    toEngineEntries(entries, budget.id),
-    toEngineIncomes(incomes),
-    toEngineOverrides(overrides),
-    today,
-  );
-  const available = status.allocation + status.carriedIn;
-  const progressPercent =
-    available > 0 ? Math.min((status.spent / available) * 100, 100) : status.spent > 0 ? 100 : 0;
-  // Bounded above by currentCycleEnd (SPEC.md T43) - without this, an entry
-  // dated into a FUTURE cycle (not just later this cycle) used to leak into
-  // this card's list even though the totals above never counted it
-  // (Bug #3). It belongs on Forecast as its own row instead - see
-  // forecast.ts's futureBudgetEntries.
-  const currentCycleEntries = entries
-    .filter(
-      (entry) =>
-        entry.entry_date >= status.currentCycleStart &&
-        (status.currentCycleEnd === null || entry.entry_date < status.currentCycleEnd),
-    )
+  const incomeName = budget.linked_income_id
+    ? incomes.find((income) => income.id === budget.linked_income_id)?.name
+    : undefined;
+
+  const visibleEntries = entries
+    .filter((entry) => entry.entry_date <= today)
+    .filter((entry) => (monthFilter ? entry.entry_date.startsWith(monthFilter) : true))
     .sort((a, b) => (a.entry_date < b.entry_date ? 1 : -1));
 
   const [logState, logAction, logPending] = useActionState(logSpend, initialLogState);
   const logFormRef = useRef<HTMLFormElement>(null);
   const loggedOnce = useRef(false);
-
   useEffect(() => {
     if (loggedOnce.current && !logPending && !logState.error) {
       logFormRef.current?.reset();
     }
   }, [logPending, logState]);
 
+  const [addState, addAction, addPending] = useActionState(addFunds, initialLogState);
+  const addFormRef = useRef<HTMLFormElement>(null);
+  const addedOnce = useRef(false);
+  useEffect(() => {
+    if (addedOnce.current && !addPending && !addState.error) {
+      addFormRef.current?.reset();
+    }
+  }, [addPending, addState]);
+
+  const [takeState, takeAction, takePending] = useActionState(takeFunds, initialLogState);
+  const takeFormRef = useRef<HTMLFormElement>(null);
+  const takenOnce = useRef(false);
+  useEffect(() => {
+    if (takenOnce.current && !takePending && !takeState.error) {
+      takeFormRef.current?.reset();
+    }
+  }, [takePending, takeState]);
+
   return (
-    <div className="rounded-xl bg-white p-4 shadow">
+    <div className="rounded-lg border border-notion-hairline bg-white p-4">
       <div className="mb-2 flex items-start justify-between">
         <div>
           <div className="flex items-center gap-2">
-            <p className="font-medium">{budget.name}</p>
-            {status.source === "fallback" && (
-              <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">
-                Needs a schedule
-              </span>
-            )}
+            <p className="font-medium text-notion-text">{budget.name}</p>
+            <span className="rounded-full bg-notion-hover px-2 py-0.5 text-xs font-medium text-slate-500">
+              {incomeName ? `Connected to ${incomeName}` : "Manual"}
+            </span>
           </div>
-          <p className="text-sm text-slate-500">
-            {formatCentavos(status.spent)} of {formatCentavos(available)} spent this cycle
-          </p>
-          <p className="text-sm text-slate-400">
-            {scheduleDescription(status.source, engineBudget, incomeNameById)}
-            {status.carriedIn !== 0 &&
-              ` · ${status.carriedIn > 0 ? "+" : ""}${formatCentavos(status.carriedIn)} carried over`}
+          <p className={`text-xl font-semibold ${balance < 0 ? "text-red-600" : "text-notion-text"}`}>
+            {formatCentavos(balance)}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -246,7 +263,7 @@ export function BudgetCard({
               <button
                 type="button"
                 onClick={() => setConfirmingDelete(false)}
-                className="rounded border border-slate-300 px-3 py-1 text-sm"
+                className="rounded border border-notion-hairline px-3 py-1 text-sm text-notion-text hover:bg-notion-hover"
               >
                 Cancel
               </button>
@@ -256,7 +273,7 @@ export function BudgetCard({
               <button
                 type="button"
                 onClick={onEdit}
-                className="rounded border border-slate-300 px-3 py-1 text-sm"
+                className="rounded border border-notion-hairline px-3 py-1 text-sm text-notion-text hover:bg-notion-hover"
               >
                 Edit
               </button>
@@ -272,19 +289,25 @@ export function BudgetCard({
         </div>
       </div>
 
-      <ProgressBar percent={progressPercent} over={status.over > 0} className="mb-1 h-2" />
-      {status.over > 0 ? (
-        <p className="mb-3 text-sm font-medium text-red-600">Over by {formatCentavos(status.over)}</p>
-      ) : (
-        <p className="mb-3 text-sm text-slate-500">{formatCentavos(status.remaining)} remaining</p>
-      )}
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <p className="text-xs text-slate-500">Entries</p>
+        <input
+          type="month"
+          value={monthFilter}
+          onChange={(event) => setMonthFilter(event.target.value)}
+          aria-label={`Filter ${budget.name} entries by month`}
+          className="rounded border border-notion-hairline p-1 text-xs text-notion-text"
+        />
+      </div>
 
-      {currentCycleEntries.length > 0 && (
+      {visibleEntries.length > 0 ? (
         <ul className="mb-3 space-y-1">
-          {currentCycleEntries.map((entry) => (
+          {visibleEntries.map((entry) => (
             <BudgetEntryListItem key={entry.id} entry={entry} budgetId={budget.id} budgetName={budget.name} />
           ))}
         </ul>
+      ) : (
+        <p className="mb-3 text-sm text-slate-400">No entries{monthFilter ? " that month" : " yet"}.</p>
       )}
 
       <form
@@ -293,7 +316,7 @@ export function BudgetCard({
         onSubmit={() => {
           loggedOnce.current = true;
         }}
-        className="flex flex-wrap items-end gap-2 border-t border-slate-100 pt-3"
+        className="flex flex-wrap items-end gap-2 border-t border-notion-hairline pt-3"
       >
         <input type="hidden" name="budgetId" value={budget.id} />
         <input type="hidden" name="budgetName" value={budget.name} />
@@ -308,7 +331,7 @@ export function BudgetCard({
             step="0.01"
             min="0"
             required
-            className="mt-1 w-28 rounded border border-slate-300 p-1.5 text-sm"
+            className="mt-1 w-28 rounded border border-notion-hairline p-1.5 text-sm text-notion-text"
           />
         </div>
         <div>
@@ -321,7 +344,7 @@ export function BudgetCard({
             type="date"
             defaultValue={today}
             required
-            className="mt-1 rounded border border-slate-300 p-1.5 text-sm"
+            className="mt-1 rounded border border-notion-hairline p-1.5 text-sm text-notion-text"
           />
         </div>
         <div className="min-w-[8rem] flex-1">
@@ -332,18 +355,92 @@ export function BudgetCard({
             id={`note-${budget.id}`}
             name="note"
             type="text"
-            className="mt-1 w-full rounded border border-slate-300 p-1.5 text-sm"
+            className="mt-1 w-full rounded border border-notion-hairline p-1.5 text-sm text-notion-text"
           />
         </div>
         <button
           type="submit"
           disabled={logPending}
-          className="rounded bg-slate-900 px-3 py-1.5 text-sm text-white disabled:opacity-50"
+          className="rounded bg-notion-text px-3 py-1.5 text-sm text-white hover:opacity-90 disabled:opacity-50"
         >
           {logPending ? "Logging..." : "Log spend"}
         </button>
       </form>
       {logState.error && <p className="mt-2 text-sm text-red-600">{logState.error}</p>}
+
+      {!budget.linked_income_id && (
+        <div className="mt-3 flex flex-wrap gap-4 border-t border-notion-hairline pt-3">
+          <form
+            ref={addFormRef}
+            action={addAction}
+            onSubmit={() => {
+              addedOnce.current = true;
+            }}
+            className="flex flex-wrap items-end gap-2"
+          >
+            <input type="hidden" name="budgetId" value={budget.id} />
+            <input type="hidden" name="budgetName" value={budget.name} />
+            <input type="hidden" name="entryDate" value={today} />
+            <div>
+              <label className="block text-xs text-slate-500" htmlFor={`addAmount-${budget.id}`}>
+                Add funds (₱)
+              </label>
+              <input
+                id={`addAmount-${budget.id}`}
+                name="amountPesos"
+                type="number"
+                step="0.01"
+                min="0"
+                required
+                className="mt-1 w-28 rounded border border-notion-hairline p-1.5 text-sm text-notion-text"
+              />
+            </div>
+            <button
+              type="submit"
+              disabled={addPending}
+              className="rounded border border-notion-hairline px-3 py-1.5 text-sm text-green-700 hover:bg-notion-hover disabled:opacity-50"
+            >
+              {addPending ? "Adding..." : "Add"}
+            </button>
+          </form>
+          {addState.error && <p className="text-sm text-red-600">{addState.error}</p>}
+
+          <form
+            ref={takeFormRef}
+            action={takeAction}
+            onSubmit={() => {
+              takenOnce.current = true;
+            }}
+            className="flex flex-wrap items-end gap-2"
+          >
+            <input type="hidden" name="budgetId" value={budget.id} />
+            <input type="hidden" name="budgetName" value={budget.name} />
+            <input type="hidden" name="entryDate" value={today} />
+            <div>
+              <label className="block text-xs text-slate-500" htmlFor={`takeAmount-${budget.id}`}>
+                Take funds (₱)
+              </label>
+              <input
+                id={`takeAmount-${budget.id}`}
+                name="amountPesos"
+                type="number"
+                step="0.01"
+                min="0"
+                required
+                className="mt-1 w-28 rounded border border-notion-hairline p-1.5 text-sm text-notion-text"
+              />
+            </div>
+            <button
+              type="submit"
+              disabled={takePending}
+              className="rounded border border-notion-hairline px-3 py-1.5 text-sm text-red-600 hover:bg-notion-hover disabled:opacity-50"
+            >
+              {takePending ? "Taking..." : "Take"}
+            </button>
+          </form>
+          {takeState.error && <p className="text-sm text-red-600">{takeState.error}</p>}
+        </div>
+      )}
     </div>
   );
 }

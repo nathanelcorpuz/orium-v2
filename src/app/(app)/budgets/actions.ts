@@ -4,85 +4,32 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { parseCentavos } from "@/lib/money";
 import { todayInManila } from "@/lib/date";
-import { readRecurrenceRuleForm } from "@/lib/recurrenceForm";
 import { toEngineBudget, toEngineIncomes, toEngineOverrides, type BudgetRow } from "@/lib/budgetView";
 import { deleteStaleBudgetOverrides } from "@/lib/staleOverrides";
-import type { RecurrenceEndsType, RecurrenceUnit } from "@/lib/engine/types";
 
 const BUDGET_COLUMNS =
   "id, name, monthly_allocation, allocation, carryover_enabled, created_at, linked_income_id, start_date, interval, unit, weekdays, days_of_month, ordinal, ordinal_weekday, ends_type, end_date, occurrence_count";
 
 export type BudgetActionState = { error: string | null };
 
-type BudgetFields = {
-  name: string;
-  allocation: number;
-  carryoverEnabled: boolean;
-  linkedIncomeId: string | null;
-  startDate: string | null;
-  interval: number | null;
-  unit: RecurrenceUnit | null;
-  weekdays: number[] | null;
-  daysOfMonth: number[] | null;
-  ordinal: number | null;
-  ordinalWeekday: number | null;
-  endsType: RecurrenceEndsType | null;
-  endDate: string | null;
-  occurrenceCount: number | null;
-};
-
-// A budget's replenish source (SPEC.md T38) is one of two complete shapes -
-// linked income (just an id) or its own schedule (the full recurrence rule,
-// same fields RecurrencePicker/readRecurrenceRuleForm already produce for
-// Bills/Income/Debt/Savings). Whichever isn't chosen is written as all-null,
-// matching migration 0006's "complete rule or nothing" constraints.
-function readBudgetForm(formData: FormData): { error: string } | ({ error: null } & BudgetFields) {
+// Phase 10 (SPEC.md T55): a budget is just a name, a replenish amount, and
+// an optional linked income - no more "own schedule" replenish option and
+// no more carryover checkbox (carryover is implicit in a running ledger,
+// there's nothing to opt out of). carryover_enabled/the schedule columns
+// are still written with harmless fixed values below rather than dropped,
+// same additive-then-drop pattern as monthly_allocation - see SPEC.md
+// "Budgets v3" for why they can't just be deleted yet.
+function readBudgetForm(
+  formData: FormData,
+): { error: string } | { error: null; name: string; allocation: number; linkedIncomeId: string | null } {
   const name = (formData.get("name") as string).trim();
   const allocation = parseCentavos(formData.get("allocationPesos") as string);
-  const carryoverEnabled = formData.get("carryoverEnabled") === "on";
-  const replenishSource = formData.get("replenishSource") as string;
+  const linkedIncomeId = (formData.get("linkedIncomeId") as string) || null;
 
   if (!name) return { error: "Name is required." };
   if (allocation === null || allocation < 0) return { error: "Enter a valid allocation." };
 
-  if (replenishSource === "income") {
-    const linkedIncomeId = (formData.get("linkedIncomeId") as string) || "";
-    if (!linkedIncomeId) return { error: "Choose an income source." };
-    return {
-      error: null,
-      name,
-      allocation,
-      carryoverEnabled,
-      linkedIncomeId,
-      startDate: null,
-      interval: null,
-      unit: null,
-      weekdays: null,
-      daysOfMonth: null,
-      ordinal: null,
-      ordinalWeekday: null,
-      endsType: null,
-      endDate: null,
-      occurrenceCount: null,
-    };
-  }
-
-  if (replenishSource === "schedule") {
-    const startDate = formData.get("startDate") as string;
-    if (!startDate) return { error: "Start date is required." };
-    const rule = readRecurrenceRuleForm(formData);
-    if (rule.error !== null) return { error: rule.error };
-    return {
-      name,
-      allocation,
-      carryoverEnabled,
-      linkedIncomeId: null,
-      startDate,
-      ...rule,
-    };
-  }
-
-  return { error: "Choose how this budget replenishes." };
+  return { error: null, name, allocation, linkedIncomeId };
 }
 
 export async function createBudget(
@@ -105,18 +52,18 @@ export async function createBudget(
     // Mirrors `allocation` - monthly_allocation is still NOT NULL until
     // migration 0007 drops it (deferred until nothing reads it; see SPEC.md).
     monthly_allocation: fields.allocation,
-    carryover_enabled: fields.carryoverEnabled,
+    carryover_enabled: true,
     linked_income_id: fields.linkedIncomeId,
-    start_date: fields.startDate,
-    interval: fields.interval,
-    unit: fields.unit,
-    weekdays: fields.weekdays,
-    days_of_month: fields.daysOfMonth,
-    ordinal: fields.ordinal,
-    ordinal_weekday: fields.ordinalWeekday,
-    ends_type: fields.endsType,
-    end_date: fields.endDate,
-    occurrence_count: fields.occurrenceCount,
+    start_date: null,
+    interval: null,
+    unit: null,
+    weekdays: null,
+    days_of_month: null,
+    ordinal: null,
+    ordinal_weekday: null,
+    ends_type: null,
+    end_date: null,
+    occurrence_count: null,
   });
   if (error) return { error: error.message };
 
@@ -141,18 +88,18 @@ export async function updateBudget(
       name: fields.name,
       allocation: fields.allocation,
       monthly_allocation: fields.allocation,
-      carryover_enabled: fields.carryoverEnabled,
+      carryover_enabled: true,
       linked_income_id: fields.linkedIncomeId,
-      start_date: fields.startDate,
-      interval: fields.interval,
-      unit: fields.unit,
-      weekdays: fields.weekdays,
-      days_of_month: fields.daysOfMonth,
-      ordinal: fields.ordinal,
-      ordinal_weekday: fields.ordinalWeekday,
-      ends_type: fields.endsType,
-      end_date: fields.endDate,
-      occurrence_count: fields.occurrenceCount,
+      start_date: null,
+      interval: null,
+      unit: null,
+      weekdays: null,
+      days_of_month: null,
+      ordinal: null,
+      ordinal_weekday: null,
+      ends_type: null,
+      end_date: null,
+      occurrence_count: null,
     })
     .eq("id", id);
   if (error) return { error: error.message };
@@ -195,29 +142,32 @@ export async function deleteBudget(formData: FormData) {
   revalidatePath("/");
 }
 
-function readLogSpendForm(formData: FormData) {
+function readLedgerEntryForm(formData: FormData) {
   const amount = parseCentavos(formData.get("amountPesos") as string);
   const entryDate = (formData.get("entryDate") as string) || todayInManila();
   const note = ((formData.get("note") as string) || "").trim() || null;
 
-  if (amount === null || amount <= 0) return { error: "Enter a valid spend amount." } as const;
+  if (amount === null || amount <= 0) return { error: "Enter a valid amount." } as const;
   if (!entryDate) return { error: "Date is required." } as const;
 
   return { error: null, amount, entryDate, note } as const;
 }
 
-// Logging a spend writes both a budget_entries row and a settlement row
-// (SPEC.md budget spend-logging rule) so History stays a complete record of actual
-// money movement. There's no forecast row being settled here (budgets
-// don't go through the Edit/Settle modal), so forecasted_amount and
-// forecasted_balance have no meaningful value - both are 0.
-export async function logSpend(
-  _prevState: BudgetActionState,
+// Every ledger entry (spend, manual add, manual take - SPEC.md Phase 10)
+// writes both a budget_entries row and a settlement row so History stays a
+// complete record of actual money movement. There's no forecast row being
+// settled here (budgets don't go through the Edit/Settle modal), so
+// forecasted_amount and forecasted_balance have no meaningful value - both
+// are 0. actual_amount's sign follows direction, same convention
+// recurring-item settlements already use (income positive, bill negative).
+async function writeLedgerEntry(
   formData: FormData,
+  direction: "incoming" | "outgoing",
+  defaultLabel: string,
 ): Promise<BudgetActionState> {
   const budgetId = formData.get("budgetId") as string;
   const budgetName = formData.get("budgetName") as string;
-  const fields = readLogSpendForm(formData);
+  const fields = readLedgerEntryForm(formData);
   if (fields.error) return { error: fields.error };
 
   const supabase = await createClient();
@@ -232,6 +182,7 @@ export async function logSpend(
     entry_date: fields.entryDate,
     amount: fields.amount,
     note: fields.note,
+    direction,
   });
   if (entryError) return { error: entryError.message };
 
@@ -239,10 +190,10 @@ export async function logSpend(
     user_id: user.id,
     source_type: "budget",
     source_id: budgetId,
-    name: fields.note ? `${budgetName} - ${fields.note}` : budgetName,
+    name: fields.note ? `${budgetName} - ${fields.note}` : `${budgetName} - ${defaultLabel}`,
     type: "budget",
     forecasted_amount: 0,
-    actual_amount: -fields.amount,
+    actual_amount: direction === "incoming" ? fields.amount : -fields.amount,
     forecasted_date: fields.entryDate,
     actual_date: fields.entryDate,
     forecasted_balance: 0,
@@ -256,10 +207,27 @@ export async function logSpend(
   return { error: null };
 }
 
-// SPEC.md T42 part B: a logged spend can be moved to a different date
-// (e.g. paid a few days after the linked income landed) instead of only
-// create/delete. Same no-FK matching trick as deleteBudgetEntry - the OLD
-// entry's fields locate its settlement row before either one changes.
+export async function logSpend(_prevState: BudgetActionState, formData: FormData): Promise<BudgetActionState> {
+  return writeLedgerEntry(formData, "outgoing", "spend");
+}
+
+// Manual add/take (SPEC.md T55): for a budget with no linked income, the
+// user replenishes or reduces it directly instead of it happening
+// automatically on a settled income (T56, income-linked budgets only).
+export async function addFunds(_prevState: BudgetActionState, formData: FormData): Promise<BudgetActionState> {
+  return writeLedgerEntry(formData, "incoming", "Added funds");
+}
+
+export async function takeFunds(_prevState: BudgetActionState, formData: FormData): Promise<BudgetActionState> {
+  return writeLedgerEntry(formData, "outgoing", "Took funds");
+}
+
+// SPEC.md T42 part B (extended for Phase 10 to cover every ledger entry, not
+// just spends): a logged entry can be moved to a different date instead of
+// only create/delete. Same no-FK matching trick as deleteBudgetEntry - the
+// OLD entry's fields locate its settlement row before either one changes.
+// direction itself isn't editable here (fixed at creation, same as which
+// budget it belongs to) - only amount/date/note.
 export async function updateBudgetEntry(
   _prevState: BudgetActionState,
   formData: FormData,
@@ -267,14 +235,14 @@ export async function updateBudgetEntry(
   const id = formData.get("id") as string;
   const budgetId = formData.get("budgetId") as string;
   const budgetName = formData.get("budgetName") as string;
-  const fields = readLogSpendForm(formData);
+  const fields = readLedgerEntryForm(formData);
   if (fields.error) return { error: fields.error };
 
   const supabase = await createClient();
 
   const { data: oldEntry } = await supabase
     .from("budget_entries")
-    .select("entry_date, amount")
+    .select("entry_date, amount, direction")
     .eq("id", id)
     .single();
 
@@ -285,18 +253,19 @@ export async function updateBudgetEntry(
   if (entryError) return { error: entryError.message };
 
   if (oldEntry) {
+    const sign = oldEntry.direction === "incoming" ? 1 : -1;
     await supabase
       .from("settlements")
       .update({
         name: fields.note ? `${budgetName} - ${fields.note}` : budgetName,
-        actual_amount: -fields.amount,
+        actual_amount: sign * fields.amount,
         actual_date: fields.entryDate,
         forecasted_date: fields.entryDate,
       })
       .eq("source_type", "budget")
       .eq("source_id", budgetId)
       .eq("actual_date", oldEntry.entry_date)
-      .eq("actual_amount", -oldEntry.amount);
+      .eq("actual_amount", sign * oldEntry.amount);
   }
 
   revalidatePath("/budgets");
@@ -307,29 +276,30 @@ export async function updateBudgetEntry(
 }
 
 // budget_entries has no FK back from settlements, so a deleted entry's
-// settlement row is found by matching the same fields logSpend wrote it
-// with (source_type/source_id/actual_date/actual_amount) rather than an id -
-// otherwise deleting an entry would leave a phantom "spend" in History.
+// settlement row is found by matching the same fields it was written with
+// (source_type/source_id/actual_date/actual_amount) rather than an id -
+// otherwise deleting an entry would leave a phantom transaction in History.
 export async function deleteBudgetEntry(formData: FormData) {
   const id = formData.get("id") as string;
   const supabase = await createClient();
 
   const { data: entry } = await supabase
     .from("budget_entries")
-    .select("budget_id, entry_date, amount")
+    .select("budget_id, entry_date, amount, direction")
     .eq("id", id)
     .single();
 
   await supabase.from("budget_entries").delete().eq("id", id);
 
   if (entry) {
+    const sign = entry.direction === "incoming" ? 1 : -1;
     await supabase
       .from("settlements")
       .delete()
       .eq("source_type", "budget")
       .eq("source_id", entry.budget_id)
       .eq("actual_date", entry.entry_date)
-      .eq("actual_amount", -entry.amount);
+      .eq("actual_amount", sign * entry.amount);
   }
 
   revalidatePath("/budgets");

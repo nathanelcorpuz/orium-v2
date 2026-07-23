@@ -368,6 +368,32 @@ describe("expandBudgetCycleOccurrences - future-dated entries (T43)", () => {
   });
 });
 
+describe("computeBudgetCycleStatus - ignores Phase 10 ledger credits", () => {
+  // The old cycle model predates budget_entries.direction entirely - it
+  // must not miscount an "incoming" ledger entry (e.g. a Phase 10 "Starting
+  // balance" bootstrap row, or an income-triggered replenishment once T56
+  // ships) as a spend. Caught as a real bug: adding a "Starting balance"
+  // entry to live data made every budget read as wildly "over."
+  it("does not count an incoming entry as spent", () => {
+    const b = budget({ allocation: 500000, carryoverEnabled: false });
+    const entries: BudgetEntry[] = [
+      entry({ entryDate: "2026-01-01", amount: 1000000, direction: "incoming" }),
+      entry({ entryDate: "2026-01-10", amount: 100000, direction: "outgoing" }),
+    ];
+    const status = computeBudgetCycleStatus(b, entries, [], [], "2026-01-15");
+    expect(status.spent).toBe(100000);
+    expect(status.remaining).toBe(400000);
+    expect(status.over).toBe(0);
+  });
+
+  it("still counts an entry with no direction as spent (pre-Phase-10 data)", () => {
+    const b = budget({ allocation: 500000, carryoverEnabled: false });
+    const entries: BudgetEntry[] = [entry({ entryDate: "2026-01-10", amount: 100000, direction: undefined })];
+    const status = computeBudgetCycleStatus(b, entries, [], [], "2026-01-15");
+    expect(status.spent).toBe(100000);
+  });
+});
+
 describe("computeBudgetCycleStatus - integer math", () => {
   it("stays integer centavos through carryover accumulation", () => {
     const b = budget({ allocation: 333333, carryoverEnabled: true });

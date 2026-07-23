@@ -1,19 +1,17 @@
 "use client";
 
 import { useState } from "react";
-import { BudgetCard, type BudgetEntryRow, type IncomeItemRow, type OverrideRow } from "./BudgetCard";
+import { BudgetCard, type BudgetEntryRow, type IncomeItemRow } from "./BudgetCard";
 import { BudgetModal, type BudgetRow } from "./BudgetModal";
 
 export function BudgetsClient({
   budgets,
   entriesByBudgetId,
   incomes,
-  overrides,
 }: {
   budgets: BudgetRow[];
   entriesByBudgetId: Record<string, BudgetEntryRow[]>;
   incomes: IncomeItemRow[];
-  overrides: OverrideRow[];
 }) {
   const [modalState, setModalState] = useState<null | "new" | BudgetRow>(null);
 
@@ -22,13 +20,13 @@ export function BudgetsClient({
       <div className="mx-auto max-w-2xl">
         <div className="mb-6 flex items-center justify-between">
           <div>
-            <h1 className="text-xl font-semibold">Budgets</h1>
-            <p className="text-slate-600">Replenishing allocations for variable spending.</p>
+            <h1 className="text-xl font-semibold text-notion-text">Budgets</h1>
+            <p className="text-slate-500">A running total for variable spending.</p>
           </div>
           <button
             type="button"
             onClick={() => setModalState("new")}
-            className="rounded bg-slate-900 px-4 py-2 text-white"
+            className="rounded bg-notion-text px-4 py-2 text-white hover:opacity-90"
           >
             Add budget
           </button>
@@ -44,7 +42,6 @@ export function BudgetsClient({
                 budget={budget}
                 entries={entriesByBudgetId[budget.id] ?? []}
                 incomes={incomes}
-                overrides={overrides}
                 onEdit={() => setModalState(budget)}
               />
             ))}

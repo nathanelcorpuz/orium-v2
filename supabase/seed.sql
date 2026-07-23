@@ -124,20 +124,31 @@ begin
   on conflict (id) do nothing;
 
   -- ── Budgets + this month's logged spends ─────────────────────────────────
-  insert into public.budgets (id, user_id, name, monthly_allocation) values
-    ('00000000-0000-4000-a000-000000000061', v_user, 'Groceries',       1200000),
-    ('00000000-0000-4000-a000-000000000062', v_user, 'Gas & transport',  400000),
-    ('00000000-0000-4000-a000-000000000063', v_user, 'Dining out',       350000)
+  -- allocation is NOT NULL with no default (migration 0006) - mirrored from
+  -- monthly_allocation same as the app's own create/update actions do.
+  insert into public.budgets (id, user_id, name, allocation, monthly_allocation) values
+    ('00000000-0000-4000-a000-000000000061', v_user, 'Groceries',       1200000, 1200000),
+    ('00000000-0000-4000-a000-000000000062', v_user, 'Gas & transport',  400000,  400000),
+    ('00000000-0000-4000-a000-000000000063', v_user, 'Dining out',       350000,  350000)
   on conflict (id) do nothing;
 
-  insert into public.budget_entries (id, user_id, budget_id, entry_date, amount, note) values
-    ('00000000-0000-4000-a000-000000000071', v_user, '00000000-0000-4000-a000-000000000061', '2026-07-04', 285000, 'SM Hypermarket run'),
-    ('00000000-0000-4000-a000-000000000072', v_user, '00000000-0000-4000-a000-000000000061', '2026-07-11', 312000, 'weekly groceries'),
-    ('00000000-0000-4000-a000-000000000073', v_user, '00000000-0000-4000-a000-000000000061', '2026-07-18', 264000, 'weekly groceries'),
-    ('00000000-0000-4000-a000-000000000074', v_user, '00000000-0000-4000-a000-000000000062', '2026-07-08', 150000, 'full tank'),
-    ('00000000-0000-4000-a000-000000000075', v_user, '00000000-0000-4000-a000-000000000062', '2026-07-16', 140000, 'full tank'),
-    ('00000000-0000-4000-a000-000000000076', v_user, '00000000-0000-4000-a000-000000000063', '2026-07-12',  95000, 'family lunch'),
-    ('00000000-0000-4000-a000-000000000077', v_user, '00000000-0000-4000-a000-000000000063', '2026-07-19', 120000, 'date night')
+  -- Phase 10 (T53/T55): budget_entries is now a ledger - 'incoming' adds to
+  -- a budget's running total, 'outgoing' subtracts. Each budget gets one
+  -- 'incoming' "Starting balance" entry (a one-time bootstrap, not a real
+  -- settled transaction, so it has no matching settlements row below) so it
+  -- isn't sitting at a confusing negative total before any real replenish
+  -- event has happened.
+  insert into public.budget_entries (id, user_id, budget_id, entry_date, amount, note, direction) values
+    ('00000000-0000-4000-a000-000000000070', v_user, '00000000-0000-4000-a000-000000000061', '2026-07-01', 1200000, 'Starting balance', 'incoming'),
+    ('00000000-0000-4000-a000-000000000071', v_user, '00000000-0000-4000-a000-000000000061', '2026-07-04',  285000, 'SM Hypermarket run', 'outgoing'),
+    ('00000000-0000-4000-a000-000000000072', v_user, '00000000-0000-4000-a000-000000000061', '2026-07-11',  312000, 'weekly groceries', 'outgoing'),
+    ('00000000-0000-4000-a000-000000000073', v_user, '00000000-0000-4000-a000-000000000061', '2026-07-18',  264000, 'weekly groceries', 'outgoing'),
+    ('00000000-0000-4000-a000-000000000078', v_user, '00000000-0000-4000-a000-000000000062', '2026-07-01',  400000, 'Starting balance', 'incoming'),
+    ('00000000-0000-4000-a000-000000000074', v_user, '00000000-0000-4000-a000-000000000062', '2026-07-08',  150000, 'full tank', 'outgoing'),
+    ('00000000-0000-4000-a000-000000000075', v_user, '00000000-0000-4000-a000-000000000062', '2026-07-16',  140000, 'full tank', 'outgoing'),
+    ('00000000-0000-4000-a000-000000000079', v_user, '00000000-0000-4000-a000-000000000063', '2026-07-01',  350000, 'Starting balance', 'incoming'),
+    ('00000000-0000-4000-a000-000000000076', v_user, '00000000-0000-4000-a000-000000000063', '2026-07-12',   95000, 'family lunch', 'outgoing'),
+    ('00000000-0000-4000-a000-000000000077', v_user, '00000000-0000-4000-a000-000000000063', '2026-07-19',  120000, 'date night', 'outgoing')
   on conflict (id) do nothing;
 
   -- ── Settlement history ───────────────────────────────────────────────────

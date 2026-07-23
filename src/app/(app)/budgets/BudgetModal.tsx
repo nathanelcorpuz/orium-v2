@@ -4,18 +4,21 @@ import { useActionState, useEffect, useRef, useState } from "react";
 import { Modal } from "@/components/Modal";
 import { SegmentedControl } from "@/components/SegmentedControl";
 import { centavosToPesosString } from "@/lib/money";
-import { todayInManila } from "@/lib/date";
-import { RecurrencePicker, type RecurrenceValue } from "@/components/recurring/RecurrencePicker";
 import { type BudgetRow } from "@/lib/budgetView";
 import { createBudget, updateBudget, type BudgetActionState } from "./actions";
 
 export type { BudgetRow } from "@/lib/budgetView";
 
-type ReplenishSource = "income" | "schedule";
+// SPEC.md Phase 10/T55: a budget is either connected to an income (auto-
+// replenishes when that income settles - T56) or manual (the user adds/
+// takes funds themselves, from the Budgets page). No more "on a schedule"
+// third option, no more carryover checkbox - carryover is implicit in a
+// running ledger.
+type ReplenishSource = "income" | "manual";
 
 const REPLENISH_OPTIONS: { value: ReplenishSource; label: string }[] = [
-  { value: "income", label: "With an income" },
-  { value: "schedule", label: "On a schedule" },
+  { value: "income", label: "Connected to an income" },
+  { value: "manual", label: "Manual" },
 ];
 
 const initialState: BudgetActionState = { error: null };
@@ -36,29 +39,9 @@ export function BudgetModal({
   );
   const submitted = useRef(false);
 
-  const [source, setSource] = useState<ReplenishSource>(() => {
-    if (budget) {
-      if (budget.linked_income_id !== null) return "income";
-      if (budget.unit !== null) return "schedule";
-    }
-    return incomes.length > 0 ? "income" : "schedule";
-  });
-  const [startDate, setStartDate] = useState(budget?.start_date ?? todayInManila());
-
-  const initialRecurrenceValue: RecurrenceValue | null =
-    budget && budget.unit !== null && budget.interval !== null && budget.ends_type !== null
-      ? {
-          interval: budget.interval,
-          unit: budget.unit,
-          weekdays: budget.weekdays,
-          daysOfMonth: budget.days_of_month,
-          ordinal: budget.ordinal,
-          ordinalWeekday: budget.ordinal_weekday,
-          endsType: budget.ends_type,
-          endDate: budget.end_date,
-          occurrenceCount: budget.occurrence_count,
-        }
-      : null;
+  const [source, setSource] = useState<ReplenishSource>(
+    budget?.linked_income_id ? "income" : "manual",
+  );
 
   useEffect(() => {
     if (submitted.current && !pending && !state.error) {
@@ -86,12 +69,12 @@ export function BudgetModal({
             type="text"
             required
             defaultValue={budget?.name}
-            className="mt-1 w-full rounded border border-slate-300 p-2"
+            className="mt-1 w-full rounded border border-notion-hairline p-2 text-notion-text focus:border-notion-accent focus:outline-none"
           />
         </div>
         <div>
           <label className="block text-sm text-slate-600" htmlFor="allocationPesos">
-            Allocation (₱)
+            Replenish amount (₱)
           </label>
           <input
             id="allocationPesos"
@@ -101,14 +84,16 @@ export function BudgetModal({
             min="0"
             required
             defaultValue={budget ? centavosToPesosString(budget.allocation) : undefined}
-            className="mt-1 w-full rounded border border-slate-300 p-2"
+            className="mt-1 w-full rounded border border-notion-hairline p-2 text-notion-text focus:border-notion-accent focus:outline-none"
           />
+          <p className="mt-1 text-sm text-slate-400">
+            How much gets added when this budget replenishes.
+          </p>
         </div>
 
         <div>
           <p className="mb-1 block text-sm text-slate-600">Replenishes</p>
           <SegmentedControl options={REPLENISH_OPTIONS} value={source} onChange={setSource} />
-          <input type="hidden" name="replenishSource" value={source} />
         </div>
 
         {source === "income" &&
@@ -122,7 +107,7 @@ export function BudgetModal({
                 name="linkedIncomeId"
                 required
                 defaultValue={budget?.linked_income_id ?? ""}
-                className="mt-1 w-full rounded border border-slate-300 p-2"
+                className="mt-1 w-full rounded border border-notion-hairline p-2 text-notion-text focus:border-notion-accent focus:outline-none"
               >
                 <option value="" disabled>
                   Choose an income source…
@@ -133,61 +118,33 @@ export function BudgetModal({
                   </option>
                 ))}
               </select>
-              <p className="mt-1 text-sm text-slate-400">Resets each time this income lands.</p>
+              <p className="mt-1 text-sm text-slate-400">Replenishes each time this income is settled.</p>
             </div>
           ) : (
             <p className="text-sm text-slate-400">
-              No income sources yet — add one on the Income page, or choose &ldquo;On a schedule&rdquo;
-              instead.
+              No income sources yet — add one on the Income page, or choose &ldquo;Manual&rdquo; instead.
             </p>
           ))}
 
-        {source === "schedule" && (
-          <div className="space-y-3">
-            <div>
-              <label className="block text-sm text-slate-600" htmlFor="startDate">
-                Start date
-              </label>
-              <input
-                id="startDate"
-                name="startDate"
-                type="date"
-                required
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                className="mt-1 w-full rounded border border-slate-300 p-2"
-              />
-            </div>
-            <RecurrencePicker startDate={startDate} initialValue={initialRecurrenceValue} />
-          </div>
+        {source === "manual" && (
+          <p className="text-sm text-slate-400">
+            You&rsquo;ll add or take funds yourself from the Budgets page.
+          </p>
         )}
-
-        <div className="flex items-center gap-2">
-          <input
-            id="carryoverEnabled"
-            name="carryoverEnabled"
-            type="checkbox"
-            defaultChecked={budget ? budget.carryover_enabled : true}
-            className="h-4 w-4 rounded border-slate-300"
-          />
-          <label className="text-sm text-slate-600" htmlFor="carryoverEnabled">
-            Carry over unused balance to the next cycle
-          </label>
-        </div>
 
         {state.error && <p className="text-sm text-red-600">{state.error}</p>}
         <div className="flex justify-end gap-2">
           <button
             type="button"
             onClick={onClose}
-            className="rounded border border-slate-300 px-4 py-2"
+            className="rounded border border-notion-hairline px-4 py-2 text-notion-text hover:bg-notion-hover"
           >
             Cancel
           </button>
           <button
             type="submit"
             disabled={pending}
-            className="rounded bg-slate-900 px-4 py-2 text-white disabled:opacity-50"
+            className="rounded bg-notion-text px-4 py-2 text-white hover:opacity-90 disabled:opacity-50"
           >
             {pending ? "Saving..." : "Save"}
           </button>

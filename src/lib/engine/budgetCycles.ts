@@ -181,11 +181,18 @@ export function resolveBoundaries(
   return { boundaries: fallbackBoundaries(budget.createdAt, through), source: "fallback" };
 }
 
+// e.direction !== "incoming" (rather than === "outgoing") so entries from
+// before Phase 10 (direction undefined) still count as spends, unchanged -
+// only entries explicitly marked "incoming" (a Phase 10 ledger credit, e.g.
+// a "Starting balance" bootstrap row) are excluded. This cycle model
+// predates directioned entries entirely; it was never meant to see credits,
+// so it just ignores them rather than being taught to understand them.
 function spentInRange(entries: BudgetEntry[], budgetId: string, startInclusive: string | null, endExclusive: string | null): number {
   return entries
     .filter(
       (e) =>
         e.budgetId === budgetId &&
+        e.direction !== "incoming" &&
         (startInclusive === null || e.entryDate >= startInclusive) &&
         (endExclusive === null || e.entryDate < endExclusive),
     )

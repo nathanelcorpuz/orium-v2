@@ -71,7 +71,10 @@ export async function loadForecast(): Promise<ForecastData> {
     supabase.from("one_off_items").select("id, name, amount, due_date"),
     supabase.from("budgets").select(BUDGET_COLUMNS),
     // Not bounded by cycle - see src/app/budgets/page.tsx for why (T38).
-    supabase.from("budget_entries").select("id, budget_id, entry_date, amount, note"),
+    // direction (Phase 10, migration 0009) is fetched so the still-live old
+    // cycle model (budgetCycles.ts) can correctly ignore ledger credits
+    // instead of miscounting them as spends - see spentInRange there.
+    supabase.from("budget_entries").select("id, budget_id, entry_date, amount, note, direction"),
     supabase.from("budget_occurrence_overrides").select("id, budget_id, original_date, new_date, new_amount, skipped"),
     supabase.from("preferences").select("currency, balance_ranges").single(),
   ]);
@@ -134,7 +137,13 @@ export async function loadForecast(): Promise<ForecastData> {
   const entriesByBudgetId = new Map<string, BudgetEntryRow[]>();
   for (const row of entriesRes.data ?? []) {
     const list = entriesByBudgetId.get(row.budget_id) ?? [];
-    list.push({ id: row.id, entry_date: row.entry_date, amount: row.amount, note: row.note });
+    list.push({
+      id: row.id,
+      entry_date: row.entry_date,
+      amount: row.amount,
+      note: row.note,
+      direction: row.direction,
+    });
     entriesByBudgetId.set(row.budget_id, list);
   }
   const budgetEntries: BudgetEntry[] = budgetRows.flatMap((budget) =>
