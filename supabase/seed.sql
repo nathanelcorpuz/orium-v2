@@ -120,7 +120,15 @@ begin
     ('00000000-0000-4000-a000-000000000051', v_user, 'Lolo''s birthday gift',  -150000, '2026-08-02', null),
     ('00000000-0000-4000-a000-000000000052', v_user, 'School supplies',        -280000, '2026-08-10', 'enrollment season'),
     ('00000000-0000-4000-a000-000000000053', v_user, '13th month pay',         3500000, '2026-12-15', null),
-    ('00000000-0000-4000-a000-000000000054', v_user, 'Christmas shopping',     -800000, '2026-12-18', null)
+    ('00000000-0000-4000-a000-000000000054', v_user, 'Christmas shopping',     -800000, '2026-12-18', null),
+    -- T47: a large one-off ~13 months out with no matching income bump, sized
+    -- against the rest of this seed's trajectory (verified with a throwaway
+    -- script against generateForecast, then confirmed live in the browser
+    -- against the actual Supabase test account) to push the running balance
+    -- negative from 2027-08-16 through mid-September 2027 before recovering
+    -- for good - gives T46's "lowest balance ahead" indicator and the
+    -- per-row balance-range coloring a real negative scenario to demo.
+    ('00000000-0000-4000-a000-000000000055', v_user, 'Roof repair — typhoon damage', -100000000, '2027-08-16', 'storm damage to the roof and ceiling, not covered by insurance')
   on conflict (id) do nothing;
 
   -- ── Budgets + this month's logged spends ─────────────────────────────────
