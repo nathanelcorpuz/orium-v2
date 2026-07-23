@@ -4,20 +4,22 @@ import { useActionState, useEffect, useRef, useState } from "react";
 import { Modal } from "@/components/Modal";
 import { SegmentedControl } from "@/components/SegmentedControl";
 import { centavosToPesosString } from "@/lib/money";
+import { todayInManila } from "@/lib/date";
+import { RecurrencePicker, type RecurrenceValue } from "@/components/recurring/RecurrencePicker";
 import { type BudgetRow } from "@/lib/budgetView";
 import { createBudget, updateBudget, type BudgetActionState } from "./actions";
 
 export type { BudgetRow } from "@/lib/budgetView";
 
-// SPEC.md Phase 10/T55: a budget is either connected to an income (auto-
-// replenishes when that income settles - T56) or manual (the user adds/
-// takes funds themselves, from the Budgets page). No more "on a schedule"
-// third option, no more carryover checkbox - carryover is implicit in a
-// running ledger.
-type ReplenishSource = "income" | "manual";
+// Phase 10/T55 gave a budget two replenish modes (income-linked or manual);
+// Phase 11/T60 adds a third back - "schedule" ("Replenish every", the
+// budget's own recurrence rule, same shared RecurrencePicker Bills/Income/
+// Debt/Savings use) - for a budget that isn't tied to any income.
+type ReplenishSource = "income" | "schedule" | "manual";
 
 const REPLENISH_OPTIONS: { value: ReplenishSource; label: string }[] = [
   { value: "income", label: "Connected to an income" },
+  { value: "schedule", label: "Replenish every" },
   { value: "manual", label: "Manual" },
 ];
 
@@ -40,8 +42,24 @@ export function BudgetModal({
   const submitted = useRef(false);
 
   const [source, setSource] = useState<ReplenishSource>(
-    budget?.linked_income_id ? "income" : "manual",
+    budget?.linked_income_id ? "income" : budget?.start_date ? "schedule" : "manual",
   );
+  const [startDate, setStartDate] = useState(budget?.start_date ?? todayInManila());
+
+  const initialRecurrenceValue: RecurrenceValue | null =
+    budget && budget.start_date && budget.interval !== null && budget.unit !== null && budget.ends_type !== null
+      ? {
+          interval: budget.interval,
+          unit: budget.unit,
+          weekdays: budget.weekdays,
+          daysOfMonth: budget.days_of_month,
+          ordinal: budget.ordinal,
+          ordinalWeekday: budget.ordinal_weekday,
+          endsType: budget.ends_type,
+          endDate: budget.end_date,
+          occurrenceCount: budget.occurrence_count,
+        }
+      : null;
 
   useEffect(() => {
     if (submitted.current && !pending && !state.error) {
@@ -59,6 +77,7 @@ export function BudgetModal({
         className="space-y-4"
       >
         {isEdit && <input type="hidden" name="id" value={budget.id} />}
+        <input type="hidden" name="replenishSource" value={source} />
         <div>
           <label className="block text-sm text-slate-600" htmlFor="name">
             Name
@@ -125,6 +144,26 @@ export function BudgetModal({
               No income sources yet — add one on the Income page, or choose &ldquo;Manual&rdquo; instead.
             </p>
           ))}
+
+        {source === "schedule" && (
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm text-slate-600" htmlFor="startDate">
+                Start date
+              </label>
+              <input
+                id="startDate"
+                name="startDate"
+                type="date"
+                required
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className="mt-1 w-full rounded border border-notion-hairline p-2 text-notion-text focus:border-notion-accent focus:outline-none"
+              />
+            </div>
+            <RecurrencePicker startDate={startDate} initialValue={initialRecurrenceValue} />
+          </div>
+        )}
 
         {source === "manual" && (
           <p className="text-sm text-slate-400">

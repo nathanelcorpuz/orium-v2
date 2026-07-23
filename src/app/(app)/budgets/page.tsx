@@ -20,9 +20,15 @@ export default async function BudgetsPage() {
       .from("budget_entries")
       .select("id, budget_id, entry_date, amount, note, direction")
       .order("entry_date", { ascending: true }),
+    // Phase 11 (T60): the recurrence rule columns too, not just id/name - an
+    // income-linked budget's "days until replenish" progress bar
+    // (BudgetCard.tsx) resolves its schedule from whichever income it's
+    // linked to, via budgetReplenishRule (engine/budgetLedger.ts).
     supabase
       .from("recurring_items")
-      .select("id, name, type")
+      .select(
+        "id, name, start_date, interval, unit, weekdays, days_of_month, ordinal, ordinal_weekday, ends_type, end_date, occurrence_count",
+      )
       .eq("type", "income")
       .order("name", { ascending: true }),
   ]);
@@ -54,7 +60,20 @@ export default async function BudgetsPage() {
     entriesByBudgetId[entry.budget_id] = list;
   }
 
-  const incomes: IncomeItemRow[] = incomesRes.data ?? [];
+  const incomes: IncomeItemRow[] = (incomesRes.data ?? []).map((row) => ({
+    id: row.id,
+    name: row.name,
+    startDate: row.start_date,
+    interval: row.interval,
+    unit: row.unit,
+    weekdays: row.weekdays,
+    daysOfMonth: row.days_of_month,
+    ordinal: row.ordinal,
+    ordinalWeekday: row.ordinal_weekday,
+    endsType: row.ends_type,
+    endDate: row.end_date,
+    occurrenceCount: row.occurrence_count,
+  }));
 
   return <BudgetsClient budgets={budgets} entriesByBudgetId={entriesByBudgetId} incomes={incomes} />;
 }

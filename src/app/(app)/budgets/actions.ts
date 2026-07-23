@@ -1,28 +1,124 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
 import { parseCentavos } from "@/lib/money";
 import { todayInManila } from "@/lib/date";
+import { readRecurrenceRuleForm } from "@/lib/recurrenceForm";
+import { expandRecurrenceOccurrences } from "@/lib/engine/recurrence";
+import type { RecurrenceEndsType, RecurrenceUnit } from "@/lib/engine/types";
 
 export type BudgetActionState = { error: string | null };
 
-// Phase 10 (SPEC.md T55/T57): a budget is just a name, a replenish amount,
-// and an optional linked income - no more "own schedule" replenish option
-// and no more carryover checkbox (carryover is implicit in a running
-// ledger, there's nothing to opt out of). Migration 0010 dropped the now-
-// dead schedule/carryover columns entirely.
-function readBudgetForm(
-  formData: FormData,
-): { error: string } | { error: null; name: string; allocation: number; linkedIncomeId: string | null } {
+const EMPTY_SCHEDULE = {
+  startDate: null,
+  interval: null,
+  unit: null,
+  weekdays: null,
+  daysOfMonth: null,
+  ordinal: null,
+  ordinalWeekday: null,
+  endsType: null,
+  endDate: null,
+  occurrenceCount: null,
+} as const;
+
+type BudgetFormFields =
+  | { error: string }
+  | {
+      error: null;
+      name: string;
+      allocation: number;
+      linkedIncomeId: string | null;
+      startDate: string | null;
+      interval: number | null;
+      unit: RecurrenceUnit | null;
+      weekdays: number[] | null;
+      daysOfMonth: number[] | null;
+      ordinal: number | null;
+      ordinalWeekday: number | null;
+      endsType: RecurrenceEndsType | null;
+      endDate: string | null;
+      occurrenceCount: number | null;
+    };
+
+// Phase 11 (SPEC.md T60): a budget's replenish mode is one of three,
+// carried by the hidden `replenishSource` field the SegmentedControl
+// writes - "income" (linkedIncomeId set, no schedule), "schedule"
+// ("replenish every" - the budget's own rule via the shared RecurrencePicker/
+// readRecurrenceRuleForm, same as Bills/Income/Debt/Savings), or "manual"
+// (neither). Whichever mode isn't chosen gets explicitly nulled out so
+// switching modes on an existing budget clears the old mode's data instead
+// of leaving it behind - DB-enforced mutual exclusivity between
+// linked_income_id and start_date (migration 0011) means leaving stale data
+// in the unused mode would eventually violate that constraint anyway.
+function readBudgetForm(formData: FormData): BudgetFormFields {
   const name = (formData.get("name") as string).trim();
   const allocation = parseCentavos(formData.get("allocationPesos") as string);
-  const linkedIncomeId = (formData.get("linkedIncomeId") as string) || null;
+  const source = formData.get("replenishSource") as string;
 
   if (!name) return { error: "Name is required." };
   if (allocation === null || allocation < 0) return { error: "Enter a valid allocation." };
 
-  return { error: null, name, allocation, linkedIncomeId };
+  if (source === "schedule") {
+    const startDate = (formData.get("startDate") as string) || "";
+    if (!startDate) return { error: "Start date is required." };
+
+    const rule = readRecurrenceRuleForm(formData);
+    if (rule.error !== null) return { error: rule.error };
+
+    return {
+      error: null,
+      name,
+      allocation,
+      linkedIncomeId: null,
+      startDate,
+      interval: rule.interval,
+      unit: rule.unit,
+      weekdays: rule.weekdays,
+      daysOfMonth: rule.daysOfMonth,
+      ordinal: rule.ordinal,
+      ordinalWeekday: rule.ordinalWeekday,
+      endsType: rule.endsType,
+      endDate: rule.endDate,
+      occurrenceCount: rule.occurrenceCount,
+    };
+  }
+
+  if (source === "income") {
+    const linkedIncomeId = (formData.get("linkedIncomeId") as string) || null;
+    if (!linkedIncomeId) return { error: "Choose an income source." };
+    return { error: null, name, allocation, linkedIncomeId, ...EMPTY_SCHEDULE };
+  }
+
+  return { error: null, name, allocation, linkedIncomeId: null, ...EMPTY_SCHEDULE };
+}
+
+// Phase 11 (T60): mirrors deleteStaleOverrides (staleOverrides.ts, T42 part
+// A) for a budget's own replenish schedule - editing the rule directly
+// shouldn't leave budget_replenish_overrides rows pointing at dates the new
+// rule no longer produces. Only run when the budget still has a schedule
+// after the edit (switching away from "schedule" entirely just makes the
+// old overrides permanently inert, which is harmless - forecast.ts never
+// looks them up again once start_date is null).
+async function deleteStaleBudgetReplenishOverrides(
+  supabase: SupabaseClient,
+  budgetId: string,
+  newRule: Parameters<typeof expandRecurrenceOccurrences>[0],
+): Promise<void> {
+  const { data: overrides } = await supabase
+    .from("budget_replenish_overrides")
+    .select("id, original_date")
+    .eq("budget_id", budgetId);
+
+  const staleIds = (overrides ?? [])
+    .filter((o) => expandRecurrenceOccurrences(newRule, o.original_date, o.original_date).length === 0)
+    .map((o) => o.id);
+
+  if (staleIds.length > 0) {
+    await supabase.from("budget_replenish_overrides").delete().in("id", staleIds);
+  }
 }
 
 export async function createBudget(
@@ -46,6 +142,16 @@ export async function createBudget(
     // (still-deferred, see SPEC.md) migration drops it.
     monthly_allocation: fields.allocation,
     linked_income_id: fields.linkedIncomeId,
+    start_date: fields.startDate,
+    interval: fields.interval,
+    unit: fields.unit,
+    weekdays: fields.weekdays,
+    days_of_month: fields.daysOfMonth,
+    ordinal: fields.ordinal,
+    ordinal_weekday: fields.ordinalWeekday,
+    ends_type: fields.endsType,
+    end_date: fields.endDate,
+    occurrence_count: fields.occurrenceCount,
   });
   if (error) return { error: error.message };
 
@@ -71,9 +177,34 @@ export async function updateBudget(
       allocation: fields.allocation,
       monthly_allocation: fields.allocation,
       linked_income_id: fields.linkedIncomeId,
+      start_date: fields.startDate,
+      interval: fields.interval,
+      unit: fields.unit,
+      weekdays: fields.weekdays,
+      days_of_month: fields.daysOfMonth,
+      ordinal: fields.ordinal,
+      ordinal_weekday: fields.ordinalWeekday,
+      ends_type: fields.endsType,
+      end_date: fields.endDate,
+      occurrence_count: fields.occurrenceCount,
     })
     .eq("id", id);
   if (error) return { error: error.message };
+
+  if (fields.startDate !== null) {
+    await deleteStaleBudgetReplenishOverrides(supabase, id, {
+      startDate: fields.startDate,
+      interval: fields.interval!,
+      unit: fields.unit!,
+      weekdays: fields.weekdays,
+      daysOfMonth: fields.daysOfMonth,
+      ordinal: fields.ordinal,
+      ordinalWeekday: fields.ordinalWeekday,
+      endsType: fields.endsType!,
+      endDate: fields.endDate,
+      occurrenceCount: fields.occurrenceCount,
+    });
+  }
 
   revalidatePath("/budgets");
   revalidatePath("/forecast");

@@ -3,8 +3,11 @@
 import { useActionState, useEffect, useRef, useState } from "react";
 import { centavosToPesosString, formatCentavos } from "@/lib/money";
 import { formatFullDate, todayInManila } from "@/lib/date";
-import { computeBudgetBalance } from "@/lib/engine/budgetLedger";
-import type { BudgetEntry } from "@/lib/engine/types";
+import { budgetReplenishRule, computeBudgetBalance, replenishProgress } from "@/lib/engine/budgetLedger";
+import { toEngineBudget } from "@/lib/budgetView";
+import { ProgressBar } from "@/components/ProgressBar";
+import { summarizeRecurrence } from "@/lib/recurrenceSummary";
+import type { BudgetEntry, RecurrenceEndsType, RecurrenceUnit } from "@/lib/engine/types";
 import type { BudgetRow } from "@/lib/budgetView";
 import {
   addFunds,
@@ -28,7 +31,23 @@ export type BudgetEntryRow = {
   direction?: "incoming" | "outgoing";
 };
 
-export type IncomeItemRow = { id: string; name: string };
+// Phase 11 (T60): the recurrence rule too, not just id/name - an
+// income-linked budget's progress bar resolves its schedule from whichever
+// income it's linked to (budgetReplenishRule, engine/budgetLedger.ts).
+export type IncomeItemRow = {
+  id: string;
+  name: string;
+  startDate: string;
+  interval: number;
+  unit: RecurrenceUnit;
+  weekdays: number[] | null;
+  daysOfMonth: number[] | null;
+  ordinal: number | null;
+  ordinalWeekday: number | null;
+  endsType: RecurrenceEndsType;
+  endDate: string | null;
+  occurrenceCount: number | null;
+};
 
 const initialLogState: BudgetActionState = { error: null };
 
@@ -197,9 +216,22 @@ export function BudgetCard({
   // pattern T43 established for future spends.
   const balance = computeBudgetBalance(toEngineEntries(entries, budget.id), budget.id, today);
 
-  const incomeName = budget.linked_income_id
-    ? incomes.find((income) => income.id === budget.linked_income_id)?.name
+  const linkedIncome = budget.linked_income_id
+    ? incomes.find((income) => income.id === budget.linked_income_id)
     : undefined;
+  const incomeName = linkedIncome?.name;
+
+  // Phase 11 (T60): "days until replenish" + a time-based progress bar, for
+  // any budget with a resolvable schedule - its own ("replenish every") or
+  // its linked income's. Manual budgets have neither, so replenishProgress
+  // returns all-null and nothing extra renders.
+  const rule = budgetReplenishRule(toEngineBudget(budget), linkedIncome ?? null);
+  const progress = replenishProgress(rule, today);
+  // "Connected to {income}" beats a schedule summary when both are somehow
+  // present (shouldn't happen - DB-enforced mutually exclusive); a
+  // schedule-mode budget shows its own human-readable rule the same way
+  // Bills/Income/Debt/Savings rows already do (recurrenceSummary.ts).
+  const replenishLabel = incomeName ? `Connected to ${incomeName}` : rule ? summarizeRecurrence(rule) : "Manual";
 
   const visibleEntries = entries
     .filter((entry) => entry.entry_date <= today)
@@ -240,12 +272,22 @@ export function BudgetCard({
           <div className="flex items-center gap-2">
             <p className="font-medium text-notion-text">{budget.name}</p>
             <span className="rounded-full bg-notion-hover px-2 py-0.5 text-xs font-medium text-slate-500">
-              {incomeName ? `Connected to ${incomeName}` : "Manual"}
+              {replenishLabel}
             </span>
           </div>
           <p className={`text-xl font-semibold ${balance < 0 ? "text-red-600" : "text-notion-text"}`}>
             {formatCentavos(balance)}
           </p>
+          {progress.daysUntil !== null && (
+            <div className="mt-1 max-w-xs">
+              <ProgressBar percent={(progress.fraction ?? 0) * 100} over={false} />
+              <p className="mt-0.5 text-xs text-slate-400">
+                {progress.daysUntil <= 0
+                  ? "Replenishes today"
+                  : `${progress.daysUntil} day${progress.daysUntil === 1 ? "" : "s"} until replenish`}
+              </p>
+            </div>
+          )}
         </div>
         <div className="flex items-center gap-2">
           {confirmingDelete ? (

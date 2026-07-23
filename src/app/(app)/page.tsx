@@ -6,8 +6,9 @@ import { displayName } from "@/lib/displayName";
 import { monthlyEquivalent } from "@/lib/engine/monthlyTotals";
 import { remainingTotal, ruleEndDate } from "@/lib/engine/remaining";
 import { computeMonthlyPeaksAndDrops } from "@/lib/engine/peaksAndDrops";
-import { computeBudgetBalance } from "@/lib/engine/budgetLedger";
+import { budgetReplenishRule, computeBudgetBalance, replenishProgress } from "@/lib/engine/budgetLedger";
 import { daysBetween } from "@/lib/engine/date-utils";
+import { ProgressBar } from "@/components/ProgressBar";
 
 function DashboardCard({
   title,
@@ -126,15 +127,38 @@ export default async function Home() {
           {budgets.length === 0 ? (
             <p className="text-sm text-slate-400">No budgets yet.</p>
           ) : (
-            <ul className="space-y-1">
+            <ul className="space-y-2">
               {budgets.map((budget) => {
                 const balance = computeBudgetBalance(budgetEntries, budget.id, today);
+                // Phase 11 (T60): "days until replenish" + a time-based
+                // progress bar, for any budget with a resolvable schedule -
+                // its own ("replenish every") or its linked income's. A
+                // manual budget has neither, so replenishProgress returns
+                // all-null and nothing extra renders.
+                const linkedIncome = budget.linkedIncomeId
+                  ? recurringItems.find((item) => item.id === budget.linkedIncomeId) ?? null
+                  : null;
+                const rule = budgetReplenishRule(budget, linkedIncome);
+                const progress = replenishProgress(rule, today);
+
                 return (
-                  <li key={budget.id} className="flex items-center justify-between gap-2 text-sm">
-                    <span className="truncate text-notion-text">{budget.name}</span>
-                    <span className={balance < 0 ? "font-medium text-red-600" : "text-slate-500"}>
-                      {formatCentavos(balance, currency)}
-                    </span>
+                  <li key={budget.id} className="text-sm">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="truncate text-notion-text">{budget.name}</span>
+                      <span className={balance < 0 ? "font-medium text-red-600" : "text-slate-500"}>
+                        {formatCentavos(balance, currency)}
+                      </span>
+                    </div>
+                    {progress.daysUntil !== null && (
+                      <div className="mt-1">
+                        <ProgressBar percent={(progress.fraction ?? 0) * 100} over={false} />
+                        <p className="mt-0.5 text-xs text-slate-400">
+                          {progress.daysUntil <= 0
+                            ? "Replenishes today"
+                            : `${progress.daysUntil} day${progress.daysUntil === 1 ? "" : "s"} until replenish`}
+                        </p>
+                      </div>
+                    )}
                   </li>
                 );
               })}

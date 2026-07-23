@@ -1,4 +1,4 @@
-import type { Budget, BudgetEntry, RecurrenceRule, RecurringItem } from "./types";
+import type { Budget, BudgetEntry, RecurrenceRule } from "./types";
 import { expandRecurrenceOccurrences } from "./recurrence";
 import { addDays, daysBetween } from "./date-utils";
 
@@ -49,21 +49,6 @@ export function futureBudgetLedgerEntries(entries: BudgetEntry[], budgetId: stri
 // schedule and answers "when's the next replenish" for the progress bar;
 // the ledger balance math above is unaffected by any of it.
 
-function incomeToRule(income: RecurringItem): RecurrenceRule {
-  return {
-    startDate: income.startDate,
-    interval: income.interval,
-    unit: income.unit,
-    weekdays: income.weekdays,
-    daysOfMonth: income.daysOfMonth,
-    ordinal: income.ordinal,
-    ordinalWeekday: income.ordinalWeekday,
-    endsType: income.endsType,
-    endDate: income.endDate,
-    occurrenceCount: income.occurrenceCount,
-  };
-}
-
 /**
  * The recurrence rule driving a budget's replenishment: its own schedule
  * when it has one, or its linked income's schedule when it's income-linked
@@ -71,10 +56,15 @@ function incomeToRule(income: RecurringItem): RecurrenceRule {
  * for a manual budget, or an income-linked budget whose linked income
  * wasn't passed in (e.g. it was deleted - `linked_income_id` sets itself to
  * null via ON DELETE SET NULL, so this shouldn't outlive a page refresh).
+ *
+ * `linkedIncome` takes anything with a RecurrenceRule's fields (a full
+ * `RecurringItem` satisfies this structurally, so callers who already have
+ * one - e.g. the Dashboard/Budgets page looking up a budget's linked income
+ * from `recurringItems` - can pass it straight through with no conversion).
  */
-export function budgetReplenishRule(budget: Budget, linkedIncome: RecurringItem | null): RecurrenceRule | null {
+export function budgetReplenishRule(budget: Budget, linkedIncome: RecurrenceRule | null): RecurrenceRule | null {
   if (budget.linkedIncomeId !== null) {
-    return linkedIncome ? incomeToRule(linkedIncome) : null;
+    return linkedIncome;
   }
 
   if (budget.startDate === null || budget.interval === null || budget.unit === null || budget.endsType === null) {
