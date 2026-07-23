@@ -6,6 +6,7 @@ import { displayName } from "@/lib/displayName";
 import { monthlyEquivalent } from "@/lib/engine/monthlyTotals";
 import { remainingTotal, ruleEndDate } from "@/lib/engine/remaining";
 import { computeMonthlyPeaksAndDrops } from "@/lib/engine/peaksAndDrops";
+import { findLowestBalancePoint } from "@/lib/engine/lowestBalance";
 import { budgetReplenishRule, computeBudgetBalance, replenishProgress } from "@/lib/engine/budgetLedger";
 import { daysBetween } from "@/lib/engine/date-utils";
 import { ProgressBar } from "@/components/ProgressBar";
@@ -68,6 +69,7 @@ export default async function Home() {
   const daysUntilDebtFree = debtFreeDate ? daysBetween(today, debtFreeDate) : null;
 
   const peaksAndDrops = computeMonthlyPeaksAndDrops(forecast, totalBalance, today, horizon);
+  const lowestBalance = findLowestBalancePoint(forecast, totalBalance, today);
 
   return (
     <div className="p-8">
@@ -164,6 +166,20 @@ export default async function Home() {
               })}
             </ul>
           )}
+        </div>
+
+        <div className="mb-6 rounded-lg border border-notion-hairline bg-white p-4">
+          <h2 className="mb-2 text-sm font-semibold text-notion-text">Lowest Balance Ahead</h2>
+          {lowestBalance.balance <= 0 ? (
+            <p className="text-xl font-semibold text-red-700">
+              ⚠ Goes negative by {formatCentavos(Math.abs(lowestBalance.balance), currency)}
+            </p>
+          ) : (
+            <p className="text-xl font-semibold text-notion-text">
+              {formatCentavos(lowestBalance.balance, currency)}
+            </p>
+          )}
+          <p className="mt-1 text-sm text-slate-500">On {formatFullDate(lowestBalance.date)}</p>
         </div>
 
         <div className="overflow-x-auto rounded-lg border border-notion-hairline bg-white">

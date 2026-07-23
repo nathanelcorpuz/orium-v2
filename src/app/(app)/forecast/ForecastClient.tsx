@@ -6,6 +6,7 @@ import { formatFullDate } from "@/lib/date";
 import { balanceRangeColorClass } from "@/lib/balanceColor";
 import { BalanceModal, type BalanceRow } from "@/app/(app)/balances/BalanceModal";
 import type { ForecastRow } from "@/lib/engine/types";
+import type { LowestBalancePoint } from "@/lib/engine/lowestBalance";
 import { EditSettleModal } from "./EditSettleModal";
 import { RemindersPanel, type ReminderRow } from "./RemindersPanel";
 
@@ -24,12 +25,14 @@ export function ForecastClient({
   currency,
   balanceRanges,
   reminders,
+  lowestBalance,
 }: {
   forecast: ForecastRow[];
   balances: BalanceRow[];
   currency: string;
   balanceRanges: number[];
   reminders: ReminderRow[];
+  lowestBalance: LowestBalancePoint;
 }) {
   const [editingBalance, setEditingBalance] = useState<BalanceRow | null>(null);
   const [selectedRow, setSelectedRow] = useState<ForecastRow | null>(null);
@@ -58,6 +61,11 @@ export function ForecastClient({
                   </button>
                 ))}
               </div>
+              <p className={`mt-2 text-sm ${lowestBalance.balance <= 0 ? "font-medium text-red-600" : "text-slate-500"}`}>
+                {lowestBalance.balance <= 0
+                  ? `⚠ Goes negative by ${formatCentavos(Math.abs(lowestBalance.balance), currency)} on ${formatFullDate(lowestBalance.date)}`
+                  : `Lowest balance ahead: ${formatCentavos(lowestBalance.balance, currency)} on ${formatFullDate(lowestBalance.date)}`}
+              </p>
             </div>
 
             {forecast.length === 0 ? (
