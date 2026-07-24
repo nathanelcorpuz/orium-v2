@@ -73,6 +73,9 @@ export function BillsClient({
   const filtersActive =
     nameFilter !== "" || selectedUnits.size > 0 || amountOp !== "any";
 
+  // T71 follow-up: shows the connected account's name (if any) on each row.
+  const balanceNameById = useMemo(() => new Map(balances.map((b) => [b.id, b.name])), [balances]);
+
   const filteredBills = useMemo(() => {
     const name = nameFilter.trim().toLowerCase();
     return bills.filter((bill) => {
@@ -163,7 +166,17 @@ export function BillsClient({
           <p className="text-slate-500">No bills match these filters.</p>
         ) : (
           <ul className="space-y-2">
-            {filteredBills.map((bill) => (
+            {filteredBills.map((bill) => {
+              // T71 follow-up: recurrence + connected account read as one
+              // compact "·"-joined line (matches the recurrence picker's own
+              // "Every 2 weeks on Sat · until Apr 2030" convention) instead
+              // of stacking a separate gray line per fact, which read as
+              // cluttered.
+              const metaParts = [summarizeRecurrence(billRule(bill))];
+              if (bill.balance_id) {
+                metaParts.push(`Account: ${balanceNameById.get(bill.balance_id) ?? "—"}`);
+              }
+              return (
               <li
                 key={bill.id}
                 className="flex items-center justify-between rounded-lg border border-notion-hairline bg-white p-4"
@@ -178,7 +191,7 @@ export function BillsClient({
                     )}
                   </p>
                   <p className="text-sm text-slate-600">{formatCentavos(Math.abs(bill.amount))}</p>
-                  <p className="text-sm text-slate-400">{summarizeRecurrence(billRule(bill))}</p>
+                  <p className="mt-0.5 text-sm text-slate-400">{metaParts.join(" · ")}</p>
                   {bill.comments && <p className="text-sm text-slate-400">{bill.comments}</p>}
                 </div>
                 <div className="flex items-center gap-2">
@@ -222,7 +235,8 @@ export function BillsClient({
                   )}
                 </div>
               </li>
-            ))}
+              );
+            })}
           </ul>
         )}
 

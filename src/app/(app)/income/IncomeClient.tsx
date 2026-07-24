@@ -32,14 +32,20 @@ function incomeRule(income: IncomeRow) {
   };
 }
 
+// T71 follow-up: a budget replenished from a given income, for display next
+// to that income's row.
+type LinkedBudget = { id: string; name: string; linked_income_id: string | null };
+
 export function IncomeClient({
   incomes,
   editedIds,
   balances,
+  linkedBudgets,
 }: {
   incomes: IncomeRow[];
   editedIds: Set<string>;
   balances: BalanceOption[];
+  linkedBudgets: LinkedBudget[];
 }) {
   const [modalState, setModalState] = useState<null | "new" | IncomeRow>(null);
   const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null);
@@ -71,6 +77,20 @@ export function IncomeClient({
 
   const filtersActive =
     nameFilter !== "" || selectedUnits.size > 0 || amountOp !== "any";
+
+  // T71 follow-up: connected account name, and budget names replenished from
+  // each income, for display on each row.
+  const balanceNameById = useMemo(() => new Map(balances.map((b) => [b.id, b.name])), [balances]);
+  const budgetNamesByIncomeId = useMemo(() => {
+    const map = new Map<string, string[]>();
+    for (const budget of linkedBudgets) {
+      if (!budget.linked_income_id) continue;
+      const list = map.get(budget.linked_income_id) ?? [];
+      list.push(budget.name);
+      map.set(budget.linked_income_id, list);
+    }
+    return map;
+  }, [linkedBudgets]);
 
   const filteredIncomes = useMemo(() => {
     const name = nameFilter.trim().toLowerCase();
@@ -162,7 +182,19 @@ export function IncomeClient({
           <p className="text-slate-500">No income sources match these filters.</p>
         ) : (
           <ul className="space-y-2">
-            {filteredIncomes.map((income) => (
+            {filteredIncomes.map((income) => {
+              // T71 follow-up: recurrence + connected account + linked
+              // budgets read as one compact "·"-joined line instead of a
+              // separate gray line per fact, which read as cluttered.
+              const metaParts = [summarizeRecurrence(incomeRule(income))];
+              if (income.balance_id) {
+                metaParts.push(`Account: ${balanceNameById.get(income.balance_id) ?? "—"}`);
+              }
+              const funds = budgetNamesByIncomeId.get(income.id);
+              if (funds && funds.length > 0) {
+                metaParts.push(`Funds: ${funds.join(", ")}`);
+              }
+              return (
               <li
                 key={income.id}
                 className="flex items-center justify-between rounded-lg border border-notion-hairline bg-white p-4"
@@ -177,7 +209,7 @@ export function IncomeClient({
                     )}
                   </p>
                   <p className="text-sm text-green-700">{formatCentavos(income.amount)}</p>
-                  <p className="text-sm text-slate-400">{summarizeRecurrence(incomeRule(income))}</p>
+                  <p className="mt-0.5 text-sm text-slate-400">{metaParts.join(" · ")}</p>
                   {income.comments && (
                     <p className="text-sm text-slate-400">{income.comments}</p>
                   )}
@@ -223,7 +255,8 @@ export function IncomeClient({
                   )}
                 </div>
               </li>
-            ))}
+              );
+            })}
           </ul>
         )}
 

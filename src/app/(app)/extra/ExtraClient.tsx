@@ -44,6 +44,9 @@ export function ExtraClient({ extras, balances }: { extras: ExtraRow[]; balances
     });
   }, [extras, nameFilter, dueFrom, dueTo, amountOp, amountValue1, amountValue2]);
 
+  // T71 follow-up: shows the connected account's name (if any) on each row.
+  const balanceNameById = useMemo(() => new Map(balances.map((b) => [b.id, b.name])), [balances]);
+
   const today = todayInManila();
   // Always over the full unfiltered list - filters narrow what's displayed,
   // not what counts toward the page's own total.
@@ -144,6 +147,11 @@ export function ExtraClient({ extras, balances }: { extras: ExtraRow[]; balances
                   <p className="text-sm text-purple-700">
                     {formatCentavos(extra.amount)}, due {extra.due_date}
                   </p>
+                  {extra.balance_id && (
+                    <p className="mt-0.5 text-sm text-slate-400">
+                      Account: {balanceNameById.get(extra.balance_id) ?? "—"}
+                    </p>
+                  )}
                   {extra.comments && (
                     <p className="text-sm text-slate-400">{extra.comments}</p>
                   )}

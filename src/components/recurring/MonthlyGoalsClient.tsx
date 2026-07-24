@@ -95,6 +95,9 @@ export function MonthlyGoalsClient({
   const filtersActive =
     nameFilter !== "" || selectedUnits.size > 0 || amountOp !== "any";
 
+  // T71 follow-up: shows the connected account's name (if any) on each row.
+  const balanceNameById = useMemo(() => new Map(balances.map((b) => [b.id, b.name])), [balances]);
+
   const filteredItems = useMemo(() => {
     const name = nameFilter.trim().toLowerCase();
     return items.filter((item) => {
@@ -199,6 +202,16 @@ export function MonthlyGoalsClient({
           <ul className="space-y-2">
             {filteredItems.map((item) => {
               const remaining = remainingTotal({ ...goalRule(item), amount: item.amount }, today);
+              // T71 follow-up: recurrence + remaining + connected account
+              // read as one compact "·"-joined line instead of a separate
+              // gray line per fact, which read as cluttered.
+              const metaParts = [
+                summarizeRecurrence(goalRule(item)),
+                remaining === null ? "Ongoing" : `${formatCentavos(remaining)} remaining`,
+              ];
+              if (item.balance_id) {
+                metaParts.push(`Account: ${balanceNameById.get(item.balance_id) ?? "—"}`);
+              }
               return (
                 <li
                   key={item.id}
@@ -214,10 +227,7 @@ export function MonthlyGoalsClient({
                       )}
                     </p>
                     <p className={`text-sm ${amountColorClass}`}>{formatCentavos(Math.abs(item.amount))}</p>
-                    <p className="text-sm text-slate-400">{summarizeRecurrence(goalRule(item))}</p>
-                    <p className="text-sm text-slate-400">
-                      {remaining === null ? "Ongoing" : `${formatCentavos(remaining)} remaining`}
-                    </p>
+                    <p className="mt-0.5 text-sm text-slate-400">{metaParts.join(" · ")}</p>
                     {item.comments && <p className="text-sm text-slate-400">{item.comments}</p>}
                   </div>
                   <div className="flex items-center gap-2">

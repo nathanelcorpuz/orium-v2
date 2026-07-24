@@ -4,7 +4,7 @@ import { IncomeClient } from "./IncomeClient";
 
 export default async function IncomePage() {
   const supabase = await createClient();
-  const [{ data: incomes, error }, overridesRes, balancesRes] = await Promise.all([
+  const [{ data: incomes, error }, overridesRes, balancesRes, budgetsRes] = await Promise.all([
     supabase
       .from("recurring_items")
       .select(
@@ -17,6 +17,8 @@ export default async function IncomePage() {
     supabase.from("occurrence_overrides").select("recurring_item_id"),
     // T71: options for the optional "connected account" dropdown.
     supabase.from("balances").select("id, name").order("name", { ascending: true }),
+    // T71 follow-up: which budgets replenish from each income, for display.
+    supabase.from("budgets").select("id, name, linked_income_id").not("linked_income_id", "is", null),
   ]);
 
   if (error) {
@@ -25,5 +27,12 @@ export default async function IncomePage() {
 
   const editedIds = idSetFromColumn(overridesRes.data, "recurring_item_id");
 
-  return <IncomeClient incomes={incomes ?? []} editedIds={editedIds} balances={balancesRes.data ?? []} />;
+  return (
+    <IncomeClient
+      incomes={incomes ?? []}
+      editedIds={editedIds}
+      balances={balancesRes.data ?? []}
+      linkedBudgets={budgetsRes.data ?? []}
+    />
+  );
 }

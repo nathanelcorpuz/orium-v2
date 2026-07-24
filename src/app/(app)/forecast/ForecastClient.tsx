@@ -110,6 +110,10 @@ export function ForecastClient({
     (balanceOp !== "any" ? 1 : 0);
   const filtersActive = activeFilterCount > 0;
 
+  // T71 follow-up: shows each row's connected account (if any) in its own
+  // column.
+  const balanceNameById = useMemo(() => new Map(balances.map((b) => [b.id, b.name])), [balances]);
+
   const filteredForecast = useMemo(() => {
     const name = nameFilter.trim().toLowerCase();
     return forecast.filter((row) => {
@@ -312,6 +316,7 @@ export function ForecastClient({
                     <th className="sticky top-0 z-10 bg-white px-2 py-1.5">Date</th>
                     <th className="sticky top-0 z-10 bg-white px-2 py-1.5">Name</th>
                     <th className="sticky top-0 z-10 bg-white px-2 py-1.5">Type</th>
+                    <th className="sticky top-0 z-10 bg-white px-2 py-1.5">Account</th>
                     <th className="sticky top-0 z-10 bg-white px-2 py-1.5 text-right">Amount</th>
                     <th className="sticky top-0 z-10 bg-white px-2 py-1.5 text-right">Balance</th>
                   </tr>
@@ -360,6 +365,9 @@ export function ForecastClient({
                           )}
                         </td>
                         <td className={`px-2 py-1.5 ${TYPE_COLOR[row.type]}`}>{row.type}</td>
+                        <td className="px-2 py-1.5 text-slate-500">
+                          {row.balanceId ? (balanceNameById.get(row.balanceId) ?? "—") : "—"}
+                        </td>
                         <td className="px-2 py-1.5 text-right">{formatCentavos(row.amount, currency)}</td>
                         <td className="px-2 py-1.5 text-right font-medium">
                           <span
@@ -373,7 +381,7 @@ export function ForecastClient({
                   })}
                   {visibleCount < filteredForecast.length && (
                     <tr ref={sentinelRef}>
-                      <td colSpan={5} className="p-2 text-center text-xs text-slate-400">
+                      <td colSpan={6} className="p-2 text-center text-xs text-slate-400">
                         Loading more…
                       </td>
                     </tr>
