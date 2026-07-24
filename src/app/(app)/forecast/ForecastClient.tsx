@@ -8,6 +8,7 @@ import { BalanceModal, type BalanceRow } from "@/app/(app)/accounts/BalanceModal
 import { AmountRangeFilter, matchesAmountFilter, type ComparisonOp } from "@/components/AmountRangeFilter";
 import { MultiSelectChips } from "@/components/MultiSelectChips";
 import { Modal } from "@/components/Modal";
+import { DatePicker } from "@/components/DatePicker";
 import { ChevronIcon } from "@/components/navIcons";
 import type { ForecastRow } from "@/lib/engine/types";
 import type { LowestBalancePoint } from "@/lib/engine/lowestBalance";
@@ -312,20 +313,18 @@ export function ForecastClient({
                 <div className="flex gap-2">
                   <div className="flex flex-1 flex-col gap-1">
                     <label className="text-xs text-slate-500">From</label>
-                    <input
-                      type="date"
+                    <DatePicker
                       value={dateFrom}
-                      onChange={(event) => setDateFrom(event.target.value)}
-                      className="w-full rounded border border-notion-hairline px-1.5 py-1 text-xs text-notion-text focus:border-notion-accent focus:outline-none"
+                      onChange={setDateFrom}
+                      className="w-full rounded border border-notion-hairline px-1.5 py-1 text-left text-xs focus:border-notion-accent focus:outline-none"
                     />
                   </div>
                   <div className="flex flex-1 flex-col gap-1">
                     <label className="text-xs text-slate-500">To</label>
-                    <input
-                      type="date"
+                    <DatePicker
                       value={dateTo}
-                      onChange={(event) => setDateTo(event.target.value)}
-                      className="w-full rounded border border-notion-hairline px-1.5 py-1 text-xs text-notion-text focus:border-notion-accent focus:outline-none"
+                      onChange={setDateTo}
+                      className="w-full rounded border border-notion-hairline px-1.5 py-1 text-left text-xs focus:border-notion-accent focus:outline-none"
                     />
                   </div>
                 </div>

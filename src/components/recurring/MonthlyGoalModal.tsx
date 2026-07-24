@@ -2,6 +2,7 @@
 
 import { useActionState, useEffect, useRef, useState } from "react";
 import { Modal } from "@/components/Modal";
+import { DatePicker } from "@/components/DatePicker";
 import { centavosToPesosString } from "@/lib/money";
 import { todayInManila } from "@/lib/date";
 import type { RecurringItemActionState } from "@/lib/recurringItem";
@@ -105,14 +106,13 @@ export function MonthlyGoalModal({
           <label className="block text-sm text-slate-600" htmlFor="startDate">
             Start date
           </label>
-          <input
+          <DatePicker
             id="startDate"
             name="startDate"
-            type="date"
             required
             value={startDate}
-            onChange={(e) => setStartDate(e.target.value)}
-            className="mt-1 w-full rounded border border-notion-hairline p-2 text-notion-text focus:border-notion-accent focus:outline-none"
+            onChange={setStartDate}
+            className="mt-1 w-full rounded border border-notion-hairline p-2 text-left focus:border-notion-accent focus:outline-none"
           />
         </div>
         {/* T72: debt/savings must always have a finite end, so their total

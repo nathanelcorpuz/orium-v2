@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import type { RecurrenceEndsType, RecurrenceUnit } from "@/lib/engine/types";
 import { computeRecurrencePresets, type RecurrenceShape } from "@/lib/recurrencePresets";
+import { DatePicker } from "@/components/DatePicker";
 
 export type RecurrenceValue = RecurrenceShape & {
   endsType: RecurrenceEndsType;
@@ -277,11 +278,11 @@ export function RecurrencePicker({
             ))}
           </div>
           {value.endsType === "on_date" && (
-            <input
-              type="date"
+            <DatePicker
+              name="endDate"
               value={value.endDate ?? ""}
-              onChange={(e) => setValue((v) => ({ ...v, endDate: e.target.value || null }))}
-              className={INPUT}
+              onChange={(next) => setValue((v) => ({ ...v, endDate: next || null }))}
+              required
             />
           )}
           {value.endsType === "after_count" && (
@@ -310,7 +311,6 @@ export function RecurrencePicker({
       <input type="hidden" name="ordinal" value={value.ordinal ?? ""} />
       <input type="hidden" name="ordinalWeekday" value={value.ordinalWeekday ?? ""} />
       <input type="hidden" name="endsType" value={value.endsType} />
-      <input type="hidden" name="endDate" value={value.endDate ?? ""} />
       <input type="hidden" name="occurrenceCount" value={value.occurrenceCount ?? ""} />
     </div>
   );

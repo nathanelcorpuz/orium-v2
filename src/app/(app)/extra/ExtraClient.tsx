@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { formatCentavos } from "@/lib/money";
 import { todayInManila } from "@/lib/date";
+import { DatePicker } from "@/components/DatePicker";
 import { AmountRangeFilter, matchesAmountFilter, type ComparisonOp } from "@/components/AmountRangeFilter";
 import { deleteExtra } from "./actions";
 import { ExtraModal, type BalanceOption, type ExtraRow } from "./ExtraModal";
@@ -88,20 +89,18 @@ export function ExtraClient({ extras, balances }: { extras: ExtraRow[]; balances
               </div>
               <div className="flex flex-col gap-1">
                 <label className="text-xs text-slate-500">Due from</label>
-                <input
-                  type="date"
+                <DatePicker
                   value={dueFrom}
-                  onChange={(event) => setDueFrom(event.target.value)}
-                  className="rounded border border-notion-hairline px-1.5 py-1 text-xs text-notion-text focus:border-notion-accent focus:outline-none"
+                  onChange={setDueFrom}
+                  className="rounded border border-notion-hairline px-1.5 py-1 text-left text-xs focus:border-notion-accent focus:outline-none"
                 />
               </div>
               <div className="flex flex-col gap-1">
                 <label className="text-xs text-slate-500">Due to</label>
-                <input
-                  type="date"
+                <DatePicker
                   value={dueTo}
-                  onChange={(event) => setDueTo(event.target.value)}
-                  className="rounded border border-notion-hairline px-1.5 py-1 text-xs text-notion-text focus:border-notion-accent focus:outline-none"
+                  onChange={setDueTo}
+                  className="rounded border border-notion-hairline px-1.5 py-1 text-left text-xs focus:border-notion-accent focus:outline-none"
                 />
               </div>
               <AmountRangeFilter

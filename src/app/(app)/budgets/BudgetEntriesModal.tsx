@@ -2,6 +2,7 @@
 
 import { useActionState, useEffect, useRef, useState } from "react";
 import { Modal } from "@/components/Modal";
+import { DatePicker } from "@/components/DatePicker";
 import { CheckIcon, CloseIcon, DeleteIcon, EditIcon } from "@/components/navIcons";
 import { centavosToPesosString, formatCentavos } from "@/lib/money";
 import { formatFullDate, todayInManila } from "@/lib/date";
@@ -63,13 +64,12 @@ function BudgetEntryListItem({
             aria-label="Amount"
             className="w-20 rounded border border-notion-hairline p-1 text-xs text-notion-text"
           />
-          <input
+          <DatePicker
             name="entryDate"
-            type="date"
             required
             defaultValue={entry.entry_date}
-            aria-label="Date"
-            className="rounded border border-notion-hairline p-1 text-xs text-notion-text"
+            ariaLabel="Date"
+            className="rounded border border-notion-hairline p-1 text-left text-xs"
           />
           <input
             name="note"

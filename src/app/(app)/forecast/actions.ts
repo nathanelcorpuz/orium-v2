@@ -6,8 +6,21 @@ import { parseCentavos } from "@/lib/money";
 
 export type ForecastActionState = { error: string | null };
 
+// User request 2026-07-24: the amount field shouldn't require typing a
+// minus sign for outflow types - the sign is implied by the finance
+// category (bill/debt/savings/budget negative, income positive), same
+// convention every create/update form in the app already enforces via
+// -Math.abs()/Math.abs(). "extra" is the one type that genuinely goes
+// either way (no fixed direction), so its submitted sign is trusted as-is.
+function normalizeSignedAmount(rawAmount: number, type: string): number {
+  if (type === "extra") return rawAmount;
+  const magnitude = Math.abs(rawAmount);
+  return type === "income" ? magnitude : -magnitude;
+}
+
 function readOccurrenceForm(formData: FormData) {
   const name = (formData.get("name") as string).trim();
+  const type = formData.get("type") as string;
   const amount = parseCentavos(formData.get("amountPesos") as string);
   const date = formData.get("date") as string;
 
@@ -15,7 +28,7 @@ function readOccurrenceForm(formData: FormData) {
   if (amount === null) return { error: "Enter a valid amount." } as const;
   if (!date) return { error: "Date is required." } as const;
 
-  return { error: null, name, amount, date } as const;
+  return { error: null, name, amount: normalizeSignedAmount(amount, type), date } as const;
 }
 
 export async function editRecurringOccurrence(
@@ -126,6 +139,7 @@ export async function settleOccurrence(
 
   const fields = readSettleForm(formData);
   if (fields.error) return { error: fields.error };
+  const actualAmount = normalizeSignedAmount(fields.actualAmount, type);
 
   const supabase = await createClient();
   const {
@@ -140,7 +154,7 @@ export async function settleOccurrence(
     name,
     type,
     forecasted_amount: forecastedAmount,
-    actual_amount: fields.actualAmount,
+    actual_amount: actualAmount,
     forecasted_date: forecastedDate,
     actual_date: fields.actualDate,
     forecasted_balance: forecastedBalance,
@@ -153,7 +167,7 @@ export async function settleOccurrence(
   // the only place a balance gets touched (editing/deleting a past
   // settlement deliberately does not retro-adjust it).
   if (fields.balanceId) {
-    const balanceError = await applyToBalance(supabase, fields.balanceId, fields.actualAmount);
+    const balanceError = await applyToBalance(supabase, fields.balanceId, actualAmount);
     if (balanceError) return { error: balanceError };
   }
 

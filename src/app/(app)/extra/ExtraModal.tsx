@@ -2,6 +2,7 @@
 
 import { useActionState, useEffect, useRef, useState } from "react";
 import { Modal } from "@/components/Modal";
+import { DatePicker } from "@/components/DatePicker";
 import { centavosToPesosString } from "@/lib/money";
 import { createExtra, updateExtra, type ExtraActionState } from "./actions";
 
@@ -111,13 +112,12 @@ export function ExtraModal({
           <label className="block text-sm text-slate-600" htmlFor="dueDate">
             Due date
           </label>
-          <input
+          <DatePicker
             id="dueDate"
             name="dueDate"
-            type="date"
             required
             defaultValue={extra?.due_date}
-            className="mt-1 w-full rounded border border-notion-hairline p-2 text-notion-text focus:border-notion-accent focus:outline-none"
+            className="mt-1 w-full rounded border border-notion-hairline p-2 text-left focus:border-notion-accent focus:outline-none"
           />
         </div>
         <div>

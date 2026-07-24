@@ -2,6 +2,7 @@
 
 import { useActionState, useEffect, useRef } from "react";
 import { Modal } from "@/components/Modal";
+import { DatePicker } from "@/components/DatePicker";
 import { todayInManila } from "@/lib/date";
 import { logSpend, type BudgetActionState } from "./actions";
 
@@ -56,13 +57,12 @@ export function LogSpendModal({
           <label className="block text-sm text-slate-600" htmlFor="entryDate">
             Date
           </label>
-          <input
+          <DatePicker
             id="entryDate"
             name="entryDate"
-            type="date"
             defaultValue={todayInManila()}
             required
-            className="mt-1 w-full rounded border border-notion-hairline p-2 text-notion-text focus:border-notion-accent focus:outline-none"
+            className="mt-1 w-full rounded border border-notion-hairline p-2 text-left focus:border-notion-accent focus:outline-none"
           />
         </div>
         <div>

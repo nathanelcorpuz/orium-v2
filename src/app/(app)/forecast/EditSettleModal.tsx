@@ -2,6 +2,7 @@
 
 import { useActionState, useEffect, useRef, useState } from "react";
 import { Modal } from "@/components/Modal";
+import { DatePicker } from "@/components/DatePicker";
 import { SegmentedControl } from "@/components/SegmentedControl";
 import { centavosToPesosString } from "@/lib/money";
 import { formatFullDate } from "@/lib/date";
@@ -45,6 +46,10 @@ export function EditSettleModal({
   // ForecastClient never makes an income-linked budget_replenish row
   // clickable, since those settle automatically via their linked income.
   const isBudgetReplenish = row.sourceType === "budget_replenish";
+  // User request 2026-07-24: the amount field shouldn't require typing a
+  // minus sign for outflow types - only "extra" genuinely goes either way
+  // (no fixed direction), so it's the one type that keeps manual sign entry.
+  const isExtra = row.type === "extra";
   const [mode, setMode] = useState<"edit" | "settle">("edit");
   const editAction = row.sourceType === "recurring" ? editRecurringOccurrence : editOneOff;
   const [editState, editFormAction, editPending] = useActionState(editAction, initialState);
@@ -139,13 +144,12 @@ export function EditSettleModal({
             <label className="block text-sm text-slate-600" htmlFor="actualDate">
               Actual date
             </label>
-            <input
+            <DatePicker
               id="actualDate"
               name="actualDate"
-              type="date"
               required
               defaultValue={row.dueDate}
-              className="mt-1 w-full rounded border border-notion-hairline p-2 text-notion-text focus:border-notion-accent focus:outline-none"
+              className="mt-1 w-full rounded border border-notion-hairline p-2 text-left focus:border-notion-accent focus:outline-none"
             />
           </div>
           {replenishState.error && <p className="text-sm text-red-600">{replenishState.error}</p>}
@@ -202,13 +206,12 @@ export function EditSettleModal({
               <label className="block text-sm text-slate-600" htmlFor="entryDate">
                 Date
               </label>
-              <input
+              <DatePicker
                 id="entryDate"
                 name="entryDate"
-                type="date"
                 required
                 defaultValue={row.dueDate}
-                className="mt-1 w-full rounded border border-notion-hairline p-2 text-notion-text focus:border-notion-accent focus:outline-none"
+                className="mt-1 w-full rounded border border-notion-hairline p-2 text-left focus:border-notion-accent focus:outline-none"
               />
             </div>
             <div>
@@ -258,6 +261,7 @@ export function EditSettleModal({
         >
           <input type="hidden" name="sourceId" value={row.sourceId} />
           <input type="hidden" name="originalDate" value={row.originalDate} />
+          <input type="hidden" name="type" value={row.type} />
           <div>
             <label className="block text-sm text-slate-600" htmlFor="name">
               Name
@@ -280,8 +284,9 @@ export function EditSettleModal({
               name="amountPesos"
               type="number"
               step="0.01"
+              min={isExtra ? undefined : "0"}
               required
-              defaultValue={centavosToPesosString(row.amount)}
+              defaultValue={centavosToPesosString(isExtra ? row.amount : Math.abs(row.amount))}
               className="mt-1 w-full rounded border border-notion-hairline p-2 text-notion-text focus:border-notion-accent focus:outline-none"
             />
           </div>
@@ -289,13 +294,12 @@ export function EditSettleModal({
             <label className="block text-sm text-slate-600" htmlFor="date">
               Date
             </label>
-            <input
+            <DatePicker
               id="date"
               name="date"
-              type="date"
               required
               defaultValue={row.dueDate}
-              className="mt-1 w-full rounded border border-notion-hairline p-2 text-notion-text focus:border-notion-accent focus:outline-none"
+              className="mt-1 w-full rounded border border-notion-hairline p-2 text-left focus:border-notion-accent focus:outline-none"
             />
           </div>
           {editState.error && <p className="text-sm text-red-600">{editState.error}</p>}
@@ -344,8 +348,9 @@ export function EditSettleModal({
               name="actualAmountPesos"
               type="number"
               step="0.01"
+              min={isExtra ? undefined : "0"}
               required
-              defaultValue={centavosToPesosString(row.amount)}
+              defaultValue={centavosToPesosString(isExtra ? row.amount : Math.abs(row.amount))}
               className="mt-1 w-full rounded border border-notion-hairline p-2 text-notion-text focus:border-notion-accent focus:outline-none"
             />
           </div>
@@ -353,13 +358,12 @@ export function EditSettleModal({
             <label className="block text-sm text-slate-600" htmlFor="actualDate">
               Actual date
             </label>
-            <input
+            <DatePicker
               id="actualDate"
               name="actualDate"
-              type="date"
               required
               defaultValue={row.dueDate}
-              className="mt-1 w-full rounded border border-notion-hairline p-2 text-notion-text focus:border-notion-accent focus:outline-none"
+              className="mt-1 w-full rounded border border-notion-hairline p-2 text-left focus:border-notion-accent focus:outline-none"
             />
           </div>
           <div>
