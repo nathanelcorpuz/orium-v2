@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { formatCentavos } from "@/lib/money";
 import { formatFullDate } from "@/lib/date";
-import { balanceRangeColorClass } from "@/lib/balanceColor";
+import { balanceRangeColorClass, balanceRangeTier, lowestBalanceLabel } from "@/lib/balanceColor";
 import { BalanceModal, type BalanceRow } from "@/app/(app)/accounts/BalanceModal";
 import { AmountRangeFilter, matchesAmountFilter, type ComparisonOp } from "@/components/AmountRangeFilter";
 import { MultiSelectChips } from "@/components/MultiSelectChips";
@@ -204,10 +204,22 @@ export function ForecastClient({
                 </button>
               ))}
             </div>
-            <p className={`mt-2 text-sm ${lowestBalance.balance <= 0 ? "font-medium text-red-600" : "text-slate-500"}`}>
-              {lowestBalance.balance <= 0
-                ? `⚠ Goes negative by ${formatCentavos(Math.abs(lowestBalance.balance), currency)} on ${formatFullDate(lowestBalance.date)}`
-                : `Lowest balance ahead: ${formatCentavos(lowestBalance.balance, currency)} on ${formatFullDate(lowestBalance.date)}`}
+            {/* T76: color + wording now reflect the actual balance_ranges
+                risk tier, not a hardcoded <=0 check - matches the Dashboard
+                card and this same page's Balance column (T62). */}
+            <p className="mt-2 text-sm text-slate-500">
+              {lowestBalanceLabel(lowestBalance.balance, balanceRanges)}{" "}
+              <span
+                className={`inline-block rounded px-1.5 py-0.5 ${balanceRangeColorClass(lowestBalance.balance, balanceRanges)}`}
+              >
+                {formatCentavos(
+                  balanceRangeTier(lowestBalance.balance, balanceRanges) === "danger"
+                    ? Math.abs(lowestBalance.balance)
+                    : lowestBalance.balance,
+                  currency,
+                )}
+              </span>{" "}
+              on {formatFullDate(lowestBalance.date)}
             </p>
           </div>
 

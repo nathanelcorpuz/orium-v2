@@ -2,7 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { loadForecast } from "@/lib/forecastData";
 import { formatCentavos } from "@/lib/money";
 import { formatFullDate, formatMonthYear } from "@/lib/date";
-import { balanceRangeColorClass } from "@/lib/balanceColor";
+import { balanceRangeColorClass, balanceRangeTier, lowestBalanceLabel } from "@/lib/balanceColor";
 import { displayName } from "@/lib/displayName";
 import { monthlyEquivalent } from "@/lib/engine/monthlyTotals";
 import { remainingTotal, ruleEndDate } from "@/lib/engine/remaining";
@@ -286,15 +286,24 @@ export default async function Home() {
 
         <div className="mb-6 rounded-lg border border-notion-hairline bg-white p-4">
           <h2 className="mb-2 text-sm font-semibold text-notion-text">Lowest Balance Ahead</h2>
-          {lowestBalance.balance <= 0 ? (
-            <p className="text-xl font-semibold text-red-700">
-              ⚠ Goes negative by {formatCentavos(Math.abs(lowestBalance.balance), currency)}
-            </p>
-          ) : (
-            <p className="text-xl font-semibold text-notion-text">
-              {formatCentavos(lowestBalance.balance, currency)}
-            </p>
-          )}
+          {/* T76: color + wording now reflect the actual balance_ranges risk
+              tier (danger/low/medium/high/higher/highest), not a hardcoded
+              <=0 check - matches the Forecast table (T62) and Peaks and
+              Drops (T67). Danger shows the deficit magnitude ("Goes negative
+              by"); every other tier shows the (positive) balance directly. */}
+          <p className="text-xl font-semibold text-notion-text">
+            {lowestBalanceLabel(lowestBalance.balance, balanceRanges)}{" "}
+            <span
+              className={`inline-block rounded px-1.5 py-0.5 ${balanceRangeColorClass(lowestBalance.balance, balanceRanges)}`}
+            >
+              {formatCentavos(
+                balanceRangeTier(lowestBalance.balance, balanceRanges) === "danger"
+                  ? Math.abs(lowestBalance.balance)
+                  : lowestBalance.balance,
+                currency,
+              )}
+            </span>
+          </p>
           <p className="mt-1 text-sm text-slate-500">On {formatFullDate(lowestBalance.date)}</p>
         </div>
 
