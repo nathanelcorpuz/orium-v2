@@ -148,13 +148,15 @@ export function RemindersPanel({ reminders }: { reminders: ReminderRow[] }) {
       {reminders.length === 0 ? (
         <p className="text-sm text-slate-400">No reminders yet.</p>
       ) : (
-        <ul className="space-y-2">
-          {reminders.map((reminder) => (
-            <li key={reminder.id}>
-              <ReminderItem reminder={reminder} />
-            </li>
-          ))}
-        </ul>
+        <div className="max-h-56 overflow-y-auto pr-1 md:max-h-96">
+          <ul className="space-y-2">
+            {reminders.map((reminder) => (
+              <li key={reminder.id}>
+                <ReminderItem reminder={reminder} />
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
     </aside>
   );

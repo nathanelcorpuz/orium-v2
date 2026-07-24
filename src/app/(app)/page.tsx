@@ -206,42 +206,44 @@ export default async function Home() {
           <p className="mt-1 text-sm text-slate-500">On {formatFullDate(lowestBalance.date)}</p>
         </div>
 
-        <div className="overflow-x-auto rounded-lg border border-notion-hairline bg-white">
+        <div className="rounded-lg border border-notion-hairline bg-white">
           <h2 className="p-4 pb-2 text-sm font-semibold text-notion-text">Peaks and Drops</h2>
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-notion-hairline text-left text-slate-500">
-                <th className="p-3">Year</th>
-                {MONTH_ABBR.map((label) => (
-                  <th key={label} className="min-w-[104px] p-3 text-right">
-                    {label}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {peaksAndDropsByYear.map(({ year, months }) => (
-                <tr key={year} className="border-b border-notion-hairline text-notion-text last:border-0">
-                  <td className="p-3 font-medium">{year}</td>
-                  {months.map((entry, i) =>
-                    entry ? (
-                      <td key={i} className="p-3 text-right">
-                        <p className="text-xs text-slate-400">
-                          {MONTH_ABBR[i]} {year}
-                        </p>
-                        <p>{formatCentavos(entry.peak, currency)}</p>
-                        <p className="text-slate-500">{formatCentavos(entry.drop, currency)}</p>
-                      </td>
-                    ) : (
-                      <td key={i} className="p-3 text-right text-slate-300">
-                        —
-                      </td>
-                    ),
-                  )}
+          <div className="max-h-64 overflow-auto md:max-h-[420px]">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-notion-hairline text-left text-slate-500">
+                  <th className="sticky top-0 z-10 bg-white p-3">Year</th>
+                  {MONTH_ABBR.map((label) => (
+                    <th key={label} className="sticky top-0 z-10 min-w-[104px] bg-white p-3 text-right">
+                      {label}
+                    </th>
+                  ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {peaksAndDropsByYear.map(({ year, months }) => (
+                  <tr key={year} className="border-b border-notion-hairline text-notion-text last:border-0">
+                    <td className="p-3 font-medium">{year}</td>
+                    {months.map((entry, i) =>
+                      entry ? (
+                        <td key={i} className="p-3 text-right">
+                          <p className="text-xs text-slate-400">
+                            {MONTH_ABBR[i]} {year}
+                          </p>
+                          <p>{formatCentavos(entry.peak, currency)}</p>
+                          <p className="text-slate-500">{formatCentavos(entry.drop, currency)}</p>
+                        </td>
+                      ) : (
+                        <td key={i} className="p-3 text-right text-slate-300">
+                          —
+                        </td>
+                      ),
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     </div>
