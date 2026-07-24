@@ -40,6 +40,7 @@ export function MonthlyGoalsClient({
   createAction,
   updateAction,
   deleteAction,
+  editedIds,
 }: {
   items: MonthlyGoalRow[];
   pageTitle: string;
@@ -49,6 +50,7 @@ export function MonthlyGoalsClient({
   createAction: GoalAction;
   updateAction: GoalAction;
   deleteAction: DeleteAction;
+  editedIds: Set<string>;
 }) {
   const [modalState, setModalState] = useState<null | "new" | MonthlyGoalRow>(null);
   const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null);
@@ -106,7 +108,14 @@ export function MonthlyGoalsClient({
                   className="flex items-center justify-between rounded-lg border border-notion-hairline bg-white p-4"
                 >
                   <div>
-                    <p className="font-medium text-notion-text">{item.name}</p>
+                    <p className="font-medium text-notion-text">
+                      {item.name}
+                      {editedIds.has(item.id) && (
+                        <span className="ml-1.5 text-slate-400" title="Edited from its usual schedule">
+                          ✎
+                        </span>
+                      )}
+                    </p>
                     <p className={`text-sm ${amountColorClass}`}>{formatCentavos(Math.abs(item.amount))}</p>
                     <p className="text-sm text-slate-400">{summarizeRecurrence(goalRule(item))}</p>
                     <p className="text-sm text-slate-400">

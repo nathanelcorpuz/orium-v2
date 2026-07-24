@@ -22,7 +22,7 @@ function incomeRule(income: IncomeRow) {
   };
 }
 
-export function IncomeClient({ incomes }: { incomes: IncomeRow[] }) {
+export function IncomeClient({ incomes, editedIds }: { incomes: IncomeRow[]; editedIds: Set<string> }) {
   const [modalState, setModalState] = useState<null | "new" | IncomeRow>(null);
   const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null);
 
@@ -64,7 +64,14 @@ export function IncomeClient({ incomes }: { incomes: IncomeRow[] }) {
                 className="flex items-center justify-between rounded-lg border border-notion-hairline bg-white p-4"
               >
                 <div>
-                  <p className="font-medium text-notion-text">{income.name}</p>
+                  <p className="font-medium text-notion-text">
+                    {income.name}
+                    {editedIds.has(income.id) && (
+                      <span className="ml-1.5 text-slate-400" title="Edited from its usual schedule">
+                        ✎
+                      </span>
+                    )}
+                  </p>
                   <p className="text-sm text-green-700">{formatCentavos(income.amount)}</p>
                   <p className="text-sm text-slate-400">{summarizeRecurrence(incomeRule(income))}</p>
                   {income.comments && (

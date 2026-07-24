@@ -22,7 +22,7 @@ function billRule(bill: BillRow) {
   };
 }
 
-export function BillsClient({ bills }: { bills: BillRow[] }) {
+export function BillsClient({ bills, editedIds }: { bills: BillRow[]; editedIds: Set<string> }) {
   const [modalState, setModalState] = useState<null | "new" | BillRow>(null);
   const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null);
 
@@ -64,7 +64,14 @@ export function BillsClient({ bills }: { bills: BillRow[] }) {
                 className="flex items-center justify-between rounded-lg border border-notion-hairline bg-white p-4"
               >
                 <div>
-                  <p className="font-medium text-notion-text">{bill.name}</p>
+                  <p className="font-medium text-notion-text">
+                    {bill.name}
+                    {editedIds.has(bill.id) && (
+                      <span className="ml-1.5 text-slate-400" title="Edited from its usual schedule">
+                        ✎
+                      </span>
+                    )}
+                  </p>
                   <p className="text-sm text-slate-600">{formatCentavos(Math.abs(bill.amount))}</p>
                   <p className="text-sm text-slate-400">{summarizeRecurrence(billRule(bill))}</p>
                   {bill.comments && <p className="text-sm text-slate-400">{bill.comments}</p>}

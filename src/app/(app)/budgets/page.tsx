@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { idSetFromColumn } from "@/lib/editedItems";
 import { BudgetsClient } from "./BudgetsClient";
 import type { BudgetEntryRow, IncomeItemRow } from "./BudgetCard";
 import type { BudgetRow } from "./BudgetModal";
@@ -6,7 +7,7 @@ import type { BudgetRow } from "./BudgetModal";
 export default async function BudgetsPage() {
   const supabase = await createClient();
 
-  const [budgetsRes, entriesRes, incomesRes] = await Promise.all([
+  const [budgetsRes, entriesRes, incomesRes, replenishOverridesRes] = await Promise.all([
     supabase
       .from("budgets")
       .select(
@@ -31,6 +32,11 @@ export default async function BudgetsPage() {
       )
       .eq("type", "income")
       .order("name", { ascending: true }),
+    // T51: any budget_replenish_overrides row (including a pure skip) marks
+    // the budget itself as edited - the table SPEC.md calls
+    // "budget_occurrence_overrides" was dropped in migration 0010 and
+    // replaced by this one in migration 0011 (T59).
+    supabase.from("budget_replenish_overrides").select("budget_id"),
   ]);
 
   if (budgetsRes.error) {
@@ -43,6 +49,13 @@ export default async function BudgetsPage() {
   }
   if (incomesRes.error) {
     return <p className="p-8 text-red-600">Could not load income sources: {incomesRes.error.message}</p>;
+  }
+  if (replenishOverridesRes.error) {
+    return (
+      <p className="p-8 text-red-600">
+        Could not load budget overrides: {replenishOverridesRes.error.message}
+      </p>
+    );
   }
 
   const budgets: BudgetRow[] = budgetsRes.data ?? [];
@@ -75,5 +88,14 @@ export default async function BudgetsPage() {
     occurrenceCount: row.occurrence_count,
   }));
 
-  return <BudgetsClient budgets={budgets} entriesByBudgetId={entriesByBudgetId} incomes={incomes} />;
+  const editedIds = idSetFromColumn(replenishOverridesRes.data, "budget_id");
+
+  return (
+    <BudgetsClient
+      budgets={budgets}
+      entriesByBudgetId={entriesByBudgetId}
+      incomes={incomes}
+      editedIds={editedIds}
+    />
+  );
 }

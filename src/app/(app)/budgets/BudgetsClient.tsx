@@ -8,10 +8,12 @@ export function BudgetsClient({
   budgets,
   entriesByBudgetId,
   incomes,
+  editedIds,
 }: {
   budgets: BudgetRow[];
   entriesByBudgetId: Record<string, BudgetEntryRow[]>;
   incomes: IncomeItemRow[];
+  editedIds: Set<string>;
 }) {
   const [modalState, setModalState] = useState<null | "new" | BudgetRow>(null);
 
@@ -43,6 +45,7 @@ export function BudgetsClient({
                 entries={entriesByBudgetId[budget.id] ?? []}
                 incomes={incomes}
                 onEdit={() => setModalState(budget)}
+                edited={editedIds.has(budget.id)}
               />
             ))}
           </div>

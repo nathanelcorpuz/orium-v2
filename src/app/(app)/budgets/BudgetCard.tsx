@@ -200,11 +200,13 @@ export function BudgetCard({
   entries,
   incomes,
   onEdit,
+  edited,
 }: {
   budget: BudgetRow;
   entries: BudgetEntryRow[];
   incomes: IncomeItemRow[];
   onEdit: () => void;
+  edited: boolean;
 }) {
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [monthFilter, setMonthFilter] = useState(""); // "" = all time
@@ -270,7 +272,14 @@ export function BudgetCard({
       <div className="mb-2 flex items-start justify-between">
         <div>
           <div className="flex items-center gap-2">
-            <p className="font-medium text-notion-text">{budget.name}</p>
+            <p className="font-medium text-notion-text">
+              {budget.name}
+              {edited && (
+                <span className="ml-1.5 text-slate-400" title="Edited from its usual schedule">
+                  ✎
+                </span>
+              )}
+            </p>
             <span className="rounded-full bg-notion-hover px-2 py-0.5 text-xs font-medium text-slate-500">
               {replenishLabel}
             </span>
