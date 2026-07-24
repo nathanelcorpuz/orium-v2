@@ -42,7 +42,7 @@ export function BalanceModal({
   }, [pending, state, onClose]);
 
   return (
-    <Modal title={isEdit ? "Edit balance" : "Add balance"} onClose={onClose}>
+    <Modal title={isEdit ? "Edit account" : "Add account"} onClose={onClose}>
       <form
         action={formAction}
         onSubmit={() => {

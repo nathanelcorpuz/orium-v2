@@ -183,7 +183,7 @@ export function ChevronIcon({ className, direction }: IconProps & { direction: "
 // up each item's icon without a big switch statement.
 export const NAV_ICONS: Record<string, (props: IconProps) => React.JSX.Element> = {
   "/": DashboardIcon,
-  "/balances": BalancesIcon,
+  "/accounts": BalancesIcon,
   "/bills": BillsIcon,
   "/income": IncomeIcon,
   "/debt": DebtIcon,

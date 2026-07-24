@@ -34,7 +34,7 @@ export function BalancesClient({
       <div className="mx-auto max-w-2xl">
         <div className="mb-6 flex items-center justify-between">
           <div>
-            <h1 className="text-xl font-semibold text-notion-text">Balances</h1>
+            <h1 className="text-xl font-semibold text-notion-text">Accounts</h1>
             <p className="text-slate-500">Total: {formatCentavos(total)}</p>
           </div>
           <button
@@ -42,12 +42,12 @@ export function BalancesClient({
             onClick={() => setModalState("new")}
             className="rounded bg-notion-text px-4 py-2 text-white hover:opacity-90"
           >
-            Add balance
+            Add account
           </button>
         </div>
 
         {balances.length === 0 ? (
-          <p className="text-slate-500">No balances yet. Add your first account above.</p>
+          <p className="text-slate-500">No accounts yet. Add your first account above.</p>
         ) : (
           <ul className="space-y-2">
             {balances.map((balance) => (

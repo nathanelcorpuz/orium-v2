@@ -9,7 +9,7 @@ import { ChevronIcon, LogoutIcon, NAV_ICONS } from "./navIcons";
 const NAV_ITEMS = [
   { href: "/", label: "Dashboard" },
   { href: "/forecast", label: "Forecast" },
-  { href: "/balances", label: "Balances" },
+  { href: "/accounts", label: "Accounts" },
   { href: "/bills", label: "Bills" },
   { href: "/income", label: "Income" },
   { href: "/debt", label: "Debt" },

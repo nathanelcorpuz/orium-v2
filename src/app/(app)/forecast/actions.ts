@@ -236,7 +236,7 @@ export async function settleOccurrence(
     revalidatePath("/extra");
   }
 
-  if (fields.balanceId) revalidatePath("/balances");
+  if (fields.balanceId) revalidatePath("/accounts");
   revalidatePath("/forecast");
   revalidatePath("/");
   return { error: null };

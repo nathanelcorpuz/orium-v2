@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { formatCentavos } from "@/lib/money";
 import { formatFullDate } from "@/lib/date";
 import { balanceRangeColorClass } from "@/lib/balanceColor";
-import { BalanceModal, type BalanceRow } from "@/app/(app)/balances/BalanceModal";
+import { BalanceModal, type BalanceRow } from "@/app/(app)/accounts/BalanceModal";
 import { AmountRangeFilter, matchesAmountFilter, type ComparisonOp } from "@/components/AmountRangeFilter";
 import { MultiSelectChips } from "@/components/MultiSelectChips";
 import { Modal } from "@/components/Modal";

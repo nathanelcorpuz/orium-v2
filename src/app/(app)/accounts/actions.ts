@@ -31,7 +31,7 @@ export async function createBalance(
   });
   if (error) return { error: error.message };
 
-  revalidatePath("/balances");
+  revalidatePath("/accounts");
   revalidatePath("/forecast");
   revalidatePath("/");
   return { error: null };
@@ -53,7 +53,7 @@ export async function updateBalance(
   const { error } = await supabase.from("balances").update({ name, amount, comments }).eq("id", id);
   if (error) return { error: error.message };
 
-  revalidatePath("/balances");
+  revalidatePath("/accounts");
   revalidatePath("/forecast");
   revalidatePath("/");
   return { error: null };
@@ -63,7 +63,7 @@ export async function deleteBalance(formData: FormData) {
   const id = formData.get("id") as string;
   const supabase = await createClient();
   await supabase.from("balances").delete().eq("id", id);
-  revalidatePath("/balances");
+  revalidatePath("/accounts");
   revalidatePath("/forecast");
   revalidatePath("/");
 }
@@ -81,7 +81,7 @@ export async function disconnectItem(formData: FormData) {
   const supabase = await createClient();
   await supabase.from(table).update({ balance_id: null }).eq("id", id);
 
-  revalidatePath("/balances");
+  revalidatePath("/accounts");
   revalidatePath("/forecast");
   revalidatePath("/bills");
   revalidatePath("/income");
