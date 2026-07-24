@@ -8,6 +8,7 @@ import { BalanceModal, type BalanceRow } from "@/app/(app)/accounts/BalanceModal
 import { AmountRangeFilter, matchesAmountFilter, type ComparisonOp } from "@/components/AmountRangeFilter";
 import { MultiSelectChips } from "@/components/MultiSelectChips";
 import { Modal } from "@/components/Modal";
+import { ChevronIcon } from "@/components/navIcons";
 import type { ForecastRow } from "@/lib/engine/types";
 import type { LowestBalancePoint } from "@/lib/engine/lowestBalance";
 import { EditSettleModal } from "./EditSettleModal";
@@ -20,6 +21,12 @@ import { RemindersPanel, type ReminderRow } from "./RemindersPanel";
 // near the bottom), not new pagination plumbing.
 const INITIAL_VISIBLE_ROWS = 50;
 const ROWS_PER_BATCH = 50;
+
+// User request 2026-07-24: the Forecast Insights card (T81) is hideable,
+// same localStorage-backed collapse pattern AppShell.tsx (T44) and
+// RemindersPanel.tsx (T65) already use - a client-only preference, not a DB
+// column, so no user_id/RLS needed.
+const INSIGHTS_COLLAPSED_STORAGE_KEY = "orium.forecastInsightsCollapsed";
 
 const TYPE_COLOR: Record<ForecastRow["type"], string> = {
   income: "text-green-700",
@@ -56,6 +63,28 @@ export function ForecastClient({
 }) {
   const [editingBalance, setEditingBalance] = useState<BalanceRow | null>(null);
   const [selectedRow, setSelectedRow] = useState<ForecastRow | null>(null);
+  const [insightsCollapsed, setInsightsCollapsed] = useState(false);
+
+  useEffect(() => {
+    // Reading localStorage during the lazy useState initializer instead
+    // would avoid this effect, but its return value would then differ
+    // between the server render (no `window`) and the client's first
+    // render - a real hydration mismatch, not just a lint preference.
+    // Setting state here, after hydration, is the correct fix for this
+    // specific SSR-plus-localStorage case (same as AppShell.tsx's T44).
+    if (localStorage.getItem(INSIGHTS_COLLAPSED_STORAGE_KEY) === "true") {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setInsightsCollapsed(true);
+    }
+  }, []);
+
+  function toggleInsightsCollapsed() {
+    setInsightsCollapsed((prev) => {
+      const next = !prev;
+      localStorage.setItem(INSIGHTS_COLLAPSED_STORAGE_KEY, String(next));
+      return next;
+    });
+  }
   const [visibleCount, setVisibleCount] = useState(INITIAL_VISIBLE_ROWS);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const sentinelRef = useRef<HTMLTableRowElement>(null);
@@ -211,26 +240,39 @@ export function ForecastClient({
               Dashboard's stat cards - a home for this and any future
               forecast-derived helper indicators, not just this one stat. */}
           <div className="mb-6 rounded-lg border border-notion-hairline bg-white p-4">
-            <h2 className="mb-2 text-sm font-semibold text-notion-text">Forecast Insights</h2>
-            <div className="space-y-2">
-              {/* T76: color + wording now reflect the actual balance_ranges
-                  risk tier, not a hardcoded <=0 check - matches the Dashboard
-                  card and this same page's Balance column (T62). */}
-              <p className="text-sm text-slate-500">
-                {lowestBalanceLabel(lowestBalance.balance, balanceRanges)}{" "}
-                <span
-                  className={`inline-block rounded px-1.5 py-0.5 ${balanceRangeColorClass(lowestBalance.balance, balanceRanges)}`}
-                >
-                  {formatCentavos(
-                    balanceRangeTier(lowestBalance.balance, balanceRanges) === "danger"
-                      ? Math.abs(lowestBalance.balance)
-                      : lowestBalance.balance,
-                    currency,
-                  )}
-                </span>{" "}
-                on {formatFullDate(lowestBalance.date)}
-              </p>
-            </div>
+            <button
+              type="button"
+              onClick={toggleInsightsCollapsed}
+              aria-expanded={!insightsCollapsed}
+              className={`flex w-full items-center justify-between text-sm font-semibold text-notion-text ${insightsCollapsed ? "" : "mb-2"}`}
+            >
+              Forecast Insights
+              <ChevronIcon
+                direction="right"
+                className={`h-3.5 w-3.5 text-slate-400 transition-transform ${insightsCollapsed ? "" : "rotate-90"}`}
+              />
+            </button>
+            {!insightsCollapsed && (
+              <div className="space-y-2">
+                {/* T76: color + wording now reflect the actual balance_ranges
+                    risk tier, not a hardcoded <=0 check - matches the
+                    Dashboard card and this same page's Balance column (T62). */}
+                <p className="text-sm text-slate-500">
+                  {lowestBalanceLabel(lowestBalance.balance, balanceRanges)}{" "}
+                  <span
+                    className={`inline-block rounded px-1.5 py-0.5 ${balanceRangeColorClass(lowestBalance.balance, balanceRanges)}`}
+                  >
+                    {formatCentavos(
+                      balanceRangeTier(lowestBalance.balance, balanceRanges) === "danger"
+                        ? Math.abs(lowestBalance.balance)
+                        : lowestBalance.balance,
+                      currency,
+                    )}
+                  </span>{" "}
+                  on {formatFullDate(lowestBalance.date)}
+                </p>
+              </div>
+            )}
           </div>
 
           {forecast.length > 0 && (
