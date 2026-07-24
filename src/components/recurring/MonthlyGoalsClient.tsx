@@ -4,10 +4,12 @@ import { useMemo, useState } from "react";
 import { formatCentavos } from "@/lib/money";
 import { remainingTotal } from "@/lib/engine/remaining";
 import { monthlyEquivalent } from "@/lib/engine/monthlyTotals";
+import { goalProgress } from "@/lib/engine/goalProgress";
 import { summarizeRecurrence } from "@/lib/recurrenceSummary";
 import { todayInManila } from "@/lib/date";
 import { AmountRangeFilter, matchesAmountFilter, type ComparisonOp } from "@/components/AmountRangeFilter";
 import { MultiSelectChips } from "@/components/MultiSelectChips";
+import { ProgressBar } from "@/components/ProgressBar";
 import type { ForecastRow, RecurrenceUnit } from "@/lib/engine/types";
 import type { RecurringItemActionState } from "@/lib/recurringItem";
 import { MonthlyGoalModal, type BalanceOption } from "./MonthlyGoalModal";
@@ -211,6 +213,9 @@ export function MonthlyGoalsClient({
               const metaLine = `${summarizeRecurrence(goalRule(item))} · ${
                 remaining === null ? "Ongoing" : `${formatCentavos(remaining)} remaining`
               }`;
+              // T72: debt/savings items always have a finite end (DB-enforced),
+              // so settled/total occurrences is always computable.
+              const progress = goalProgress(goalRule(item), paidByItemId.get(item.id)?.length ?? 0);
               return (
                 <li
                   key={item.id}
@@ -252,6 +257,12 @@ export function MonthlyGoalsClient({
                     </div>
                     <p className={`mt-1 text-sm ${amountColorClass}`}>{formatCentavos(Math.abs(item.amount))}</p>
                     <p className="text-sm text-slate-400">{metaLine}</p>
+                    <div className="mt-1.5 max-w-xs">
+                      <ProgressBar percent={progress.fraction * 100} over={false} />
+                      <p className="mt-0.5 text-xs text-slate-400">
+                        {progress.settled} of {progress.total} settled
+                      </p>
+                    </div>
                     {item.comments && (
                       <p className="mt-1 text-sm italic text-slate-400">{item.comments}</p>
                     )}

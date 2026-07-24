@@ -8,10 +8,10 @@ Orium is a family cash-flow forecasting app (Next.js + Supabase). The full produ
 - The user is the product owner: ask before making product or architecture decisions not covered by SPEC.md.
 
 ## Session workflow (always follow)
-1. At session start, check `git log` and the Roadmap checklists in SPEC.md (and BUGS.md for open bugs) to see where we left off.
-2. Work on **exactly one task** from SPEC.md per session unless told otherwise.
+1. At session start, check REMINDER.md to see if there are pending items to be done while waiting for usage or on downtime and always work on those first and check with user to ask if they need to be done at the session or should be written in the spec first before proceeding then update the REMINDER.md to mark all tasks there to be done or added to the spec when they are and if tasks are in the spec and in the reminders at the same time those that are in the reminders should be removed and in the SPEC kept, check `git log` and the Roadmap checklists in SPEC.md (and BUGS.md for open bugs) to see where we left off.
+2. Work on **exactly one task** from SPEC.md per session unless told otherwise. **Task order is non-negotiable: always pick the topmost unchecked (`- [ ]`) item in the Roadmap section, top to bottom.** Never skip ahead to a later task, and never pick one out of order, without the user explicitly telling you to.
 3. Before writing code, state a short plan (3–6 bullets) and wait for approval.
-4. After building: run `npm run build` and `npm run test`; fix failures before finishing.
+4. After building: run `npm run build` and `npm run test` **yourself**; fix failures before finishing. **The user is never to run `npm run build` themselves — that's always Claude's job.** If a dev server is already running on :3000, stop it first, run the build, then restart the dev server afterward so the user's session isn't left down.
 5. End every session by committing with a clear message (e.g. `T5: engine monthly expansion + tests`) and updating the task checkbox in SPEC.md.
 6. Tell the user how to verify the result in the browser in 1–2 steps.
 

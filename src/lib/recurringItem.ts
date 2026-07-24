@@ -22,6 +22,14 @@ function readMonthlyGoalForm(formData: FormData) {
 
   const rule = readRecurrenceRuleForm(formData);
   if (rule.error !== null) return { error: rule.error };
+  // T72: createMonthlyGoal/updateMonthlyGoal (below) are only ever used by
+  // Debt and Savings, which must always have a finite end (DB-enforced,
+  // migration 0013) so their occurrence count is computable
+  // (goalProgress.ts). The RecurrencePicker already hides "Never" for these
+  // forms - this is a server-side backstop against a stale/direct POST.
+  if (rule.endsType === "never") {
+    return { error: "Choose an end date or a fixed number of occurrences." } as const;
+  }
 
   return {
     ...rule,

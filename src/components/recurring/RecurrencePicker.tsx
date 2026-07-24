@@ -52,11 +52,17 @@ const INPUT = "rounded border border-notion-hairline p-1 text-notion-text focus:
 export function RecurrencePicker({
   startDate,
   initialValue,
+  allowNever = true,
 }: {
   startDate: string;
   initialValue?: RecurrenceValue | null;
+  // T72 (SPEC.md Phase 12): Debt/Savings must always have a finite end so
+  // their occurrence count is computable (goalProgress.ts) - MonthlyGoalModal
+  // passes allowNever={false} to hide "Never" from the Ends control.
+  allowNever?: boolean;
 }) {
   const presets = useMemo(() => computeRecurrencePresets(startDate), [startDate]);
+  const endsOptions = allowNever ? ENDS_OPTIONS : ENDS_OPTIONS.filter((opt) => opt.value !== "never");
 
   const [value, setValue] = useState<RecurrenceValue>(() =>
     initialValue ?? { ...presets[0].rule, endsType: "on_date", endDate: null, occurrenceCount: null },
@@ -259,7 +265,7 @@ export function RecurrencePicker({
         <p className="mb-1 text-sm text-slate-600">Ends</p>
         <div className="flex flex-wrap items-center gap-3">
           <div className="flex gap-3 text-sm">
-            {ENDS_OPTIONS.map((opt) => (
+            {endsOptions.map((opt) => (
               <button
                 type="button"
                 key={opt.value}

@@ -115,7 +115,9 @@ export function MonthlyGoalModal({
             className="mt-1 w-full rounded border border-notion-hairline p-2 text-notion-text focus:border-notion-accent focus:outline-none"
           />
         </div>
-        <RecurrencePicker startDate={startDate} initialValue={initialRecurrenceValue} />
+        {/* T72: debt/savings must always have a finite end, so their total
+            occurrence count is computable for the progress bar. */}
+        <RecurrencePicker startDate={startDate} initialValue={initialRecurrenceValue} allowNever={false} />
         <div>
           <label className="block text-sm text-slate-600" htmlFor="balanceId">
             Account (optional)

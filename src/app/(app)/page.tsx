@@ -6,6 +6,7 @@ import { balanceRangeColorClass } from "@/lib/balanceColor";
 import { displayName } from "@/lib/displayName";
 import { monthlyEquivalent } from "@/lib/engine/monthlyTotals";
 import { remainingTotal, ruleEndDate } from "@/lib/engine/remaining";
+import { goalProgress } from "@/lib/engine/goalProgress";
 import { computeMonthlyPeaksAndDrops } from "@/lib/engine/peaksAndDrops";
 import { findLowestBalancePoint } from "@/lib/engine/lowestBalance";
 import {
@@ -16,6 +17,7 @@ import {
 } from "@/lib/engine/budgetLedger";
 import { daysBetween } from "@/lib/engine/date-utils";
 import { ProgressBar } from "@/components/ProgressBar";
+import type { RecurringItem } from "@/lib/engine/types";
 
 // T48/user follow-up: reshapes computeMonthlyPeaksAndDrops's flat "YYYY-MM"
 // list into one block per year, each holding just its own present months (no
@@ -33,6 +35,21 @@ function groupPeaksAndDropsByYear(
     byYear.get(year)!.push(row);
   }
   return [...byYear.entries()].sort(([a], [b]) => a - b).map(([year, months]) => ({ year, months }));
+}
+
+// T72: aggregates settled/total occurrences across every item of one type
+// (debt or savings) into a single Dashboard-level progress bar - each
+// item's own count comes from goalProgress.ts, summed here rather than
+// re-derived, so the per-item and aggregate numbers always agree.
+function aggregateGoalProgress(items: RecurringItem[], settledCountByItemId: Map<string, number>) {
+  let total = 0;
+  let settled = 0;
+  for (const item of items) {
+    const progress = goalProgress(item, settledCountByItemId.get(item.id) ?? 0);
+    total += progress.total;
+    settled += progress.settled;
+  }
+  return { total, settled, fraction: total === 0 ? 0 : settled / total };
 }
 
 function DashboardCard({
@@ -58,8 +75,17 @@ export default async function Home() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const { forecast, balances, recurringItems, budgets, budgetEntries, currency, balanceRanges, today, horizon } =
-    await loadForecast();
+  const [{ forecast, balances, recurringItems, budgets, budgetEntries, currency, balanceRanges, today, horizon }, settlementsRes] =
+    await Promise.all([
+      loadForecast(),
+      // T72: settled counts for the Debt/Savings aggregate progress bars
+      // below - not part of loadForecast()'s own data, so fetched separately.
+      supabase.from("settlements").select("source_id, type").in("type", ["debt", "savings"]),
+    ]);
+  const settledCountByItemId = new Map<string, number>();
+  for (const row of settlementsRes.data ?? []) {
+    settledCountByItemId.set(row.source_id, (settledCountByItemId.get(row.source_id) ?? 0) + 1);
+  }
 
   const profileName = (user?.user_metadata?.name as string | undefined) ?? "";
   const greetingName = displayName(profileName, user?.email);
@@ -91,6 +117,24 @@ export default async function Home() {
   const debtFreeDate =
     debtEndDates.length > 0 ? debtEndDates.reduce((latest, date) => (date > latest ? date : latest)) : null;
   const daysUntilDebtFree = debtFreeDate ? daysBetween(today, debtFreeDate) : null;
+  // T72: debt items always have a finite end (DB-enforced), so an aggregate
+  // settled/total progress bar is always computable - no null-filtering
+  // needed here, unlike remainingDebt/debtFreeDate above (which still guard
+  // against other recurring types' "never" rule, not debt's own).
+  const debtProgress = aggregateGoalProgress(debtItems, settledCountByItemId);
+
+  const savingsItems = recurringItems.filter((item) => item.type === "savings");
+  const remainingSavings = savingsItems.reduce(
+    (sum, item) => sum + (remainingTotal(item, today) ?? 0),
+    0,
+  );
+  const savingsEndDates = savingsItems
+    .map((item) => ruleEndDate(item))
+    .filter((date): date is string => date !== null);
+  const savingsGoalDate =
+    savingsEndDates.length > 0 ? savingsEndDates.reduce((latest, date) => (date > latest ? date : latest)) : null;
+  const daysUntilSavingsGoal = savingsGoalDate ? daysBetween(today, savingsGoalDate) : null;
+  const savingsProgress = aggregateGoalProgress(savingsItems, settledCountByItemId);
 
   const peaksAndDrops = computeMonthlyPeaksAndDrops(forecast, totalBalance, today, horizon);
   const peaksAndDropsByYear = groupPeaksAndDropsByYear(peaksAndDrops);
@@ -146,6 +190,40 @@ export default async function Home() {
             </p>
           ) : (
             <p className="mt-1 text-sm text-slate-400">No debt tracked.</p>
+          )}
+          {/* T72: settled/total payments across every debt item. */}
+          {debtItems.length > 0 && (
+            <div className="mt-2 max-w-xs">
+              <ProgressBar percent={debtProgress.fraction * 100} over={false} />
+              <p className="mt-0.5 text-xs text-slate-400">
+                {debtProgress.settled} of {debtProgress.total} payments settled
+              </p>
+            </div>
+          )}
+        </div>
+
+        <div className="mb-6 rounded-lg border border-notion-hairline bg-white p-4">
+          <h2 className="mb-2 text-sm font-semibold text-notion-text">Savings</h2>
+          <p className="text-xl font-semibold text-blue-700">
+            {formatCentavos(remainingSavings, currency)}
+          </p>
+          {savingsGoalDate && daysUntilSavingsGoal !== null ? (
+            <p className="mt-1 text-sm text-slate-500">
+              {daysUntilSavingsGoal <= 0
+                ? "Savings goals reached!"
+                : `Goal by ${formatFullDate(savingsGoalDate)} (${daysUntilSavingsGoal} days)`}
+            </p>
+          ) : (
+            <p className="mt-1 text-sm text-slate-400">No savings goals tracked.</p>
+          )}
+          {/* T72: settled/total contributions across every savings item. */}
+          {savingsItems.length > 0 && (
+            <div className="mt-2 max-w-xs">
+              <ProgressBar percent={savingsProgress.fraction * 100} over={false} />
+              <p className="mt-0.5 text-xs text-slate-400">
+                {savingsProgress.settled} of {savingsProgress.total} contributions settled
+              </p>
+            </div>
           )}
         </div>
 
