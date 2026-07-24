@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useRef, useState } from "react";
+import { ChevronIcon } from "@/components/navIcons";
 import { createReminder, deleteReminder, updateReminder, type ReminderActionState } from "./reminderActions";
 
 export type ReminderRow = { id: string; text: string };
@@ -140,15 +141,67 @@ function ReminderItem({ reminder }: { reminder: ReminderRow }) {
   );
 }
 
+const COLLAPSED_STORAGE_KEY = "orium.remindersCollapsed";
+
+// Full-height collapsible right panel, mirroring AppShell's left sidebar
+// (user request 2026-07-23: "occupy the entire right panel, like the menu
+// in the left, also collapsible"). Same hydration-safe localStorage pattern
+// as AppShell: `collapsed` starts `false` on both server and first client
+// render, then a post-mount effect applies the stored preference, avoiding
+// a server/client markup mismatch.
 export function RemindersPanel({ reminders }: { reminders: ReminderRow[] }) {
+  const [collapsed, setCollapsed] = useState(false);
+
+  useEffect(() => {
+    if (localStorage.getItem(COLLAPSED_STORAGE_KEY) === "true") {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setCollapsed(true);
+    }
+  }, []);
+
+  function toggleCollapsed() {
+    setCollapsed((prev) => {
+      const next = !prev;
+      localStorage.setItem(COLLAPSED_STORAGE_KEY, String(next));
+      return next;
+    });
+  }
+
+  if (collapsed) {
+    return (
+      <aside className="sticky top-0 hidden h-screen w-16 shrink-0 flex-col items-center border-l border-notion-hairline bg-white p-2 lg:flex">
+        <button
+          type="button"
+          onClick={toggleCollapsed}
+          title={`Expand reminders${reminders.length > 0 ? ` (${reminders.length})` : ""}`}
+          aria-label="Expand reminders"
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded text-slate-400 hover:bg-notion-hover hover:text-notion-text"
+        >
+          <ChevronIcon direction="left" className="h-4 w-4" />
+        </button>
+      </aside>
+    );
+  }
+
   return (
-    <aside className="w-full shrink-0 rounded-lg border border-notion-hairline bg-white p-4 lg:w-72">
-      <h2 className="mb-3 text-sm font-semibold text-notion-text">Reminders</h2>
+    <aside className="sticky top-0 hidden h-screen w-72 shrink-0 flex-col border-l border-notion-hairline bg-white p-4 lg:flex">
+      <div className="mb-3 flex items-center justify-between">
+        <h2 className="text-sm font-semibold text-notion-text">Reminders</h2>
+        <button
+          type="button"
+          onClick={toggleCollapsed}
+          title="Collapse reminders"
+          aria-label="Collapse reminders"
+          className="shrink-0 rounded p-1 text-slate-400 hover:bg-notion-hover hover:text-notion-text"
+        >
+          <ChevronIcon direction="right" className="h-4 w-4" />
+        </button>
+      </div>
       <AddReminderForm />
       {reminders.length === 0 ? (
         <p className="text-sm text-slate-400">No reminders yet.</p>
       ) : (
-        <div className="max-h-56 overflow-y-auto pr-1 md:max-h-96">
+        <div className="min-h-0 flex-1 overflow-y-auto pr-1">
           <ul className="space-y-2">
             {reminders.map((reminder) => (
               <li key={reminder.id}>
