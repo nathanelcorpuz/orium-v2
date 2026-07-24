@@ -264,13 +264,13 @@ export function RecurrencePicker({
       <div>
         <p className="mb-1 text-sm text-slate-600">Ends</p>
         <div className="flex flex-wrap items-center gap-3">
-          <div className="flex gap-3 text-sm">
+          <div className="flex flex-wrap gap-2">
             {endsOptions.map((opt) => (
               <button
                 type="button"
                 key={opt.value}
                 onClick={() => setValue((v) => ({ ...v, endsType: opt.value }))}
-                className={value.endsType === opt.value ? "font-semibold text-notion-text underline" : "text-slate-500"}
+                className={value.endsType === opt.value ? PILL_ON : PILL_OFF}
               >
                 {opt.label}
               </button>
