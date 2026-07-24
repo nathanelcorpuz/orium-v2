@@ -131,7 +131,6 @@ function ReminderItem({ reminder }: { reminder: ReminderRow }) {
         >
           <EditIcon className="h-3.5 w-3.5" />
         </button>
-        <span className="h-4 w-px bg-notion-hairline" aria-hidden="true" />
         <button
           type="button"
           onClick={() => setMode("delete")}
@@ -199,9 +198,9 @@ export function RemindersPanel({ reminders }: { reminders: ReminderRow[] }) {
             <p className="text-sm text-slate-400">No reminders yet.</p>
           ) : (
             <div className="min-h-0 flex-1 overflow-y-auto pr-1">
-              <ul className="space-y-2">
+              <ul className="divide-y divide-notion-hairline">
                 {reminders.map((reminder) => (
-                  <li key={reminder.id}>
+                  <li key={reminder.id} className="py-2 first:pt-0">
                     <ReminderItem reminder={reminder} />
                   </li>
                 ))}
