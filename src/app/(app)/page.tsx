@@ -8,7 +8,12 @@ import { monthlyEquivalent } from "@/lib/engine/monthlyTotals";
 import { remainingTotal, ruleEndDate } from "@/lib/engine/remaining";
 import { computeMonthlyPeaksAndDrops } from "@/lib/engine/peaksAndDrops";
 import { findLowestBalancePoint } from "@/lib/engine/lowestBalance";
-import { budgetReplenishRule, computeBudgetBalance, replenishProgress } from "@/lib/engine/budgetLedger";
+import {
+  budgetProgressFraction,
+  budgetReplenishRule,
+  computeBudgetBalance,
+  replenishProgress,
+} from "@/lib/engine/budgetLedger";
 import { daysBetween } from "@/lib/engine/date-utils";
 import { ProgressBar } from "@/components/ProgressBar";
 
@@ -152,16 +157,27 @@ export default async function Home() {
             <ul className="space-y-2">
               {budgets.map((budget) => {
                 const balance = computeBudgetBalance(budgetEntries, budget.id, today);
-                // Phase 11 (T60): "days until replenish" + a time-based
-                // progress bar, for any budget with a resolvable schedule -
-                // its own ("replenish every") or its linked income's. A
-                // manual budget has neither, so replenishProgress returns
-                // all-null and nothing extra renders.
+                // Phase 11 (T60): "days until replenish", for any budget
+                // with a resolvable schedule - its own ("replenish every")
+                // or its linked income's. A manual budget has neither, so
+                // replenishProgress returns all-null and no countdown text
+                // renders.
                 const linkedIncome = budget.linkedIncomeId
                   ? recurringItems.find((item) => item.id === budget.linkedIncomeId) ?? null
                   : null;
                 const rule = budgetReplenishRule(budget, linkedIncome);
                 const progress = replenishProgress(rule, today);
+                // User follow-up (2026-07-24): the bar itself is
+                // money-based, not time-based - see budgetProgressFraction.
+                // Renders for manual budgets too now, not just scheduled
+                // ones.
+                const barFraction = budgetProgressFraction({
+                  allocation: budget.allocation,
+                  remaining: balance,
+                  previousDate: progress.previousDate,
+                  nextDate: progress.nextDate,
+                  asOf: today,
+                });
 
                 return (
                   <li key={budget.id} className="text-sm">
@@ -171,14 +187,16 @@ export default async function Home() {
                         {formatCentavos(balance, currency)}
                       </span>
                     </div>
-                    {progress.daysUntil !== null && (
+                    {barFraction !== null && (
                       <div className="mt-1">
-                        <ProgressBar percent={(progress.fraction ?? 0) * 100} over={false} />
-                        <p className="mt-0.5 text-xs text-slate-400">
-                          {progress.daysUntil <= 0
-                            ? "Replenishes today"
-                            : `${progress.daysUntil} day${progress.daysUntil === 1 ? "" : "s"} until replenish`}
-                        </p>
+                        <ProgressBar percent={barFraction * 100} over={false} />
+                        {progress.daysUntil !== null && (
+                          <p className="mt-0.5 text-xs text-slate-400">
+                            {progress.daysUntil <= 0
+                              ? "Replenishes today"
+                              : `${progress.daysUntil} day${progress.daysUntil === 1 ? "" : "s"} until replenish`}
+                          </p>
+                        )}
                       </div>
                     )}
                   </li>

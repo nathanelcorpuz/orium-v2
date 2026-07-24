@@ -142,3 +142,50 @@ export function replenishProgress(rule: RecurrenceRule | null, asOf: string): Re
 
   return { previousDate, nextDate, daysUntil, fraction };
 }
+
+/**
+ * The budget progress bar's fill fraction (user follow-up, 2026-07-24) -
+ * superseding replenishProgress's time-elapsed `fraction` for this specific
+ * purpose, since a bar that fills up purely with elapsed time reads as
+ * "about to run out" right before a replenish even when the full allocation
+ * is still sitting untouched. Money-based instead:
+ *
+ * - No replenish schedule (`previousDate`/`nextDate` null, i.e. a manual
+ *   budget): straight spend ratio, `1 - remaining/allocation` - 0 right
+ *   after a top-up, 1 once fully spent.
+ * - Has a schedule: pace-adjusted. Compares "share of the allocation still
+ *   left" against "share of the period still left" - if you have relatively
+ *   *more* money left than time left, you're ahead of pace and the bar
+ *   stays low/empty (this is what makes a freshly-funded budget on its
+ *   replenish day read as empty rather than full, unlike the old time-only
+ *   fraction); if you have relatively *less* money left than time left,
+ *   you're behind pace and the bar fills toward full.
+ *
+ * Returns null when there's no allocation to measure against.
+ */
+export function budgetProgressFraction(params: {
+  allocation: number; // centavos, expected > 0
+  remaining: number; // centavos, the budget's current running balance
+  previousDate: string | null;
+  nextDate: string | null;
+  asOf: string;
+}): number | null {
+  const { allocation, remaining, previousDate, nextDate, asOf } = params;
+  if (allocation <= 0) return null;
+
+  if (previousDate === null || nextDate === null) {
+    return Math.min(1, Math.max(0, 1 - remaining / allocation));
+  }
+
+  const periodLength = daysBetween(previousDate, nextDate);
+  const daysUntil = daysBetween(asOf, nextDate);
+  // At or past the replenish boundary, there's no time left to compare
+  // pace against - whatever's left reads as "ahead of pace" (empty) rather
+  // than dividing by zero, and this is also the natural limit of the
+  // formula below as daysUntil shrinks toward 0.
+  if (periodLength <= 0 || daysUntil <= 0) return 0;
+
+  const moneyLeftRatio = remaining / allocation;
+  const timeLeftRatio = daysUntil / periodLength;
+  return Math.min(1, Math.max(0, 1 - moneyLeftRatio / timeLeftRatio));
+}

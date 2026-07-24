@@ -3,7 +3,12 @@
 import { useActionState, useEffect, useRef, useState } from "react";
 import { centavosToPesosString, formatCentavos } from "@/lib/money";
 import { formatFullDate, todayInManila } from "@/lib/date";
-import { budgetReplenishRule, computeBudgetBalance, replenishProgress } from "@/lib/engine/budgetLedger";
+import {
+  budgetProgressFraction,
+  budgetReplenishRule,
+  computeBudgetBalance,
+  replenishProgress,
+} from "@/lib/engine/budgetLedger";
 import { toEngineBudget } from "@/lib/budgetView";
 import { ProgressBar } from "@/components/ProgressBar";
 import { summarizeRecurrence } from "@/lib/recurrenceSummary";
@@ -230,12 +235,23 @@ export function BudgetCard({
     : undefined;
   const incomeName = linkedIncome?.name;
 
-  // Phase 11 (T60): "days until replenish" + a time-based progress bar, for
-  // any budget with a resolvable schedule - its own ("replenish every") or
-  // its linked income's. Manual budgets have neither, so replenishProgress
-  // returns all-null and nothing extra renders.
+  // Phase 11 (T60): "days until replenish", for any budget with a
+  // resolvable schedule - its own ("replenish every") or its linked
+  // income's. Manual budgets have neither, so replenishProgress returns
+  // all-null and no countdown text renders.
   const rule = budgetReplenishRule(toEngineBudget(budget), linkedIncome ?? null);
   const progress = replenishProgress(rule, today);
+  // User follow-up (2026-07-24): the bar itself is money-based, not
+  // time-based - see budgetProgressFraction's own comment. Unlike the old
+  // time-only fraction, this renders for manual budgets too (previousDate/
+  // nextDate both null there), not just scheduled ones.
+  const barFraction = budgetProgressFraction({
+    allocation: budget.allocation,
+    remaining: balance,
+    previousDate: progress.previousDate,
+    nextDate: progress.nextDate,
+    asOf: today,
+  });
   // "Connected to {income}" beats a schedule summary when both are somehow
   // present (shouldn't happen - DB-enforced mutually exclusive); a
   // schedule-mode budget shows its own human-readable rule the same way
@@ -327,14 +343,16 @@ export function BudgetCard({
           <p className={`text-xl font-semibold ${balance < 0 ? "text-red-600" : "text-notion-text"}`}>
             {formatCentavos(balance)}
           </p>
-          {progress.daysUntil !== null && (
+          {barFraction !== null && (
             <div className="mt-1 max-w-xs">
-              <ProgressBar percent={(progress.fraction ?? 0) * 100} over={false} />
-              <p className="mt-0.5 text-xs text-slate-400">
-                {progress.daysUntil <= 0
-                  ? "Replenishes today"
-                  : `${progress.daysUntil} day${progress.daysUntil === 1 ? "" : "s"} until replenish`}
-              </p>
+              <ProgressBar percent={barFraction * 100} over={false} />
+              {progress.daysUntil !== null && (
+                <p className="mt-0.5 text-xs text-slate-400">
+                  {progress.daysUntil <= 0
+                    ? "Replenishes today"
+                    : `${progress.daysUntil} day${progress.daysUntil === 1 ? "" : "s"} until replenish`}
+                </p>
+              )}
             </div>
           )}
         </div>

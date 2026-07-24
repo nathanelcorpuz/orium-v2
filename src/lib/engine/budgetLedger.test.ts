@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  budgetProgressFraction,
   budgetReplenishRule,
   computeBudgetBalance,
   futureBudgetLedgerEntries,
@@ -219,5 +220,125 @@ describe("replenishProgress", () => {
     expect(result.nextDate).toBeNull();
     expect(result.daysUntil).toBeNull();
     expect(result.fraction).toBeNull();
+  });
+});
+
+describe("budgetProgressFraction", () => {
+  it("returns null when there's no allocation to measure against", () => {
+    expect(
+      budgetProgressFraction({
+        allocation: 0,
+        remaining: 500,
+        previousDate: null,
+        nextDate: null,
+        asOf: "2026-01-10",
+      }),
+    ).toBeNull();
+  });
+
+  describe("manual budget (no replenish schedule) - straight spend ratio", () => {
+    it("reads as empty right after a top-up (nothing spent yet)", () => {
+      expect(
+        budgetProgressFraction({
+          allocation: 900000,
+          remaining: 900000,
+          previousDate: null,
+          nextDate: null,
+          asOf: "2026-01-10",
+        }),
+      ).toBe(0);
+    });
+
+    it("reads as full once fully spent", () => {
+      expect(
+        budgetProgressFraction({
+          allocation: 900000,
+          remaining: 0,
+          previousDate: null,
+          nextDate: null,
+          asOf: "2026-01-10",
+        }),
+      ).toBe(1);
+    });
+
+    it("reads at half once half spent", () => {
+      expect(
+        budgetProgressFraction({
+          allocation: 900000,
+          remaining: 450000,
+          previousDate: null,
+          nextDate: null,
+          asOf: "2026-01-10",
+        }),
+      ).toBeCloseTo(0.5);
+    });
+
+    it("clamps to full when overspent (negative remaining)", () => {
+      expect(
+        budgetProgressFraction({
+          allocation: 900000,
+          remaining: -50000,
+          previousDate: null,
+          nextDate: null,
+          asOf: "2026-01-10",
+        }),
+      ).toBe(1);
+    });
+  });
+
+  describe("scheduled/income-linked budget - pace-adjusted", () => {
+    // 7-day period, matching the weeklyMonday fixture above:
+    // previous 2026-01-05, next 2026-01-12.
+    it("reads as empty at the exact replenish boundary even with money left (the reported scenario)", () => {
+      // asOf lands exactly on a replenish day - previousDate === nextDate,
+      // a zero-length period - regardless of how much of the allocation is
+      // still sitting unspent, there's no time left to be "behind" on.
+      expect(
+        budgetProgressFraction({
+          allocation: 900000,
+          remaining: 900000,
+          previousDate: "2026-01-05",
+          nextDate: "2026-01-05",
+          asOf: "2026-01-05",
+        }),
+      ).toBe(0);
+    });
+
+    it("reads as empty when exactly on pace", () => {
+      // 2 of 7 days left; on-pace remaining is also 2/7 of the allocation.
+      expect(
+        budgetProgressFraction({
+          allocation: 700,
+          remaining: 200,
+          previousDate: "2026-01-05",
+          nextDate: "2026-01-12",
+          asOf: "2026-01-10",
+        }),
+      ).toBeCloseTo(0);
+    });
+
+    it("fills partway when behind pace (less money left than time left)", () => {
+      expect(
+        budgetProgressFraction({
+          allocation: 700,
+          remaining: 100,
+          previousDate: "2026-01-05",
+          nextDate: "2026-01-12",
+          asOf: "2026-01-10",
+        }),
+      ).toBeCloseTo(0.5);
+    });
+
+    it("clamps to empty when ahead of pace (more money left than time left)", () => {
+      expect(
+        budgetProgressFraction({
+          allocation: 700,
+          remaining: 400,
+          previousDate: "2026-01-05",
+          nextDate: "2026-01-12",
+          asOf: "2026-01-10",
+        }),
+      ).toBe(0);
+    });
   });
 });
