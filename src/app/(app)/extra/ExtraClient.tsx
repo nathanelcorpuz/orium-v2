@@ -143,17 +143,19 @@ export function ExtraClient({ extras, balances }: { extras: ExtraRow[]; balances
                 className="flex items-center justify-between rounded-lg border border-notion-hairline bg-white p-4"
               >
                 <div>
-                  <p className="font-medium text-notion-text">{extra.name}</p>
-                  <p className="text-sm text-purple-700">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <p className="font-medium text-notion-text">{extra.name}</p>
+                    {extra.balance_id && (
+                      <span className="rounded-full bg-notion-hover px-2 py-0.5 text-xs font-medium text-slate-500">
+                        {balanceNameById.get(extra.balance_id) ?? "—"}
+                      </span>
+                    )}
+                  </div>
+                  <p className="mt-1 text-sm text-purple-700">
                     {formatCentavos(extra.amount)}, due {extra.due_date}
                   </p>
-                  {extra.balance_id && (
-                    <p className="mt-0.5 text-sm text-slate-400">
-                      Account: {balanceNameById.get(extra.balance_id) ?? "—"}
-                    </p>
-                  )}
                   {extra.comments && (
-                    <p className="text-sm text-slate-400">{extra.comments}</p>
+                    <p className="mt-1 text-sm italic text-slate-400">{extra.comments}</p>
                   )}
                 </div>
                 <div className="flex items-center gap-2">

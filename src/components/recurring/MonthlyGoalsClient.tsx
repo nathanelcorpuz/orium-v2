@@ -202,33 +202,39 @@ export function MonthlyGoalsClient({
           <ul className="space-y-2">
             {filteredItems.map((item) => {
               const remaining = remainingTotal({ ...goalRule(item), amount: item.amount }, today);
-              // T71 follow-up: recurrence + remaining + connected account
-              // read as one compact "·"-joined line instead of a separate
-              // gray line per fact, which read as cluttered.
-              const metaParts = [
-                summarizeRecurrence(goalRule(item)),
-                remaining === null ? "Ongoing" : `${formatCentavos(remaining)} remaining`,
-              ];
-              if (item.balance_id) {
-                metaParts.push(`Account: ${balanceNameById.get(item.balance_id) ?? "—"}`);
-              }
+              const metaLine = `${summarizeRecurrence(goalRule(item))} · ${
+                remaining === null ? "Ongoing" : `${formatCentavos(remaining)} remaining`
+              }`;
               return (
                 <li
                   key={item.id}
                   className="flex items-center justify-between rounded-lg border border-notion-hairline bg-white p-4"
                 >
                   <div>
-                    <p className="font-medium text-notion-text">
-                      {item.name}
-                      {editedIds.has(item.id) && (
-                        <span className="ml-1.5 text-slate-400" title="Edited from its usual schedule">
-                          ✎
+                    {/* T71 follow-up: the connected account moved from a
+                        run-on text line into its own pill badge next to the
+                        name (matching the Budgets page's "Connected to
+                        {income}" pill). */}
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <p className="font-medium text-notion-text">
+                        {item.name}
+                        {editedIds.has(item.id) && (
+                          <span className="ml-1.5 text-slate-400" title="Edited from its usual schedule">
+                            ✎
+                          </span>
+                        )}
+                      </p>
+                      {item.balance_id && (
+                        <span className="rounded-full bg-notion-hover px-2 py-0.5 text-xs font-medium text-slate-500">
+                          {balanceNameById.get(item.balance_id) ?? "—"}
                         </span>
                       )}
-                    </p>
-                    <p className={`text-sm ${amountColorClass}`}>{formatCentavos(Math.abs(item.amount))}</p>
-                    <p className="mt-0.5 text-sm text-slate-400">{metaParts.join(" · ")}</p>
-                    {item.comments && <p className="text-sm text-slate-400">{item.comments}</p>}
+                    </div>
+                    <p className={`mt-1 text-sm ${amountColorClass}`}>{formatCentavos(Math.abs(item.amount))}</p>
+                    <p className="text-sm text-slate-400">{metaLine}</p>
+                    {item.comments && (
+                      <p className="mt-1 text-sm italic text-slate-400">{item.comments}</p>
+                    )}
                   </div>
                   <div className="flex items-center gap-2">
                     {confirmingDeleteId === item.id ? (

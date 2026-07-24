@@ -183,35 +183,45 @@ export function IncomeClient({
         ) : (
           <ul className="space-y-2">
             {filteredIncomes.map((income) => {
-              // T71 follow-up: recurrence + connected account + linked
-              // budgets read as one compact "·"-joined line instead of a
-              // separate gray line per fact, which read as cluttered.
-              const metaParts = [summarizeRecurrence(incomeRule(income))];
-              if (income.balance_id) {
-                metaParts.push(`Account: ${balanceNameById.get(income.balance_id) ?? "—"}`);
-              }
               const funds = budgetNamesByIncomeId.get(income.id);
-              if (funds && funds.length > 0) {
-                metaParts.push(`Funds: ${funds.join(", ")}`);
-              }
               return (
               <li
                 key={income.id}
                 className="flex items-center justify-between rounded-lg border border-notion-hairline bg-white p-4"
               >
                 <div>
-                  <p className="font-medium text-notion-text">
-                    {income.name}
-                    {editedIds.has(income.id) && (
-                      <span className="ml-1.5 text-slate-400" title="Edited from its usual schedule">
-                        ✎
+                  {/* T71 follow-up: connected account + linked budgets moved
+                      from a run-on text line into pill badges next to the
+                      name (matching the Budgets page's "Connected to
+                      {income}" pill) - each reads as its own clear chunk
+                      instead of blending into the recurrence sentence. */}
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <p className="font-medium text-notion-text">
+                      {income.name}
+                      {editedIds.has(income.id) && (
+                        <span className="ml-1.5 text-slate-400" title="Edited from its usual schedule">
+                          ✎
+                        </span>
+                      )}
+                    </p>
+                    {income.balance_id && (
+                      <span className="rounded-full bg-notion-hover px-2 py-0.5 text-xs font-medium text-slate-500">
+                        {balanceNameById.get(income.balance_id) ?? "—"}
                       </span>
                     )}
-                  </p>
-                  <p className="text-sm text-green-700">{formatCentavos(income.amount)}</p>
-                  <p className="mt-0.5 text-sm text-slate-400">{metaParts.join(" · ")}</p>
+                    {funds && funds.length > 0 && (
+                      <span
+                        className="rounded-full bg-notion-hover px-2 py-0.5 text-xs font-medium text-slate-500"
+                        title="Budgets funded from this income"
+                      >
+                        Funds: {funds.join(", ")}
+                      </span>
+                    )}
+                  </div>
+                  <p className="mt-1 text-sm text-green-700">{formatCentavos(income.amount)}</p>
+                  <p className="text-sm text-slate-400">{summarizeRecurrence(incomeRule(income))}</p>
                   {income.comments && (
-                    <p className="text-sm text-slate-400">{income.comments}</p>
+                    <p className="mt-1 text-sm italic text-slate-400">{income.comments}</p>
                   )}
                 </div>
                 <div className="flex items-center gap-2">

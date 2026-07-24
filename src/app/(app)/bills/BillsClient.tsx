@@ -167,32 +167,37 @@ export function BillsClient({
         ) : (
           <ul className="space-y-2">
             {filteredBills.map((bill) => {
-              // T71 follow-up: recurrence + connected account read as one
-              // compact "·"-joined line (matches the recurrence picker's own
-              // "Every 2 weeks on Sat · until Apr 2030" convention) instead
-              // of stacking a separate gray line per fact, which read as
-              // cluttered.
-              const metaParts = [summarizeRecurrence(billRule(bill))];
-              if (bill.balance_id) {
-                metaParts.push(`Account: ${balanceNameById.get(bill.balance_id) ?? "—"}`);
-              }
               return (
               <li
                 key={bill.id}
                 className="flex items-center justify-between rounded-lg border border-notion-hairline bg-white p-4"
               >
                 <div>
-                  <p className="font-medium text-notion-text">
-                    {bill.name}
-                    {editedIds.has(bill.id) && (
-                      <span className="ml-1.5 text-slate-400" title="Edited from its usual schedule">
-                        ✎
+                  {/* T71 follow-up: the connected account moved from a
+                      run-on text line into its own pill badge next to the
+                      name (matching the Budgets page's "Connected to
+                      {income}" pill) - reads as one clear chunk instead of
+                      blending into the recurrence sentence below. */}
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <p className="font-medium text-notion-text">
+                      {bill.name}
+                      {editedIds.has(bill.id) && (
+                        <span className="ml-1.5 text-slate-400" title="Edited from its usual schedule">
+                          ✎
+                        </span>
+                      )}
+                    </p>
+                    {bill.balance_id && (
+                      <span className="rounded-full bg-notion-hover px-2 py-0.5 text-xs font-medium text-slate-500">
+                        {balanceNameById.get(bill.balance_id) ?? "—"}
                       </span>
                     )}
-                  </p>
-                  <p className="text-sm text-slate-600">{formatCentavos(Math.abs(bill.amount))}</p>
-                  <p className="mt-0.5 text-sm text-slate-400">{metaParts.join(" · ")}</p>
-                  {bill.comments && <p className="text-sm text-slate-400">{bill.comments}</p>}
+                  </div>
+                  <p className="mt-1 text-sm text-slate-600">{formatCentavos(Math.abs(bill.amount))}</p>
+                  <p className="text-sm text-slate-400">{summarizeRecurrence(billRule(bill))}</p>
+                  {bill.comments && (
+                    <p className="mt-1 text-sm italic text-slate-400">{bill.comments}</p>
+                  )}
                 </div>
                 <div className="flex items-center gap-2">
                   {confirmingDeleteId === bill.id ? (
