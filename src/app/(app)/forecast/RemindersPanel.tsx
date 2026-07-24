@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useRef, useState } from "react";
-import { ChevronIcon } from "@/components/navIcons";
+import { ChevronIcon, DeleteIcon, EditIcon } from "@/components/navIcons";
 import { createReminder, deleteReminder, updateReminder, type ReminderActionState } from "./reminderActions";
 
 export type ReminderRow = { id: string; text: string };
@@ -121,20 +121,25 @@ function ReminderItem({ reminder }: { reminder: ReminderRow }) {
   return (
     <div className="flex items-start justify-between gap-2 text-sm">
       <span className="flex-1 break-words text-notion-text">{reminder.text}</span>
-      <div className="flex shrink-0 gap-2">
+      <div className="flex shrink-0 items-center gap-1">
         <button
           type="button"
           onClick={() => setMode("edit")}
-          className="text-xs text-slate-500 underline"
+          title="Edit reminder"
+          aria-label="Edit reminder"
+          className="rounded p-1 text-slate-400 hover:bg-notion-hover hover:text-notion-text"
         >
-          Edit
+          <EditIcon className="h-3.5 w-3.5" />
         </button>
+        <span className="h-4 w-px bg-notion-hairline" aria-hidden="true" />
         <button
           type="button"
           onClick={() => setMode("delete")}
-          className="text-xs text-red-600 underline"
+          title="Delete reminder"
+          aria-label="Delete reminder"
+          className="rounded p-1 text-slate-400 hover:bg-red-50 hover:text-red-600"
         >
-          Delete
+          <DeleteIcon className="h-3.5 w-3.5" />
         </button>
       </div>
     </div>
@@ -167,48 +172,42 @@ export function RemindersPanel({ reminders }: { reminders: ReminderRow[] }) {
     });
   }
 
-  if (collapsed) {
-    return (
-      <aside className="sticky top-0 hidden h-screen w-16 shrink-0 flex-col items-center border-l border-notion-hairline bg-white p-2 lg:flex">
-        <button
-          type="button"
-          onClick={toggleCollapsed}
-          title={`Expand reminders${reminders.length > 0 ? ` (${reminders.length})` : ""}`}
-          aria-label="Expand reminders"
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded text-slate-400 hover:bg-notion-hover hover:text-notion-text"
-        >
-          <ChevronIcon direction="left" className="h-4 w-4" />
-        </button>
-      </aside>
-    );
-  }
-
   return (
-    <aside className="sticky top-0 hidden h-screen w-72 shrink-0 flex-col border-l border-notion-hairline bg-white p-4 lg:flex">
-      <div className="mb-3 flex items-center justify-between">
-        <h2 className="text-sm font-semibold text-notion-text">Reminders</h2>
-        <button
-          type="button"
-          onClick={toggleCollapsed}
-          title="Collapse reminders"
-          aria-label="Collapse reminders"
-          className="shrink-0 rounded p-1 text-slate-400 hover:bg-notion-hover hover:text-notion-text"
-        >
-          <ChevronIcon direction="right" className="h-4 w-4" />
-        </button>
-      </div>
-      <AddReminderForm />
-      {reminders.length === 0 ? (
-        <p className="text-sm text-slate-400">No reminders yet.</p>
-      ) : (
-        <div className="min-h-0 flex-1 overflow-y-auto pr-1">
-          <ul className="space-y-2">
-            {reminders.map((reminder) => (
-              <li key={reminder.id}>
-                <ReminderItem reminder={reminder} />
-              </li>
-            ))}
-          </ul>
+    <aside
+      className={`sticky top-0 relative hidden h-screen shrink-0 flex-col border-l border-notion-hairline bg-white transition-all duration-200 lg:flex ${
+        collapsed ? "w-16" : "w-72"
+      }`}
+    >
+      <button
+        type="button"
+        onClick={toggleCollapsed}
+        title={
+          collapsed
+            ? `Expand reminders${reminders.length > 0 ? ` (${reminders.length})` : ""}`
+            : "Collapse reminders"
+        }
+        aria-label={collapsed ? "Expand reminders" : "Collapse reminders"}
+        className="absolute -left-3 top-1/2 z-20 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full border border-notion-hairline bg-white text-slate-400 shadow-sm hover:bg-notion-hover hover:text-notion-text"
+      >
+        <ChevronIcon direction={collapsed ? "left" : "right"} className="h-3.5 w-3.5" />
+      </button>
+      {!collapsed && (
+        <div className="flex min-h-0 flex-1 flex-col p-4">
+          <h2 className="mb-3 text-sm font-semibold text-notion-text">Reminders</h2>
+          <AddReminderForm />
+          {reminders.length === 0 ? (
+            <p className="text-sm text-slate-400">No reminders yet.</p>
+          ) : (
+            <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+              <ul className="space-y-2">
+                {reminders.map((reminder) => (
+                  <li key={reminder.id}>
+                    <ReminderItem reminder={reminder} />
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
       )}
     </aside>

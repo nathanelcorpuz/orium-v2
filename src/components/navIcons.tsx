@@ -133,6 +133,27 @@ export function LogoutIcon({ className }: IconProps) {
   );
 }
 
+export function EditIcon({ className }: IconProps) {
+  return (
+    <svg {...BASE} className={className}>
+      <path d="M12.5 3.5 L16.5 7.5 L7 17 H3 V13 Z" />
+      <line x1="11" y1="5" x2="15" y2="9" />
+    </svg>
+  );
+}
+
+export function DeleteIcon({ className }: IconProps) {
+  return (
+    <svg {...BASE} className={className}>
+      <path d="M4 6 H16" />
+      <path d="M8 6 V4 a1 1 0 0 1 1 -1 h2 a1 1 0 0 1 1 1 V6" />
+      <path d="M5.5 6 L6.3 17 a1 1 0 0 0 1 0.9 h5.4 a1 1 0 0 0 1 -0.9 L14.5 6" />
+      <line x1="8.5" y1="9" x2="8.5" y2="14" />
+      <line x1="11.5" y1="9" x2="11.5" y2="14" />
+    </svg>
+  );
+}
+
 export function ChevronIcon({ className, direction }: IconProps & { direction: "left" | "right" }) {
   return (
     <svg {...BASE} className={className}>

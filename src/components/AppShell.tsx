@@ -68,37 +68,29 @@ export function AppShell({
   return (
     <div className="flex min-h-screen bg-slate-50">
       <aside
-        className={`sticky top-0 flex h-screen shrink-0 flex-col border-r border-notion-hairline bg-white transition-all duration-200 ${
+        className={`sticky top-0 relative flex h-screen shrink-0 flex-col border-r border-notion-hairline bg-white transition-all duration-200 ${
           collapsed ? "w-16" : "w-60"
         }`}
       >
-        <div className={`flex items-center p-4 ${collapsed ? "justify-center" : "justify-between"}`}>
+        <button
+          type="button"
+          onClick={toggleCollapsed}
+          title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          className="absolute -right-3 top-1/2 z-20 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full border border-notion-hairline bg-white text-slate-400 shadow-sm hover:bg-notion-hover hover:text-notion-text"
+        >
+          <ChevronIcon direction={collapsed ? "right" : "left"} className="h-3.5 w-3.5" />
+        </button>
+        <div className={`flex items-center p-4 ${collapsed ? "justify-center" : ""}`}>
           {collapsed ? (
-            <button
-              type="button"
-              onClick={toggleCollapsed}
-              title="Expand sidebar"
-              aria-label="Expand sidebar"
-              className="flex h-8 w-8 shrink-0 items-center justify-center rounded text-slate-400 hover:bg-notion-hover hover:text-notion-text"
-            >
-              <ChevronIcon direction="right" className="h-4 w-4" />
-            </button>
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded bg-notion-text text-sm font-semibold text-white">
+              O
+            </div>
           ) : (
-            <>
-              <div className="min-w-0">
-                <p className="text-sm font-semibold text-notion-text">Orium</p>
-                <p className="truncate text-xs text-slate-500">{greetingName}</p>
-              </div>
-              <button
-                type="button"
-                onClick={toggleCollapsed}
-                title="Collapse sidebar"
-                aria-label="Collapse sidebar"
-                className="shrink-0 rounded p-1 text-slate-400 hover:bg-notion-hover hover:text-notion-text"
-              >
-                <ChevronIcon direction="left" className="h-4 w-4" />
-              </button>
-            </>
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-notion-text">Orium</p>
+              <p className="truncate text-xs text-slate-500">{greetingName}</p>
+            </div>
           )}
         </div>
         <nav className="flex-1 space-y-0.5 overflow-y-auto px-2">
