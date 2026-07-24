@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useRef, useState } from "react";
-import { ChevronIcon, DeleteIcon, EditIcon } from "@/components/navIcons";
+import { CheckIcon, ChevronIcon, CloseIcon, DeleteIcon, EditIcon } from "@/components/navIcons";
 import { createReminder, deleteReminder, updateReminder, type ReminderActionState } from "./reminderActions";
 
 export type ReminderRow = { id: string; text: string };
@@ -99,19 +99,26 @@ function ReminderItem({ reminder }: { reminder: ReminderRow }) {
     return (
       <div className="flex items-center justify-between gap-1 text-sm">
         <span className="text-slate-600">Delete this reminder?</span>
-        <div className="flex gap-1">
+        <div className="flex shrink-0 items-center gap-1">
           <form action={deleteReminder}>
             <input type="hidden" name="id" value={reminder.id} />
-            <button type="submit" className="text-xs text-red-600 underline">
-              Yes
+            <button
+              type="submit"
+              title="Confirm delete"
+              aria-label="Confirm delete"
+              className="rounded p-1 text-red-600 hover:bg-red-50"
+            >
+              <CheckIcon className="h-3.5 w-3.5" />
             </button>
           </form>
           <button
             type="button"
             onClick={() => setMode("view")}
-            className="text-xs text-slate-400 underline"
+            title="Cancel"
+            aria-label="Cancel"
+            className="rounded p-1 text-slate-400 hover:bg-notion-hover hover:text-notion-text"
           >
-            Cancel
+            <CloseIcon className="h-3.5 w-3.5" />
           </button>
         </div>
       </div>

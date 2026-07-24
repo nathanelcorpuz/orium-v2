@@ -154,6 +154,23 @@ export function DeleteIcon({ className }: IconProps) {
   );
 }
 
+export function CheckIcon({ className }: IconProps) {
+  return (
+    <svg {...BASE} className={className}>
+      <polyline points="4 10.5 8 14.5 16 5.5" />
+    </svg>
+  );
+}
+
+export function CloseIcon({ className }: IconProps) {
+  return (
+    <svg {...BASE} className={className}>
+      <line x1="5" y1="5" x2="15" y2="15" />
+      <line x1="15" y1="5" x2="5" y2="15" />
+    </svg>
+  );
+}
+
 export function ChevronIcon({ className, direction }: IconProps & { direction: "left" | "right" }) {
   return (
     <svg {...BASE} className={className}>
