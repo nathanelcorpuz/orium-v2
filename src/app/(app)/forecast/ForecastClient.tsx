@@ -7,6 +7,7 @@ import { balanceRangeColorClass } from "@/lib/balanceColor";
 import { BalanceModal, type BalanceRow } from "@/app/(app)/balances/BalanceModal";
 import { AmountRangeFilter, matchesAmountFilter, type ComparisonOp } from "@/components/AmountRangeFilter";
 import { MultiSelectChips } from "@/components/MultiSelectChips";
+import { Modal } from "@/components/Modal";
 import type { ForecastRow } from "@/lib/engine/types";
 import type { LowestBalancePoint } from "@/lib/engine/lowestBalance";
 import { EditSettleModal } from "./EditSettleModal";
@@ -59,9 +60,13 @@ export function ForecastClient({
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const sentinelRef = useRef<HTMLTableRowElement>(null);
 
-  // T50: Forecast table filter bar - all client-side, filtering the
+  // T50: Forecast table filters - all client-side, filtering the
   // already-loaded `forecast` array before it feeds into T49's incremental
   // rendering below. No new server round-trip.
+  // T70: the controls themselves moved into a modal (opened via a Filter
+  // button) instead of an always-visible inline bar; the filtering logic
+  // below is unchanged.
+  const [filterModalOpen, setFilterModalOpen] = useState(false);
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [nameFilter, setNameFilter] = useState("");
@@ -95,13 +100,15 @@ export function ForecastClient({
     setBalanceValue2("");
   }
 
-  const filtersActive =
-    dateFrom !== "" ||
-    dateTo !== "" ||
-    nameFilter !== "" ||
-    selectedTypes.size > 0 ||
-    amountOp !== "any" ||
-    balanceOp !== "any";
+  // T70: how many distinct filter categories are active - drives both the
+  // Filter button's badge and the boolean "is anything filtered at all".
+  const activeFilterCount =
+    (dateFrom !== "" || dateTo !== "" ? 1 : 0) +
+    (nameFilter !== "" ? 1 : 0) +
+    (selectedTypes.size > 0 ? 1 : 0) +
+    (amountOp !== "any" ? 1 : 0) +
+    (balanceOp !== "any" ? 1 : 0);
+  const filtersActive = activeFilterCount > 0;
 
   const filteredForecast = useMemo(() => {
     const name = nameFilter.trim().toLowerCase();
@@ -201,25 +208,58 @@ export function ForecastClient({
           </div>
 
           {forecast.length > 0 && (
-            <div className="mb-4 rounded-lg border border-notion-hairline bg-white p-4">
-              <div className="flex flex-wrap items-end gap-4">
-                <div className="flex flex-col gap-1">
-                  <label className="text-xs text-slate-500">From</label>
-                  <input
-                    type="date"
-                    value={dateFrom}
-                    onChange={(event) => setDateFrom(event.target.value)}
-                    className="rounded border border-notion-hairline px-1.5 py-1 text-xs text-notion-text focus:border-notion-accent focus:outline-none"
-                  />
-                </div>
-                <div className="flex flex-col gap-1">
-                  <label className="text-xs text-slate-500">To</label>
-                  <input
-                    type="date"
-                    value={dateTo}
-                    onChange={(event) => setDateTo(event.target.value)}
-                    className="rounded border border-notion-hairline px-1.5 py-1 text-xs text-notion-text focus:border-notion-accent focus:outline-none"
-                  />
+            <div className="mb-4 flex flex-wrap items-center gap-3">
+              <button
+                type="button"
+                onClick={() => setFilterModalOpen(true)}
+                className="relative flex items-center gap-1.5 rounded border border-notion-hairline bg-white px-3 py-1.5 text-xs text-notion-text hover:bg-notion-hover"
+              >
+                Filter
+                {filtersActive && (
+                  <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-notion-accent px-1 text-[10px] font-medium text-white">
+                    {activeFilterCount}
+                  </span>
+                )}
+              </button>
+              {filtersActive && (
+                <>
+                  <button
+                    type="button"
+                    onClick={clearFilters}
+                    className="rounded border border-notion-hairline px-2 py-1 text-xs text-slate-500 hover:bg-notion-hover"
+                  >
+                    Clear filters
+                  </button>
+                  <p className="text-xs text-slate-400">
+                    Showing {filteredForecast.length} of {forecast.length} transactions
+                  </p>
+                </>
+              )}
+            </div>
+          )}
+
+          {filterModalOpen && (
+            <Modal title="Filter transactions" onClose={() => setFilterModalOpen(false)}>
+              <div className="flex flex-col gap-4">
+                <div className="flex gap-2">
+                  <div className="flex flex-1 flex-col gap-1">
+                    <label className="text-xs text-slate-500">From</label>
+                    <input
+                      type="date"
+                      value={dateFrom}
+                      onChange={(event) => setDateFrom(event.target.value)}
+                      className="w-full rounded border border-notion-hairline px-1.5 py-1 text-xs text-notion-text focus:border-notion-accent focus:outline-none"
+                    />
+                  </div>
+                  <div className="flex flex-1 flex-col gap-1">
+                    <label className="text-xs text-slate-500">To</label>
+                    <input
+                      type="date"
+                      value={dateTo}
+                      onChange={(event) => setDateTo(event.target.value)}
+                      className="w-full rounded border border-notion-hairline px-1.5 py-1 text-xs text-notion-text focus:border-notion-accent focus:outline-none"
+                    />
+                  </div>
                 </div>
                 <div className="flex flex-col gap-1">
                   <label className="text-xs text-slate-500">Name</label>
@@ -228,7 +268,7 @@ export function ForecastClient({
                     value={nameFilter}
                     onChange={(event) => setNameFilter(event.target.value)}
                     placeholder="Search name"
-                    className="w-32 rounded border border-notion-hairline px-1.5 py-1 text-xs text-notion-text focus:border-notion-accent focus:outline-none"
+                    className="w-full rounded border border-notion-hairline px-1.5 py-1 text-xs text-notion-text focus:border-notion-accent focus:outline-none"
                   />
                 </div>
                 <div className="flex flex-col gap-1">
@@ -253,22 +293,8 @@ export function ForecastClient({
                   onValue1Change={setBalanceValue1}
                   onValue2Change={setBalanceValue2}
                 />
-                {filtersActive && (
-                  <button
-                    type="button"
-                    onClick={clearFilters}
-                    className="rounded border border-notion-hairline px-2 py-1 text-xs text-slate-500 hover:bg-notion-hover"
-                  >
-                    Clear filters
-                  </button>
-                )}
               </div>
-              {filtersActive && (
-                <p className="mt-2 text-xs text-slate-400">
-                  Showing {filteredForecast.length} of {forecast.length} transactions
-                </p>
-              )}
-            </div>
+            </Modal>
           )}
 
           {forecast.length === 0 ? (
