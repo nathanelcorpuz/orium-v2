@@ -204,23 +204,33 @@ export function ForecastClient({
                 </button>
               ))}
             </div>
-            {/* T76: color + wording now reflect the actual balance_ranges
-                risk tier, not a hardcoded <=0 check - matches the Dashboard
-                card and this same page's Balance column (T62). */}
-            <p className="mt-2 text-sm text-slate-500">
-              {lowestBalanceLabel(lowestBalance.balance, balanceRanges)}{" "}
-              <span
-                className={`inline-block rounded px-1.5 py-0.5 ${balanceRangeColorClass(lowestBalance.balance, balanceRanges)}`}
-              >
-                {formatCentavos(
-                  balanceRangeTier(lowestBalance.balance, balanceRanges) === "danger"
-                    ? Math.abs(lowestBalance.balance)
-                    : lowestBalance.balance,
-                  currency,
-                )}
-              </span>{" "}
-              on {formatFullDate(lowestBalance.date)}
-            </p>
+          </div>
+
+          {/* User request 2026-07-24: the lowest-balance line pulled out of
+              the plain-text header into its own card, styled like the
+              Dashboard's stat cards - a home for this and any future
+              forecast-derived helper indicators, not just this one stat. */}
+          <div className="mb-6 rounded-lg border border-notion-hairline bg-white p-4">
+            <h2 className="mb-2 text-sm font-semibold text-notion-text">Forecast Insights</h2>
+            <div className="space-y-2">
+              {/* T76: color + wording now reflect the actual balance_ranges
+                  risk tier, not a hardcoded <=0 check - matches the Dashboard
+                  card and this same page's Balance column (T62). */}
+              <p className="text-sm text-slate-500">
+                {lowestBalanceLabel(lowestBalance.balance, balanceRanges)}{" "}
+                <span
+                  className={`inline-block rounded px-1.5 py-0.5 ${balanceRangeColorClass(lowestBalance.balance, balanceRanges)}`}
+                >
+                  {formatCentavos(
+                    balanceRangeTier(lowestBalance.balance, balanceRanges) === "danger"
+                      ? Math.abs(lowestBalance.balance)
+                      : lowestBalance.balance,
+                    currency,
+                  )}
+                </span>{" "}
+                on {formatFullDate(lowestBalance.date)}
+              </p>
+            </div>
           </div>
 
           {forecast.length > 0 && (
