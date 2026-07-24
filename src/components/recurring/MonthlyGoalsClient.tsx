@@ -8,9 +8,10 @@ import { summarizeRecurrence } from "@/lib/recurrenceSummary";
 import { todayInManila } from "@/lib/date";
 import { AmountRangeFilter, matchesAmountFilter, type ComparisonOp } from "@/components/AmountRangeFilter";
 import { MultiSelectChips } from "@/components/MultiSelectChips";
-import type { RecurrenceUnit } from "@/lib/engine/types";
+import type { ForecastRow, RecurrenceUnit } from "@/lib/engine/types";
 import type { RecurringItemActionState } from "@/lib/recurringItem";
 import { MonthlyGoalModal, type BalanceOption } from "./MonthlyGoalModal";
+import { ItemTransactionsModal, type SettlementRow } from "./ItemTransactionsModal";
 import type { MonthlyGoalRow } from "./MonthlyGoalRow";
 
 type GoalAction = (
@@ -52,6 +53,8 @@ export function MonthlyGoalsClient({
   deleteAction,
   editedIds,
   balances,
+  upcomingByItemId,
+  paidByItemId,
 }: {
   items: MonthlyGoalRow[];
   pageTitle: string;
@@ -63,9 +66,12 @@ export function MonthlyGoalsClient({
   deleteAction: DeleteAction;
   editedIds: Set<string>;
   balances: BalanceOption[];
+  upcomingByItemId: Map<string, ForecastRow[]>;
+  paidByItemId: Map<string, SettlementRow[]>;
 }) {
   const [modalState, setModalState] = useState<null | "new" | MonthlyGoalRow>(null);
   const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null);
+  const [viewingItem, setViewingItem] = useState<MonthlyGoalRow | null>(null);
 
   // T52: filter bar (name, amount range, recurrence unit) shared by both
   // Debt and Savings since they both render through this one component.
@@ -210,7 +216,21 @@ export function MonthlyGoalsClient({
                   key={item.id}
                   className="flex items-center justify-between rounded-lg border border-notion-hairline bg-white p-4"
                 >
-                  <div>
+                  {/* User request 2026-07-24: clicking an item (not its
+                      Edit/Delete buttons, which sit in a sibling div below)
+                      opens its upcoming/paid transactions view. */}
+                  <div
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => setViewingItem(item)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        setViewingItem(item);
+                      }
+                    }}
+                    className="cursor-pointer hover:opacity-80"
+                  >
                     {/* T71 follow-up: the connected account moved from a
                         run-on text line into its own pill badge next to the
                         name (matching the Budgets page's "Connected to
@@ -291,6 +311,15 @@ export function MonthlyGoalsClient({
             createAction={createAction}
             updateAction={updateAction}
             onClose={() => setModalState(null)}
+          />
+        )}
+
+        {viewingItem && (
+          <ItemTransactionsModal
+            name={viewingItem.name}
+            upcoming={upcomingByItemId.get(viewingItem.id) ?? []}
+            paid={paidByItemId.get(viewingItem.id) ?? []}
+            onClose={() => setViewingItem(null)}
           />
         )}
       </div>

@@ -1,11 +1,13 @@
 import { createClient } from "@/lib/supabase/server";
 import { idSetFromColumn } from "@/lib/editedItems";
+import { groupBy } from "@/lib/groupBy";
+import { loadForecast } from "@/lib/forecastData";
 import { MonthlyGoalsClient } from "@/components/recurring/MonthlyGoalsClient";
 import { createSavings, updateSavings, deleteSavings } from "./actions";
 
 export default async function SavingsPage() {
   const supabase = await createClient();
-  const [{ data: items, error }, overridesRes, balancesRes] = await Promise.all([
+  const [{ data: items, error }, overridesRes, balancesRes, settlementsRes, { forecast }] = await Promise.all([
     supabase
       .from("recurring_items")
       .select(
@@ -18,6 +20,16 @@ export default async function SavingsPage() {
     supabase.from("occurrence_overrides").select("recurring_item_id"),
     // T71: options for the optional "connected account" dropdown.
     supabase.from("balances").select("id, name").order("name", { ascending: true }),
+    // User request 2026-07-24: settled transactions for each item's
+    // "Paid" view.
+    supabase
+      .from("settlements")
+      .select("id, source_id, name, forecasted_amount, actual_amount, forecasted_date, actual_date")
+      .eq("type", "savings")
+      .order("actual_date", { ascending: false }),
+    // Reused for each item's "Upcoming" view - already override-aware, so
+    // no separate expansion logic is needed here.
+    loadForecast(),
   ]);
 
   if (error) {
@@ -25,6 +37,11 @@ export default async function SavingsPage() {
   }
 
   const editedIds = idSetFromColumn(overridesRes.data, "recurring_item_id");
+  const upcomingByItemId = groupBy(
+    forecast.filter((row) => row.sourceType === "recurring" && row.type === "savings"),
+    (row) => row.sourceId,
+  );
+  const paidByItemId = groupBy(settlementsRes.data ?? [], (row) => row.source_id);
 
   return (
     <MonthlyGoalsClient
@@ -38,6 +55,8 @@ export default async function SavingsPage() {
       deleteAction={deleteSavings}
       editedIds={editedIds}
       balances={balancesRes.data ?? []}
+      upcomingByItemId={upcomingByItemId}
+      paidByItemId={paidByItemId}
     />
   );
 }
