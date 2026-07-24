@@ -21,10 +21,12 @@ const initialEntryState: BudgetActionState = { error: null };
 export function EditSettleModal({
   row,
   currency,
+  balances,
   onClose,
 }: {
   row: ForecastRow;
   currency: string;
+  balances: { id: string; name: string }[];
   onClose: () => void;
 }) {
   // Future-dated budget entries (SPEC.md T43/T57) are editable directly from
@@ -359,6 +361,24 @@ export function EditSettleModal({
               defaultValue={row.dueDate}
               className="mt-1 w-full rounded border border-notion-hairline p-2 text-notion-text focus:border-notion-accent focus:outline-none"
             />
+          </div>
+          <div>
+            <label className="block text-sm text-slate-600" htmlFor="balanceId">
+              Account
+            </label>
+            <select
+              id="balanceId"
+              name="balanceId"
+              defaultValue={row.balanceId ?? ""}
+              className="mt-1 w-full rounded border border-notion-hairline p-2 text-notion-text focus:border-notion-accent focus:outline-none"
+            >
+              <option value="">No account (don&apos;t update a balance)</option>
+              {balances.map((balance) => (
+                <option key={balance.id} value={balance.id}>
+                  {balance.name}
+                </option>
+              ))}
+            </select>
           </div>
           {settleState.error && <p className="text-sm text-red-600">{settleState.error}</p>}
           <div className="flex justify-end gap-2">

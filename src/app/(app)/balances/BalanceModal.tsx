@@ -2,8 +2,9 @@
 
 import { useActionState, useEffect, useRef } from "react";
 import { Modal } from "@/components/Modal";
-import { centavosToPesosString } from "@/lib/money";
-import { createBalance, updateBalance, type BalanceActionState } from "./actions";
+import { centavosToPesosString, formatCentavos } from "@/lib/money";
+import { createBalance, updateBalance, disconnectItem, type BalanceActionState } from "./actions";
+import type { ConnectedItem } from "./BalancesClient";
 
 export type BalanceRow = {
   id: string;
@@ -16,9 +17,15 @@ const initialState: BalanceActionState = { error: null };
 
 export function BalanceModal({
   balance,
+  // Optional: the Forecast page also opens this modal (for a quick balance
+  // edit from its balance chips) without fetching connected-items data -
+  // the section below simply doesn't render there. The Balances page always
+  // passes the real list.
+  connectedItems = [],
   onClose,
 }: {
   balance: BalanceRow | null;
+  connectedItems?: ConnectedItem[];
   onClose: () => void;
 }) {
   const isEdit = balance !== null;
@@ -100,6 +107,38 @@ export function BalanceModal({
           </button>
         </div>
       </form>
+
+      {isEdit && (
+        <div className="mt-6 border-t border-notion-hairline pt-4">
+          <p className="mb-2 text-sm font-medium text-notion-text">Connected items</p>
+          {connectedItems.length === 0 ? (
+            <p className="text-sm text-slate-400">No bills, income, debt, savings, or extras point here.</p>
+          ) : (
+            <ul className="space-y-1">
+              {connectedItems.map((item) => (
+                <li
+                  key={`${item.sourceType}-${item.id}`}
+                  className="flex items-center justify-between text-sm text-notion-text"
+                >
+                  <span>
+                    {item.name}{" "}
+                    <span className="text-slate-400">
+                      ({item.type}, {formatCentavos(Math.abs(item.amount))})
+                    </span>
+                  </span>
+                  <form action={disconnectItem}>
+                    <input type="hidden" name="sourceType" value={item.sourceType} />
+                    <input type="hidden" name="id" value={item.id} />
+                    <button type="submit" className="text-xs text-red-600 underline">
+                      Disconnect
+                    </button>
+                  </form>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
     </Modal>
   );
 }

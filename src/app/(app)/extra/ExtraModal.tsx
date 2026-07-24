@@ -11,11 +11,23 @@ export type ExtraRow = {
   amount: number;
   due_date: string;
   comments: string | null;
+  balance_id: string | null;
 };
+
+// T71: options for the optional "connected account" dropdown.
+export type BalanceOption = { id: string; name: string };
 
 const initialState: ExtraActionState = { error: null };
 
-export function ExtraModal({ extra, onClose }: { extra: ExtraRow | null; onClose: () => void }) {
+export function ExtraModal({
+  extra,
+  balances,
+  onClose,
+}: {
+  extra: ExtraRow | null;
+  balances: BalanceOption[];
+  onClose: () => void;
+}) {
   const isEdit = extra !== null;
   const [state, formAction, pending] = useActionState(
     isEdit ? updateExtra : createExtra,
@@ -107,6 +119,24 @@ export function ExtraModal({ extra, onClose }: { extra: ExtraRow | null; onClose
             defaultValue={extra?.due_date}
             className="mt-1 w-full rounded border border-notion-hairline p-2 text-notion-text focus:border-notion-accent focus:outline-none"
           />
+        </div>
+        <div>
+          <label className="block text-sm text-slate-600" htmlFor="balanceId">
+            Account (optional)
+          </label>
+          <select
+            id="balanceId"
+            name="balanceId"
+            defaultValue={extra?.balance_id ?? ""}
+            className="mt-1 w-full rounded border border-notion-hairline p-2 text-notion-text focus:border-notion-accent focus:outline-none"
+          >
+            <option value="">No connected account</option>
+            {balances.map((balance) => (
+              <option key={balance.id} value={balance.id}>
+                {balance.name}
+              </option>
+            ))}
+          </select>
         </div>
         <div>
           <label className="block text-sm text-slate-600" htmlFor="comments">

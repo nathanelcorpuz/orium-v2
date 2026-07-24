@@ -395,6 +395,7 @@ export function ForecastClient({
         <EditSettleModal
           row={selectedRow}
           currency={currency}
+          balances={balances}
           onClose={() => setSelectedRow(null)}
         />
       )}

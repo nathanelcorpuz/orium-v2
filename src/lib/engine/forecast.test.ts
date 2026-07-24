@@ -23,6 +23,7 @@ function monthlyItem(overrides: Partial<RecurringItem>): RecurringItem {
     ordinalWeekday: null,
     endsType: "on_date",
     occurrenceCount: null,
+    balanceId: null,
     ...overrides,
   };
 }
@@ -167,8 +168,8 @@ describe("generateForecast edited flag (Phase 7 edited-occurrence indicator)", (
 describe("generateForecast one-offs", () => {
   it("merges one-offs due today or later and drops ones before today", () => {
     const oneOffs: OneOffItem[] = [
-      { id: "off-1", name: "Gift", amount: 50000, dueDate: "2026-01-05" },
-      { id: "off-2", name: "Old refund", amount: 20000, dueDate: "2025-12-31" },
+      { id: "off-1", name: "Gift", amount: 50000, dueDate: "2026-01-05", balanceId: null },
+      { id: "off-2", name: "Old refund", amount: 20000, dueDate: "2025-12-31", balanceId: null },
     ];
 
     const result = generateForecast({
@@ -206,7 +207,7 @@ describe("generateForecast running balance", () => {
       daysOfMonth: [5],
     });
     const oneOffs: OneOffItem[] = [
-      { id: "off-x", name: "Refund", amount: 100000, dueDate: "2026-01-10" },
+      { id: "off-x", name: "Refund", amount: 100000, dueDate: "2026-01-10", balanceId: null },
     ];
 
     const result = generateForecast({

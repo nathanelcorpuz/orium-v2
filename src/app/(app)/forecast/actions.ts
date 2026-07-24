@@ -76,11 +76,39 @@ export async function editOneOff(
 function readSettleForm(formData: FormData) {
   const actualAmount = parseCentavos(formData.get("actualAmountPesos") as string);
   const actualDate = formData.get("actualDate") as string;
+  const balanceId = (formData.get("balanceId") as string) || null;
 
   if (actualAmount === null) return { error: "Enter a valid actual amount." } as const;
   if (!actualDate) return { error: "Actual date is required." } as const;
 
-  return { error: null, actualAmount, actualDate } as const;
+  return { error: null, actualAmount, actualDate, balanceId } as const;
+}
+
+// T71 (SPEC.md Phase 12): applies a settlement's signed actual amount to its
+// selected account - adds for income/incoming extras, subtracts for bills/
+// debt/savings/outgoing extras, since actualAmount already carries the
+// right sign for the item type (same convention the rest of the app uses).
+// Fetch-then-update rather than an atomic increment, matching this app's
+// existing non-transactional multi-step-write style (e.g. the linked-budget
+// loop just below) - acceptable for a single-user/family app with no
+// concurrent-write risk in practice.
+async function applyToBalance(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  balanceId: string,
+  delta: number,
+): Promise<string | null> {
+  const { data: balance, error: fetchError } = await supabase
+    .from("balances")
+    .select("amount")
+    .eq("id", balanceId)
+    .single();
+  if (fetchError) return fetchError.message;
+
+  const { error: updateError } = await supabase
+    .from("balances")
+    .update({ amount: balance.amount + delta })
+    .eq("id", balanceId);
+  return updateError?.message ?? null;
 }
 
 export async function settleOccurrence(
@@ -118,6 +146,16 @@ export async function settleOccurrence(
     forecasted_balance: forecastedBalance,
   });
   if (settlementError) return { error: settlementError.message };
+
+  // T71 (SPEC.md Phase 12): if an account is selected (pre-filled from the
+  // item's own linked balance, but overridable per-settlement), apply the
+  // actual amount to it - this is the one moment money really moves, so it's
+  // the only place a balance gets touched (editing/deleting a past
+  // settlement deliberately does not retro-adjust it).
+  if (fields.balanceId) {
+    const balanceError = await applyToBalance(supabase, fields.balanceId, fields.actualAmount);
+    if (balanceError) return { error: balanceError };
+  }
 
   if (sourceType === "recurring") {
     const { error } = await supabase.from("occurrence_overrides").upsert(
@@ -198,6 +236,7 @@ export async function settleOccurrence(
     revalidatePath("/extra");
   }
 
+  if (fields.balanceId) revalidatePath("/balances");
   revalidatePath("/forecast");
   revalidatePath("/");
   return { error: null };

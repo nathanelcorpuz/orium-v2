@@ -8,7 +8,7 @@ import { AmountRangeFilter, matchesAmountFilter, type ComparisonOp } from "@/com
 import { MultiSelectChips } from "@/components/MultiSelectChips";
 import type { RecurrenceUnit } from "@/lib/engine/types";
 import { deleteBill } from "./actions";
-import { BillModal, type BillRow } from "./BillModal";
+import { BillModal, type BalanceOption, type BillRow } from "./BillModal";
 
 const UNIT_OPTIONS: { value: RecurrenceUnit; label: string }[] = [
   { value: "day", label: "Day" },
@@ -32,7 +32,15 @@ function billRule(bill: BillRow) {
   };
 }
 
-export function BillsClient({ bills, editedIds }: { bills: BillRow[]; editedIds: Set<string> }) {
+export function BillsClient({
+  bills,
+  editedIds,
+  balances,
+}: {
+  bills: BillRow[];
+  editedIds: Set<string>;
+  balances: BalanceOption[];
+}) {
   const [modalState, setModalState] = useState<null | "new" | BillRow>(null);
   const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null);
 
@@ -221,6 +229,7 @@ export function BillsClient({ bills, editedIds }: { bills: BillRow[]; editedIds:
         {modalState !== null && (
           <BillModal
             bill={modalState === "new" ? null : modalState}
+            balances={balances}
             onClose={() => setModalState(null)}
           />
         )}

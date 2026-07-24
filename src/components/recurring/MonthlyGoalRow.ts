@@ -15,4 +15,5 @@ export type MonthlyGoalRow = {
   end_date: string | null;
   occurrence_count: number | null;
   comments: string | null;
+  balance_id: string | null;
 };

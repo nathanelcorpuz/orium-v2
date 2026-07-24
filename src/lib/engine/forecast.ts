@@ -77,6 +77,7 @@ export function generateForecast(input: GenerateForecastInput): ForecastRow[] {
         dueDate: effectiveDate,
         type: item.type,
         edited: override ? true : undefined,
+        balanceId: item.balanceId ?? undefined,
       });
 
       if (item.type === "income") {
@@ -98,6 +99,7 @@ export function generateForecast(input: GenerateForecastInput): ForecastRow[] {
       amount: oneOff.amount,
       dueDate: oneOff.dueDate,
       type: "extra",
+      balanceId: oneOff.balanceId ?? undefined,
     });
   }
 

@@ -12,6 +12,7 @@ function readExtraForm(formData: FormData) {
   const direction = formData.get("direction") as string;
   const dueDate = formData.get("dueDate") as string;
   const comments = ((formData.get("comments") as string) || "").trim() || null;
+  const balanceId = (formData.get("balanceId") as string) || null;
 
   if (!name) return { error: "Name is required." } as const;
   if (magnitude === null || magnitude === 0) {
@@ -28,6 +29,7 @@ function readExtraForm(formData: FormData) {
     amount: direction === "in" ? Math.abs(magnitude) : -Math.abs(magnitude),
     dueDate,
     comments,
+    balanceId,
   } as const;
 }
 
@@ -50,6 +52,7 @@ export async function createExtra(
     amount: fields.amount,
     due_date: fields.dueDate,
     comments: fields.comments,
+    balance_id: fields.balanceId,
   });
   if (error) return { error: error.message };
 
@@ -74,6 +77,7 @@ export async function updateExtra(
       amount: fields.amount,
       due_date: fields.dueDate,
       comments: fields.comments,
+      balance_id: fields.balanceId,
     })
     .eq("id", id);
   if (error) return { error: error.message };

@@ -8,7 +8,7 @@ import { AmountRangeFilter, matchesAmountFilter, type ComparisonOp } from "@/com
 import { MultiSelectChips } from "@/components/MultiSelectChips";
 import type { RecurrenceUnit } from "@/lib/engine/types";
 import { deleteIncome } from "./actions";
-import { IncomeModal, type IncomeRow } from "./IncomeModal";
+import { IncomeModal, type BalanceOption, type IncomeRow } from "./IncomeModal";
 
 const UNIT_OPTIONS: { value: RecurrenceUnit; label: string }[] = [
   { value: "day", label: "Day" },
@@ -32,7 +32,15 @@ function incomeRule(income: IncomeRow) {
   };
 }
 
-export function IncomeClient({ incomes, editedIds }: { incomes: IncomeRow[]; editedIds: Set<string> }) {
+export function IncomeClient({
+  incomes,
+  editedIds,
+  balances,
+}: {
+  incomes: IncomeRow[];
+  editedIds: Set<string>;
+  balances: BalanceOption[];
+}) {
   const [modalState, setModalState] = useState<null | "new" | IncomeRow>(null);
   const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null);
 
@@ -222,6 +230,7 @@ export function IncomeClient({ incomes, editedIds }: { incomes: IncomeRow[]; edi
         {modalState !== null && (
           <IncomeModal
             income={modalState === "new" ? null : modalState}
+            balances={balances}
             onClose={() => setModalState(null)}
           />
         )}

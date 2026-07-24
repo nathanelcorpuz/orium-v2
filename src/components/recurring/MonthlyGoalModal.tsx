@@ -15,10 +15,14 @@ type GoalAction = (
   formData: FormData,
 ) => Promise<RecurringItemActionState>;
 
+// T71: options for the optional "connected account" dropdown.
+export type BalanceOption = { id: string; name: string };
+
 export function MonthlyGoalModal({
   item,
   noun,
   amountLabel,
+  balances,
   createAction,
   updateAction,
   onClose,
@@ -26,6 +30,7 @@ export function MonthlyGoalModal({
   item: MonthlyGoalRow | null;
   noun: string;
   amountLabel: string;
+  balances: BalanceOption[];
   createAction: GoalAction;
   updateAction: GoalAction;
   onClose: () => void;
@@ -111,6 +116,24 @@ export function MonthlyGoalModal({
           />
         </div>
         <RecurrencePicker startDate={startDate} initialValue={initialRecurrenceValue} />
+        <div>
+          <label className="block text-sm text-slate-600" htmlFor="balanceId">
+            Account (optional)
+          </label>
+          <select
+            id="balanceId"
+            name="balanceId"
+            defaultValue={item?.balance_id ?? ""}
+            className="mt-1 w-full rounded border border-notion-hairline p-2 text-notion-text focus:border-notion-accent focus:outline-none"
+          >
+            <option value="">No connected account</option>
+            {balances.map((balance) => (
+              <option key={balance.id} value={balance.id}>
+                {balance.name}
+              </option>
+            ))}
+          </select>
+        </div>
         <div>
           <label className="block text-sm text-slate-600" htmlFor="comments">
             Comments

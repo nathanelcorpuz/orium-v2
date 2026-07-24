@@ -13,6 +13,7 @@ function readBillForm(formData: FormData) {
   const amountPesos = parseCentavos(formData.get("amountPesos") as string);
   const startDate = formData.get("startDate") as string;
   const comments = ((formData.get("comments") as string) || "").trim() || null;
+  const balanceId = (formData.get("balanceId") as string) || null;
 
   if (!name) return { error: "Name is required." } as const;
   if (amountPesos === null || amountPesos === 0) {
@@ -29,6 +30,7 @@ function readBillForm(formData: FormData) {
     amount: -Math.abs(amountPesos),
     startDate,
     comments,
+    balanceId,
   } as const;
 }
 
@@ -61,6 +63,7 @@ export async function createBill(
     end_date: fields.endDate,
     occurrence_count: fields.occurrenceCount,
     comments: fields.comments,
+    balance_id: fields.balanceId,
   });
   if (error) return { error: error.message };
 
@@ -95,6 +98,7 @@ export async function updateBill(
       end_date: fields.endDate,
       occurrence_count: fields.occurrenceCount,
       comments: fields.comments,
+      balance_id: fields.balanceId,
     })
     .eq("id", id);
   if (error) return { error: error.message };

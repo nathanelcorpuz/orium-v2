@@ -67,3 +67,26 @@ export async function deleteBalance(formData: FormData) {
   revalidatePath("/forecast");
   revalidatePath("/");
 }
+
+// T71 (SPEC.md Phase 12): unlinks one connected item from its account,
+// setting the item back to "no connected account" - the item itself is
+// otherwise untouched. Revalidates every category page since a recurring
+// item could be a bill/income/debt/savings and this action isn't told
+// which.
+export async function disconnectItem(formData: FormData) {
+  const sourceType = formData.get("sourceType") as "recurring" | "one_off";
+  const id = formData.get("id") as string;
+  const table = sourceType === "recurring" ? "recurring_items" : "one_off_items";
+
+  const supabase = await createClient();
+  await supabase.from(table).update({ balance_id: null }).eq("id", id);
+
+  revalidatePath("/balances");
+  revalidatePath("/forecast");
+  revalidatePath("/bills");
+  revalidatePath("/income");
+  revalidatePath("/debt");
+  revalidatePath("/savings");
+  revalidatePath("/extra");
+  revalidatePath("/");
+}

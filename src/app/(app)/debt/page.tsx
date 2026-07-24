@@ -5,17 +5,19 @@ import { createDebt, updateDebt, deleteDebt } from "./actions";
 
 export default async function DebtPage() {
   const supabase = await createClient();
-  const [{ data: items, error }, overridesRes] = await Promise.all([
+  const [{ data: items, error }, overridesRes, balancesRes] = await Promise.all([
     supabase
       .from("recurring_items")
       .select(
-        "id, name, amount, start_date, interval, unit, weekdays, days_of_month, ordinal, ordinal_weekday, ends_type, end_date, occurrence_count, comments",
+        "id, name, amount, start_date, interval, unit, weekdays, days_of_month, ordinal, ordinal_weekday, ends_type, end_date, occurrence_count, comments, balance_id",
       )
       .eq("type", "debt")
       .order("end_date", { ascending: true }),
     // T51: any occurrence_overrides row (including a pure skip) marks the
     // item itself as edited, not just its individual Forecast occurrences.
     supabase.from("occurrence_overrides").select("recurring_item_id"),
+    // T71: options for the optional "connected account" dropdown.
+    supabase.from("balances").select("id, name").order("name", { ascending: true }),
   ]);
 
   if (error) {
@@ -35,6 +37,7 @@ export default async function DebtPage() {
       updateAction={updateDebt}
       deleteAction={deleteDebt}
       editedIds={editedIds}
+      balances={balancesRes.data ?? []}
     />
   );
 }

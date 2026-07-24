@@ -127,6 +127,7 @@ function income(overrides: Partial<RecurringItem>): RecurringItem {
     name: "Freelance",
     type: "income",
     amount: 2000000,
+    balanceId: null,
     ...weeklyMonday,
     ...overrides,
   };

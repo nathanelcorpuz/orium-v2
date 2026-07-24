@@ -23,11 +23,23 @@ export type IncomeRow = {
   end_date: string | null;
   occurrence_count: number | null;
   comments: string | null;
+  balance_id: string | null;
 };
+
+// T71: options for the optional "connected account" dropdown.
+export type BalanceOption = { id: string; name: string };
 
 const initialState: IncomeActionState = { error: null };
 
-export function IncomeModal({ income, onClose }: { income: IncomeRow | null; onClose: () => void }) {
+export function IncomeModal({
+  income,
+  balances,
+  onClose,
+}: {
+  income: IncomeRow | null;
+  balances: BalanceOption[];
+  onClose: () => void;
+}) {
   const isEdit = income !== null;
   const [state, formAction, pending] = useActionState(
     isEdit ? updateIncome : createIncome,
@@ -109,6 +121,24 @@ export function IncomeModal({ income, onClose }: { income: IncomeRow | null; onC
           />
         </div>
         <RecurrencePicker startDate={startDate} initialValue={initialRecurrenceValue} />
+        <div>
+          <label className="block text-sm text-slate-600" htmlFor="balanceId">
+            Account (optional)
+          </label>
+          <select
+            id="balanceId"
+            name="balanceId"
+            defaultValue={income?.balance_id ?? ""}
+            className="mt-1 w-full rounded border border-notion-hairline p-2 text-notion-text focus:border-notion-accent focus:outline-none"
+          >
+            <option value="">No connected account</option>
+            {balances.map((balance) => (
+              <option key={balance.id} value={balance.id}>
+                {balance.name}
+              </option>
+            ))}
+          </select>
+        </div>
         <div>
           <label className="block text-sm text-slate-600" htmlFor="comments">
             Comments

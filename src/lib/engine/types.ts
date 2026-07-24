@@ -17,6 +17,10 @@ export interface RecurringItem {
   type: RecurringItemType;
   amount: number; // centavos; signed (bills/debt/savings negative, income positive)
   startDate: string; // YYYY-MM-DD
+  // T71 (SPEC.md Phase 12): optional link to a balances row. When set, the
+  // Forecast settle modal defaults to this account and settling applies the
+  // actual amount to it automatically - see ForecastRow.balanceId below.
+  balanceId: string | null;
 
   // Recurrence rule (SPEC.md Phase 6A). interval/unit/endsType are DB
   // NOT NULL - every row has a complete rule. The rest depend on which
@@ -63,6 +67,8 @@ export interface OneOffItem {
   name: string;
   amount: number; // centavos, signed
   dueDate: string; // YYYY-MM-DD
+  // T71 (SPEC.md Phase 12): see RecurringItem.balanceId above.
+  balanceId: string | null;
 }
 
 // Budgets v3 - a running ledger (SPEC.md Phase 10, T57 cutover). The old
@@ -156,6 +162,11 @@ export interface ForecastRow {
   // don't need updating (toEqual treats a missing key the same as an
   // explicit `undefined`).
   edited?: true;
+  // T71 (SPEC.md Phase 12): the source item's linked account, for
+  // "recurring"/"one_off" rows only - lets the Forecast settle modal
+  // pre-select it. Omitted (not null) when unset, same convention as
+  // `edited`, so existing toEqual literals without it are unaffected.
+  balanceId?: string;
 }
 
 export interface GenerateForecastInput {

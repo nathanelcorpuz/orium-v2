@@ -5,9 +5,9 @@ import { formatCentavos } from "@/lib/money";
 import { todayInManila } from "@/lib/date";
 import { AmountRangeFilter, matchesAmountFilter, type ComparisonOp } from "@/components/AmountRangeFilter";
 import { deleteExtra } from "./actions";
-import { ExtraModal, type ExtraRow } from "./ExtraModal";
+import { ExtraModal, type BalanceOption, type ExtraRow } from "./ExtraModal";
 
-export function ExtraClient({ extras }: { extras: ExtraRow[] }) {
+export function ExtraClient({ extras, balances }: { extras: ExtraRow[]; balances: BalanceOption[] }) {
   const [modalState, setModalState] = useState<null | "new" | ExtraRow>(null);
   const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null);
 
@@ -196,6 +196,7 @@ export function ExtraClient({ extras }: { extras: ExtraRow[] }) {
         {modalState !== null && (
           <ExtraModal
             extra={modalState === "new" ? null : modalState}
+            balances={balances}
             onClose={() => setModalState(null)}
           />
         )}

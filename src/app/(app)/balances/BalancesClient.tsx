@@ -5,7 +5,25 @@ import { formatCentavos } from "@/lib/money";
 import { deleteBalance } from "./actions";
 import { BalanceModal, type BalanceRow } from "./BalanceModal";
 
-export function BalancesClient({ balances }: { balances: BalanceRow[] }) {
+// T71 (SPEC.md Phase 12): a bill/income/debt/savings/extra currently linked
+// to an account, for the "connected items" view in that account's own edit
+// modal.
+export type ConnectedItem = {
+  id: string;
+  name: string;
+  amount: number;
+  balanceId: string;
+  sourceType: "recurring" | "one_off";
+  type: string;
+};
+
+export function BalancesClient({
+  balances,
+  connectedItems,
+}: {
+  balances: BalanceRow[];
+  connectedItems: ConnectedItem[];
+}) {
   const [modalState, setModalState] = useState<null | "new" | BalanceRow>(null);
   const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null);
 
@@ -92,6 +110,9 @@ export function BalancesClient({ balances }: { balances: BalanceRow[] }) {
         {modalState !== null && (
           <BalanceModal
             balance={modalState === "new" ? null : modalState}
+            connectedItems={
+              modalState === "new" ? [] : connectedItems.filter((item) => item.balanceId === modalState.id)
+            }
             onClose={() => setModalState(null)}
           />
         )}

@@ -10,7 +10,7 @@ import { AmountRangeFilter, matchesAmountFilter, type ComparisonOp } from "@/com
 import { MultiSelectChips } from "@/components/MultiSelectChips";
 import type { RecurrenceUnit } from "@/lib/engine/types";
 import type { RecurringItemActionState } from "@/lib/recurringItem";
-import { MonthlyGoalModal } from "./MonthlyGoalModal";
+import { MonthlyGoalModal, type BalanceOption } from "./MonthlyGoalModal";
 import type { MonthlyGoalRow } from "./MonthlyGoalRow";
 
 type GoalAction = (
@@ -51,6 +51,7 @@ export function MonthlyGoalsClient({
   updateAction,
   deleteAction,
   editedIds,
+  balances,
 }: {
   items: MonthlyGoalRow[];
   pageTitle: string;
@@ -61,6 +62,7 @@ export function MonthlyGoalsClient({
   updateAction: GoalAction;
   deleteAction: DeleteAction;
   editedIds: Set<string>;
+  balances: BalanceOption[];
 }) {
   const [modalState, setModalState] = useState<null | "new" | MonthlyGoalRow>(null);
   const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null);
@@ -269,6 +271,7 @@ export function MonthlyGoalsClient({
             item={modalState === "new" ? null : modalState}
             noun={noun}
             amountLabel={amountLabel}
+            balances={balances}
             createAction={createAction}
             updateAction={updateAction}
             onClose={() => setModalState(null)}
