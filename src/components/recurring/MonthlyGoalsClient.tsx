@@ -234,7 +234,7 @@ export function MonthlyGoalsClient({
                         setViewingItem(item);
                       }
                     }}
-                    className="cursor-pointer hover:opacity-80"
+                    className="min-w-0 flex-1 cursor-pointer hover:opacity-80"
                   >
                     {/* T71 follow-up: the connected account moved from a
                         run-on text line into its own pill badge next to the
@@ -257,7 +257,7 @@ export function MonthlyGoalsClient({
                     </div>
                     <p className={`mt-1 text-sm ${amountColorClass}`}>{formatCentavos(Math.abs(item.amount))}</p>
                     <p className="text-sm text-slate-400">{metaLine}</p>
-                    <div className="mt-1.5 max-w-xs">
+                    <div className="mt-1.5 w-full">
                       <ProgressBar percent={progress.fraction * 100} over={false} />
                       <p className="mt-0.5 text-xs text-slate-400">
                         {progress.settled} of {progress.total} settled

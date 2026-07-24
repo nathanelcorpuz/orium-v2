@@ -193,7 +193,7 @@ export default async function Home() {
           )}
           {/* T72: settled/total payments across every debt item. */}
           {debtItems.length > 0 && (
-            <div className="mt-2 max-w-xs">
+            <div className="mt-2">
               <ProgressBar percent={debtProgress.fraction * 100} over={false} />
               <p className="mt-0.5 text-xs text-slate-400">
                 {debtProgress.settled} of {debtProgress.total} payments settled
@@ -218,7 +218,7 @@ export default async function Home() {
           )}
           {/* T72: settled/total contributions across every savings item. */}
           {savingsItems.length > 0 && (
-            <div className="mt-2 max-w-xs">
+            <div className="mt-2">
               <ProgressBar percent={savingsProgress.fraction * 100} over={false} />
               <p className="mt-0.5 text-xs text-slate-400">
                 {savingsProgress.settled} of {savingsProgress.total} contributions settled
