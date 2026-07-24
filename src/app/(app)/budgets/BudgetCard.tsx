@@ -51,6 +51,13 @@ export type IncomeItemRow = {
 
 const initialLogState: BudgetActionState = { error: null };
 
+// User follow-up to T49: budget entries can grow long the same way the
+// Forecast table does, so they get the same fixed-height scroll container +
+// incremental-rendering treatment (batches revealed via IntersectionObserver
+// as the user scrolls near the bottom) rather than crowding the page.
+const INITIAL_VISIBLE_ENTRIES = 20;
+const ENTRIES_PER_BATCH = 20;
+
 function toEngineEntries(entries: BudgetEntryRow[], budgetId: string): BudgetEntry[] {
   return entries.map((entry) => ({
     id: entry.id,
@@ -235,10 +242,43 @@ export function BudgetCard({
   // Bills/Income/Debt/Savings rows already do (recurrenceSummary.ts).
   const replenishLabel = incomeName ? `Connected to ${incomeName}` : rule ? summarizeRecurrence(rule) : "Manual";
 
-  const visibleEntries = entries
+  const filteredEntries = entries
     .filter((entry) => entry.entry_date <= today)
     .filter((entry) => (monthFilter ? entry.entry_date.startsWith(monthFilter) : true))
     .sort((a, b) => (a.entry_date < b.entry_date ? 1 : -1));
+
+  const [visibleCount, setVisibleCount] = useState(INITIAL_VISIBLE_ENTRIES);
+  const entriesScrollRef = useRef<HTMLDivElement>(null);
+  const entriesSentinelRef = useRef<HTMLLIElement>(null);
+
+  // Reset to the first batch whenever the month filter changes, so a newly
+  // selected month always starts fresh - same render-time state-adjustment
+  // pattern ForecastClient.tsx uses (T50), avoiding an extra effect-driven
+  // render pass.
+  const [prevMonthFilter, setPrevMonthFilter] = useState(monthFilter);
+  if (monthFilter !== prevMonthFilter) {
+    setPrevMonthFilter(monthFilter);
+    setVisibleCount(INITIAL_VISIBLE_ENTRIES);
+  }
+
+  const visibleEntries = filteredEntries.slice(0, visibleCount);
+
+  useEffect(() => {
+    const sentinel = entriesSentinelRef.current;
+    const root = entriesScrollRef.current;
+    if (!sentinel || !root) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setVisibleCount((count) => Math.min(count + ENTRIES_PER_BATCH, filteredEntries.length));
+        }
+      },
+      { root, rootMargin: "200px" },
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [filteredEntries.length]);
 
   const [logState, logAction, logPending] = useActionState(logSpend, initialLogState);
   const logFormRef = useRef<HTMLFormElement>(null);
@@ -351,12 +391,19 @@ export function BudgetCard({
         />
       </div>
 
-      {visibleEntries.length > 0 ? (
-        <ul className="mb-3 space-y-1">
-          {visibleEntries.map((entry) => (
-            <BudgetEntryListItem key={entry.id} entry={entry} budgetId={budget.id} budgetName={budget.name} />
-          ))}
-        </ul>
+      {filteredEntries.length > 0 ? (
+        <div ref={entriesScrollRef} className="mb-3 max-h-64 overflow-y-auto pr-1">
+          <ul className="space-y-1">
+            {visibleEntries.map((entry) => (
+              <BudgetEntryListItem key={entry.id} entry={entry} budgetId={budget.id} budgetName={budget.name} />
+            ))}
+            {visibleCount < filteredEntries.length && (
+              <li ref={entriesSentinelRef} className="py-1 text-center text-xs text-slate-400">
+                Loading more…
+              </li>
+            )}
+          </ul>
+        </div>
       ) : (
         <p className="mb-3 text-sm text-slate-400">No entries{monthFilter ? " that month" : " yet"}.</p>
       )}
