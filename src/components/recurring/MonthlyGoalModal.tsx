@@ -120,7 +120,7 @@ export function MonthlyGoalModal({
         <RecurrencePicker startDate={startDate} initialValue={initialRecurrenceValue} allowNever={false} />
         <div>
           <label className="block text-sm text-slate-600" htmlFor="balanceId">
-            Account (optional)
+            Deducted from (optional)
           </label>
           <select
             id="balanceId"

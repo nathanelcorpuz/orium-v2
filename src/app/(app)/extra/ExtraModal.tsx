@@ -122,7 +122,10 @@ export function ExtraModal({
         </div>
         <div>
           <label className="block text-sm text-slate-600" htmlFor="balanceId">
-            Account (optional)
+            {/* T77: extras can go either direction (unlike bills/debt/
+                savings, which are always outflows) - the label follows the
+                Direction radio above instead of being fixed. */}
+            {direction === "in" ? "Added to" : "Deducted from"} (optional)
           </label>
           <select
             id="balanceId"

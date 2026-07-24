@@ -123,7 +123,7 @@ export function IncomeModal({
         <RecurrencePicker startDate={startDate} initialValue={initialRecurrenceValue} />
         <div>
           <label className="block text-sm text-slate-600" htmlFor="balanceId">
-            Account (optional)
+            Added to (optional)
           </label>
           <select
             id="balanceId"

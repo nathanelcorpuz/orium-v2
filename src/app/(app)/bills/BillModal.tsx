@@ -123,7 +123,7 @@ export function BillModal({
         <RecurrencePicker startDate={startDate} initialValue={initialRecurrenceValue} />
         <div>
           <label className="block text-sm text-slate-600" htmlFor="balanceId">
-            Account (optional)
+            Deducted from (optional)
           </label>
           <select
             id="balanceId"

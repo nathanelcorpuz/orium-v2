@@ -364,7 +364,10 @@ export function EditSettleModal({
           </div>
           <div>
             <label className="block text-sm text-slate-600" htmlFor="balanceId">
-              Account
+              {/* T77: same direction-aware label as the CRUD forms - based
+                  on the row's own signed amount (not just its type), since
+                  an extra can go either way unlike bill/debt/savings/income. */}
+              {row.amount > 0 ? "Added to" : "Deducted from"}
             </label>
             <select
               id="balanceId"
