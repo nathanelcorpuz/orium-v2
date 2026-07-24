@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { loadForecast } from "@/lib/forecastData";
 import { formatCentavos } from "@/lib/money";
-import { formatFullDate, MONTH_ABBR } from "@/lib/date";
+import { formatFullDate, formatMonthYear } from "@/lib/date";
 import { displayName } from "@/lib/displayName";
 import { monthlyEquivalent } from "@/lib/engine/monthlyTotals";
 import { remainingTotal, ruleEndDate } from "@/lib/engine/remaining";
@@ -11,27 +11,22 @@ import { budgetReplenishRule, computeBudgetBalance, replenishProgress } from "@/
 import { daysBetween } from "@/lib/engine/date-utils";
 import { ProgressBar } from "@/components/ProgressBar";
 
-// T48: reshapes computeMonthlyPeaksAndDrops's flat "YYYY-MM" list into a
-// year x month grid for display - one row per year, one column per calendar
-// month (Jan-Dec). Purely presentational; the engine's data shape is
+// T48/user follow-up: reshapes computeMonthlyPeaksAndDrops's flat "YYYY-MM"
+// list into one block per year, each holding just its own present months (no
+// padding for out-of-horizon months) - a wrapping card grid, not a table, so
+// months reflow to the next line within their year block instead of forcing
+// horizontal scroll. Purely presentational; the engine's data shape is
 // untouched.
 function groupPeaksAndDropsByYear(
   rows: { month: string; peak: number; drop: number }[],
-): { year: number; months: ({ month: string; peak: number; drop: number } | undefined)[] }[] {
-  const byYear = new Map<number, Map<number, (typeof rows)[number]>>();
+): { year: number; months: { month: string; peak: number; drop: number }[] }[] {
+  const byYear = new Map<number, { month: string; peak: number; drop: number }[]>();
   for (const row of rows) {
-    const [year, month] = row.month.split("-").map(Number);
-    if (!byYear.has(year)) byYear.set(year, new Map());
-    byYear.get(year)!.set(month, row);
+    const [year] = row.month.split("-").map(Number);
+    if (!byYear.has(year)) byYear.set(year, []);
+    byYear.get(year)!.push(row);
   }
-  return [...byYear.entries()]
-    .sort(([a], [b]) => a - b)
-    .map(([year, months]) => ({
-      year,
-      // 12 slots (Jan-Dec), undefined where the horizon doesn't cover that
-      // month - keeps positional alignment with the grid's month columns.
-      months: Array.from({ length: 12 }, (_, i) => months.get(i + 1)),
-    }));
+  return [...byYear.entries()].sort(([a], [b]) => a - b).map(([year, months]) => ({ year, months }));
 }
 
 function DashboardCard({
@@ -208,41 +203,24 @@ export default async function Home() {
 
         <div className="rounded-lg border border-notion-hairline bg-white">
           <h2 className="p-4 pb-2 text-sm font-semibold text-notion-text">Peaks and Drops</h2>
-          <div className="max-h-64 overflow-auto md:max-h-[420px]">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-notion-hairline text-left text-slate-500">
-                  <th className="sticky top-0 z-10 bg-white p-3">Year</th>
-                  {MONTH_ABBR.map((label) => (
-                    <th key={label} className="sticky top-0 z-10 min-w-[104px] bg-white p-3 text-right">
-                      {label}
-                    </th>
+          <div className="max-h-64 space-y-4 overflow-y-auto p-4 pt-2 md:max-h-[420px]">
+            {peaksAndDropsByYear.map(({ year, months }) => (
+              <div key={year}>
+                <p className="mb-2 text-sm font-medium text-notion-text">{year}</p>
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
+                  {months.map((entry) => (
+                    <div
+                      key={entry.month}
+                      className="rounded border border-notion-hairline p-2 text-right text-xs"
+                    >
+                      <p className="text-slate-400">{formatMonthYear(entry.month)}</p>
+                      <p className="text-notion-text">{formatCentavos(entry.peak, currency)}</p>
+                      <p className="text-slate-500">{formatCentavos(entry.drop, currency)}</p>
+                    </div>
                   ))}
-                </tr>
-              </thead>
-              <tbody>
-                {peaksAndDropsByYear.map(({ year, months }) => (
-                  <tr key={year} className="border-b border-notion-hairline text-notion-text last:border-0">
-                    <td className="p-3 font-medium">{year}</td>
-                    {months.map((entry, i) =>
-                      entry ? (
-                        <td key={i} className="p-3 text-right">
-                          <p className="text-xs text-slate-400">
-                            {MONTH_ABBR[i]} {year}
-                          </p>
-                          <p>{formatCentavos(entry.peak, currency)}</p>
-                          <p className="text-slate-500">{formatCentavos(entry.drop, currency)}</p>
-                        </td>
-                      ) : (
-                        <td key={i} className="p-3 text-right text-slate-300">
-                          —
-                        </td>
-                      ),
-                    )}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       </div>

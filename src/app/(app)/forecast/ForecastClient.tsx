@@ -104,14 +104,14 @@ export function ForecastClient({
                 ref={scrollContainerRef}
                 className="max-h-[50vh] overflow-auto rounded-lg border border-notion-hairline bg-white md:max-h-[70vh]"
               >
-                <table className="w-full text-sm">
+                <table className="w-full text-xs">
                   <thead>
                     <tr className="border-b border-notion-hairline text-left text-slate-500">
-                      <th className="sticky top-0 z-10 bg-white p-3">Date</th>
-                      <th className="sticky top-0 z-10 bg-white p-3">Name</th>
-                      <th className="sticky top-0 z-10 bg-white p-3">Type</th>
-                      <th className="sticky top-0 z-10 bg-white p-3 text-right">Amount</th>
-                      <th className="sticky top-0 z-10 bg-white p-3 text-right">Balance</th>
+                      <th className="sticky top-0 z-10 bg-white px-2 py-1.5">Date</th>
+                      <th className="sticky top-0 z-10 bg-white px-2 py-1.5">Name</th>
+                      <th className="sticky top-0 z-10 bg-white px-2 py-1.5">Type</th>
+                      <th className="sticky top-0 z-10 bg-white px-2 py-1.5 text-right">Amount</th>
+                      <th className="sticky top-0 z-10 bg-white px-2 py-1.5 text-right">Balance</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -138,10 +138,10 @@ export function ForecastClient({
                                 }
                               : undefined
                           }
-                          className={`border-b border-notion-hairline text-notion-text last:border-0 ${isClickable ? "cursor-pointer hover:opacity-80" : ""} ${balanceRangeColorClass(row.runningBalance, balanceRanges)}`}
+                          className={`border-b border-notion-hairline text-notion-text last:border-0 ${isClickable ? "cursor-pointer hover:opacity-80" : ""}`}
                         >
-                          <td className="p-3">{formatFullDate(row.dueDate)}</td>
-                          <td className="p-3">
+                          <td className="px-2 py-1.5">{formatFullDate(row.dueDate)}</td>
+                          <td className="px-2 py-1.5">
                             {!isClickable ? <span className="italic text-slate-500">{row.name}</span> : row.name}
                             {row.edited && (
                               <span
@@ -160,17 +160,21 @@ export function ForecastClient({
                               </span>
                             )}
                           </td>
-                          <td className={`p-3 ${TYPE_COLOR[row.type]}`}>{row.type}</td>
-                          <td className="p-3 text-right">{formatCentavos(row.amount, currency)}</td>
-                          <td className="p-3 text-right font-medium">
-                            {formatCentavos(row.runningBalance, currency)}
+                          <td className={`px-2 py-1.5 ${TYPE_COLOR[row.type]}`}>{row.type}</td>
+                          <td className="px-2 py-1.5 text-right">{formatCentavos(row.amount, currency)}</td>
+                          <td className="px-2 py-1.5 text-right font-medium">
+                            <span
+                              className={`inline-block rounded px-1.5 py-0.5 ${balanceRangeColorClass(row.runningBalance, balanceRanges)}`}
+                            >
+                              {formatCentavos(row.runningBalance, currency)}
+                            </span>
                           </td>
                         </tr>
                       );
                     })}
                     {visibleCount < forecast.length && (
                       <tr ref={sentinelRef}>
-                        <td colSpan={5} className="p-3 text-center text-xs text-slate-400">
+                        <td colSpan={5} className="p-2 text-center text-xs text-slate-400">
                           Loading more…
                         </td>
                       </tr>
