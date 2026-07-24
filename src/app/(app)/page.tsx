@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { loadForecast } from "@/lib/forecastData";
 import { formatCentavos } from "@/lib/money";
 import { formatFullDate, formatMonthYear } from "@/lib/date";
+import { balanceRangeColorClass } from "@/lib/balanceColor";
 import { displayName } from "@/lib/displayName";
 import { monthlyEquivalent } from "@/lib/engine/monthlyTotals";
 import { remainingTotal, ruleEndDate } from "@/lib/engine/remaining";
@@ -52,7 +53,7 @@ export default async function Home() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const { forecast, balances, recurringItems, budgets, budgetEntries, currency, today, horizon } =
+  const { forecast, balances, recurringItems, budgets, budgetEntries, currency, balanceRanges, today, horizon } =
     await loadForecast();
 
   const profileName = (user?.user_metadata?.name as string | undefined) ?? "";
@@ -213,9 +214,21 @@ export default async function Home() {
                       key={entry.month}
                       className="rounded border border-notion-hairline p-2 text-right text-xs"
                     >
-                      <p className="text-slate-400">{formatMonthYear(entry.month)}</p>
-                      <p className="text-notion-text">{formatCentavos(entry.peak, currency)}</p>
-                      <p className="text-slate-500">{formatCentavos(entry.drop, currency)}</p>
+                      <p className="mb-1 text-slate-400">{formatMonthYear(entry.month)}</p>
+                      <p>
+                        <span
+                          className={`inline-block rounded px-1.5 py-0.5 ${balanceRangeColorClass(entry.peak, balanceRanges)}`}
+                        >
+                          {formatCentavos(entry.peak, currency)}
+                        </span>
+                      </p>
+                      <p className="mt-1">
+                        <span
+                          className={`inline-block rounded px-1.5 py-0.5 ${balanceRangeColorClass(entry.drop, balanceRanges)}`}
+                        >
+                          {formatCentavos(entry.drop, currency)}
+                        </span>
+                      </p>
                     </div>
                   ))}
                 </div>

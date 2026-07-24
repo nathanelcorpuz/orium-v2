@@ -79,15 +79,23 @@ function ReminderItem({ reminder }: { reminder: ReminderRow }) {
             required
             className="flex-1 rounded border border-notion-hairline p-1 text-sm text-notion-text focus:border-notion-accent focus:outline-none"
           />
-          <button type="submit" disabled={editPending} className="text-xs text-slate-600 underline">
-            Save
+          <button
+            type="submit"
+            disabled={editPending}
+            title="Save"
+            aria-label="Save"
+            className="shrink-0 rounded p-1 text-notion-accent hover:bg-notion-hover disabled:opacity-50"
+          >
+            <CheckIcon className="h-3.5 w-3.5" />
           </button>
           <button
             type="button"
             onClick={() => setMode("view")}
-            className="text-xs text-slate-400 underline"
+            title="Cancel"
+            aria-label="Cancel"
+            className="shrink-0 rounded p-1 text-slate-400 hover:bg-notion-hover hover:text-notion-text"
           >
-            Cancel
+            <CloseIcon className="h-3.5 w-3.5" />
           </button>
         </div>
         {editState.error && <p className="mt-1 text-xs text-red-600">{editState.error}</p>}
