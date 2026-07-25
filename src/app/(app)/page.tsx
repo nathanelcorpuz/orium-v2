@@ -351,13 +351,15 @@ export default async function Home() {
               rather than the customizable 6-tier labels above, since this
               stat by definition is always the negative case. */}
           {firstDanger && firstDanger.date !== lowestBalance.date && (
-            <p className="mt-3 border-t border-notion-hairline pt-3 text-sm">
-              <span className="font-medium text-notion-text">First goes negative:</span>{" "}
-              <span className="inline-block rounded bg-slate-900 px-1.5 py-0.5 text-white">
-                {formatCentavos(Math.abs(firstDanger.balance), currency)}
-              </span>{" "}
-              <span className="text-slate-500">on {formatFullDate(firstDanger.date)}</span>
-            </p>
+            <div className="mt-4">
+              <p className="text-xl font-semibold text-notion-text">
+                First goes negative:{" "}
+                <span className="inline-block rounded bg-slate-900 px-1.5 py-0.5 text-white">
+                  {formatCentavos(Math.abs(firstDanger.balance), currency)}
+                </span>
+              </p>
+              <p className="mt-1 text-sm text-slate-500">On {formatFullDate(firstDanger.date)}</p>
+            </div>
           )}
         </div>
 

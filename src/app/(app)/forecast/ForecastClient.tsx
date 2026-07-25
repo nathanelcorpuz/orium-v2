@@ -280,12 +280,12 @@ export function ForecastClient({
                     same addition - only shown when it's a real, earlier
                     date than the lowest point above. */}
                 {firstDanger && firstDanger.date !== lowestBalance.date && (
-                  <p className="text-sm">
-                    <span className="font-medium text-notion-text">First goes negative:</span>{" "}
+                  <p className="text-sm text-slate-500">
+                    First goes negative:{" "}
                     <span className="inline-block rounded bg-slate-900 px-1.5 py-0.5 text-white">
                       {formatCentavos(Math.abs(firstDanger.balance), currency)}
                     </span>{" "}
-                    <span className="text-slate-500">on {formatFullDate(firstDanger.date)}</span>
+                    on {formatFullDate(firstDanger.date)}
                   </p>
                 )}
               </div>
