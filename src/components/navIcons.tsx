@@ -179,6 +179,20 @@ export function ChevronIcon({ className, direction }: IconProps & { direction: "
   );
 }
 
+// T94: the Orium mark itself ("Trendline" - a ring with a forecast line
+// breaking through its edge, picked by the user from three SVG directions).
+// Same BASE stroke style as every other icon here so it sits at the same
+// visual weight when used inline; also re-drawn as a standalone
+// `src/app/icon.svg` for the favicon, where `currentColor` isn't available.
+export function LogoMark({ className }: IconProps) {
+  return (
+    <svg {...BASE} className={className}>
+      <circle cx="12" cy="12" r="8" />
+      <polyline points="7 14 10.5 10.5 13 12.5 19 5" />
+    </svg>
+  );
+}
+
 export function RestoreIcon({ className }: IconProps) {
   return (
     <svg {...BASE} className={className}>

@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { logout } from "@/app/auth/actions";
-import { ChevronIcon, CloseIcon, LogoutIcon, MenuIcon, NAV_ICONS } from "./navIcons";
+import { ChevronIcon, CloseIcon, LogoMark, LogoutIcon, MenuIcon, NAV_ICONS } from "./navIcons";
 import { MobileDrawer } from "./MobileDrawer";
 
 const NAV_ITEMS = [
@@ -45,13 +45,16 @@ function SidebarContent({
     <>
       <div className={`flex items-center p-4 ${collapsed ? "justify-center" : "justify-between"}`}>
         {collapsed ? (
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded bg-notion-text text-sm font-semibold text-white">
-            O
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded bg-notion-text text-white">
+            <LogoMark className="h-[18px] w-[18px]" />
           </div>
         ) : (
-          <div className="min-w-0">
-            <p className="text-sm font-semibold text-notion-text">Orium</p>
-            <p className="truncate text-xs text-slate-500">{greetingName}</p>
+          <div className="flex min-w-0 items-center gap-2">
+            <LogoMark className="h-5 w-5 shrink-0 text-notion-text" />
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-notion-text">Orium</p>
+              <p className="truncate text-xs text-slate-500">{greetingName}</p>
+            </div>
           </div>
         )}
         {onClose && (
@@ -170,6 +173,7 @@ export function AppShell({
         >
           <MenuIcon className="h-5 w-5" />
         </button>
+        <LogoMark className="h-5 w-5 text-notion-text" />
         <p className="text-sm font-semibold text-notion-text">Orium</p>
       </div>
 
