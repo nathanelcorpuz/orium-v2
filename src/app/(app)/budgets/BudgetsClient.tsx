@@ -76,7 +76,7 @@ export function BudgetsClient({
   }, [budgets, nameFilter, selectedTypes, allocationOp, allocationValue1, allocationValue2]);
 
   return (
-    <div className="p-8">
+    <div className="p-4 md:p-8">
       <div className="mx-auto max-w-2xl">
         <div className="mb-6 flex items-center justify-between">
           <div>
@@ -86,7 +86,7 @@ export function BudgetsClient({
           <button
             type="button"
             onClick={() => setModalState("new")}
-            className="rounded bg-notion-text px-4 py-2 text-white hover:opacity-90"
+            className="shrink-0 whitespace-nowrap rounded bg-notion-text px-4 py-2 text-white hover:opacity-90"
           >
             Add budget
           </button>

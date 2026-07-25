@@ -56,7 +56,7 @@ export function ExtraClient({ extras, balances }: { extras: ExtraRow[]; balances
     .reduce((sum, extra) => sum + extra.amount, 0);
 
   return (
-    <div className="p-8">
+    <div className="p-4 md:p-8">
       <div className="mx-auto max-w-2xl">
         <div className="mb-6 flex items-center justify-between">
           <div>
