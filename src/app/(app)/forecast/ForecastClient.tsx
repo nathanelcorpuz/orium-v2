@@ -10,10 +10,34 @@ import { MultiSelectChips } from "@/components/MultiSelectChips";
 import { Modal } from "@/components/Modal";
 import { DatePicker } from "@/components/DatePicker";
 import { ChevronIcon } from "@/components/navIcons";
+import { SpotlightTour, type TourStep } from "@/components/SpotlightTour";
 import type { ForecastRow } from "@/lib/engine/types";
 import type { LowestBalancePoint } from "@/lib/engine/lowestBalance";
 import { EditSettleModal } from "./EditSettleModal";
 import { RemindersPanel, type ReminderRow } from "./RemindersPanel";
+
+const FORECAST_TOUR_STEPS: TourStep[] = [
+  {
+    target: '[data-tour="forecast-insights"]',
+    title: "Welcome to Forecast",
+    body: "This page lists every upcoming transaction. Forecast Insights repeats the lowest-balance warnings from your Dashboard, scoped to what you're viewing here.",
+  },
+  {
+    target: '[data-tour="forecast-filter"]',
+    title: "Filter the list",
+    body: "Narrow the transaction list down by date, name, type, or amount.",
+  },
+  {
+    target: '[data-tour="forecast-table"]',
+    title: "The forecast table",
+    body: "Every upcoming bill, income, debt, savings, budget, and extra shows here in date order, with your running balance after each one. Click a row to edit or settle it.",
+  },
+  {
+    target: '[data-tour="forecast-reminders"]',
+    title: "Reminders",
+    body: "Keep quick notes here - Reminders stay pinned to the Forecast page for easy reference.",
+  },
+];
 
 // T49: the forecast list can grow into the hundreds of rows across a 3-year
 // horizon with weekly/daily items - loadForecast() already fetches the full
@@ -295,6 +319,7 @@ export function ForecastClient({
 
   return (
     <div className="flex min-h-full">
+      <SpotlightTour tourId="forecast-intro" steps={FORECAST_TOUR_STEPS} />
       <div className="min-w-0 flex-1 p-4 md:p-8">
         <div className="mx-auto max-w-6xl">
           <div className="mb-6">
@@ -320,7 +345,7 @@ export function ForecastClient({
               the plain-text header into its own card, styled like the
               Dashboard's stat cards - a home for this and any future
               forecast-derived helper indicators, not just this one stat. */}
-          <div className="mb-6 rounded-lg border border-notion-hairline bg-white p-4">
+          <div className="mb-6 rounded-lg border border-notion-hairline bg-white p-4" data-tour="forecast-insights">
             <button
               type="button"
               onClick={toggleInsightsCollapsed}
@@ -369,7 +394,7 @@ export function ForecastClient({
           </div>
 
           {forecast.length > 0 && (
-            <div className="mb-4 flex flex-wrap items-center gap-3">
+            <div className="mb-4 flex flex-wrap items-center gap-3" data-tour="forecast-filter">
               <button
                 type="button"
                 onClick={() => setFilterModalOpen(true)}
@@ -463,6 +488,7 @@ export function ForecastClient({
           ) : (
             <div
               ref={scrollContainerRef}
+              data-tour="forecast-table"
               className="max-h-[50vh] overflow-auto rounded-lg border border-notion-hairline bg-white md:max-h-[70vh]"
             >
               {/* T90: full 6-column table, unchanged - `lg`+ only (the same

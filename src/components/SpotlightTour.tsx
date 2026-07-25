@@ -1,0 +1,206 @@
+"use client";
+
+import { useCallback, useEffect, useState } from "react";
+
+export type TourStep = {
+  target: string; // CSS selector, e.g. `[data-tour="dashboard-stats"]`
+  title: string;
+  body: string;
+};
+
+type Rect = { top: number; left: number; width: number; height: number };
+
+function isVisible(el: HTMLElement): boolean {
+  const rect = el.getBoundingClientRect();
+  if (rect.width === 0 || rect.height === 0) return false;
+  // `offsetParent === null` is the usual "not display:none" check, but it's
+  // also null for `position: fixed` elements (e.g. RemindersPanel's mobile
+  // bell button) even when they're fully visible - checking computed style
+  // directly avoids incorrectly skipping those.
+  const style = window.getComputedStyle(el);
+  return style.display !== "none" && style.visibility !== "hidden";
+}
+
+// A step's selector may match more than one element (e.g. the same
+// `data-tour` value on both the desktop and mobile versions of a panel, only
+// one of which is ever visible at a given breakpoint) - the first visible
+// match wins, and a step with no visible match at all gets skipped rather
+// than spotlighting nothing.
+function findTarget(step: TourStep): HTMLElement | null {
+  const candidates = document.querySelectorAll<HTMLElement>(step.target);
+  for (const el of candidates) {
+    if (isVisible(el)) return el;
+  }
+  return null;
+}
+
+const SPOTLIGHT_PADDING = 8;
+const TOOLTIP_WIDTH = 320;
+const TOOLTIP_GAP = 12;
+const TOOLTIP_MARGIN = 16;
+
+// Hand-built spotlight tour (T98) - no tour library, per CLAUDE.md's "no new
+// dependencies" rule. Dims the page behind a single small "cutout" div sized
+// to the current step's target: its own oversized box-shadow paints
+// everything else dark, so the target reads as highlighted without needing
+// four separate dimming rectangles. Auto-shows once per `tourId` (a plain
+// localStorage flag, same pattern AppShell/RemindersPanel already use for
+// UI preferences - no DB column, nothing to sync across devices for a v1
+// walkthrough) and steps forward/back through `steps`, silently skipping any
+// step whose target isn't currently visible (e.g. a panel that only renders
+// above a breakpoint) instead of getting stuck on it.
+export function SpotlightTour({ tourId, steps }: { tourId: string; steps: TourStep[] }) {
+  const storageKey = `orium.tour.${tourId}.done`;
+  const [active, setActive] = useState(false);
+  const [stepIndex, setStepIndex] = useState(0);
+  const [rect, setRect] = useState<Rect | null>(null);
+
+  useEffect(() => {
+    if (localStorage.getItem(storageKey) !== "1") {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setActive(true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const finish = useCallback(() => {
+    localStorage.setItem(storageKey, "1");
+    setActive(false);
+  }, [storageKey]);
+
+  useEffect(() => {
+    if (!active) return;
+
+    let index = stepIndex;
+    let target = index < steps.length ? findTarget(steps[index]) : null;
+    while (!target && index < steps.length - 1) {
+      index += 1;
+      target = findTarget(steps[index]);
+    }
+    if (!target) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      finish();
+      return;
+    }
+    if (index !== stepIndex) {
+      setStepIndex(index);
+      return; // this effect re-runs once the corrected index lands
+    }
+
+    target.scrollIntoView({ behavior: "smooth", block: "center" });
+
+    const current = target;
+    function updateRect() {
+      const box = current.getBoundingClientRect();
+      setRect({ top: box.top, left: box.left, width: box.width, height: box.height });
+    }
+    updateRect();
+    const raf = requestAnimationFrame(updateRect); // once more after scrollIntoView settles
+    window.addEventListener("scroll", updateRect, true);
+    window.addEventListener("resize", updateRect);
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener("scroll", updateRect, true);
+      window.removeEventListener("resize", updateRect);
+    };
+  }, [active, stepIndex, steps, finish]);
+
+  useEffect(() => {
+    if (!active) return;
+    function handleKey(e: KeyboardEvent) {
+      if (e.key === "Escape") finish();
+    }
+    document.addEventListener("keydown", handleKey);
+    return () => document.removeEventListener("keydown", handleKey);
+  }, [active, finish]);
+
+  useEffect(() => {
+    if (!active) return;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [active]);
+
+  if (!active || !rect) return null;
+
+  const step = steps[stepIndex];
+  const isLast = stepIndex === steps.length - 1;
+
+  const viewportW = window.innerWidth;
+  const viewportH = window.innerHeight;
+  const tooltipWidth = Math.min(TOOLTIP_WIDTH, viewportW - TOOLTIP_MARGIN * 2);
+  const spaceBelow = viewportH - (rect.top + rect.height);
+  const placeAbove = spaceBelow < 180 && rect.top > 180;
+  const tooltipLeft = Math.min(
+    Math.max(rect.left, TOOLTIP_MARGIN),
+    viewportW - tooltipWidth - TOOLTIP_MARGIN,
+  );
+  // A target that spans (near) the full viewport height - e.g. the
+  // Reminders panel's full-height sticky aside - leaves neither "below" nor
+  // "above" with real room, so the plain above/below formula below can land
+  // the tooltip off-screen entirely. Clamping the final top into the
+  // viewport (minus a rough height estimate, since the box's real height
+  // isn't known until it's painted) keeps it visible in that case without
+  // needing a fully separate layout branch for tall targets.
+  const ESTIMATED_TOOLTIP_HEIGHT = 190;
+  const preferredTop = placeAbove
+    ? rect.top - TOOLTIP_GAP - ESTIMATED_TOOLTIP_HEIGHT
+    : rect.top + rect.height + TOOLTIP_GAP;
+  const tooltipTop = Math.min(
+    Math.max(preferredTop, TOOLTIP_MARGIN),
+    viewportH - TOOLTIP_MARGIN - ESTIMATED_TOOLTIP_HEIGHT,
+  );
+
+  return (
+    <div className="fixed inset-0 z-[100]">
+      <div
+        className="pointer-events-none absolute rounded-lg ring-2 ring-white transition-all duration-200"
+        style={{
+          top: rect.top - SPOTLIGHT_PADDING,
+          left: rect.left - SPOTLIGHT_PADDING,
+          width: rect.width + SPOTLIGHT_PADDING * 2,
+          height: rect.height + SPOTLIGHT_PADDING * 2,
+          boxShadow: "0 0 0 9999px rgba(15, 23, 42, 0.65)",
+        }}
+      />
+      <div
+        className="absolute rounded-lg border border-notion-hairline bg-white p-4 shadow-xl"
+        style={{
+          width: tooltipWidth,
+          left: tooltipLeft,
+          top: tooltipTop,
+        }}
+      >
+        <p className="text-xs font-medium text-slate-400">
+          Step {stepIndex + 1} of {steps.length}
+        </p>
+        <h3 className="mt-1 text-sm font-semibold text-notion-text">{step.title}</h3>
+        <p className="mt-1 text-sm text-slate-500">{step.body}</p>
+        <div className="mt-4 flex items-center justify-between">
+          <button type="button" onClick={finish} className="text-xs text-slate-400 hover:text-notion-text">
+            Skip tour
+          </button>
+          <div className="flex items-center gap-2">
+            {stepIndex > 0 && (
+              <button
+                type="button"
+                onClick={() => setStepIndex((i) => i - 1)}
+                className="rounded border border-notion-hairline px-3 py-1.5 text-xs text-notion-text hover:bg-notion-hover"
+              >
+                Back
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => (isLast ? finish() : setStepIndex((i) => i + 1))}
+              className="rounded bg-notion-text px-3 py-1.5 text-xs text-white hover:opacity-90"
+            >
+              {isLast ? "Done" : "Next"}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

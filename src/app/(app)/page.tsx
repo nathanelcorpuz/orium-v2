@@ -19,6 +19,7 @@ import {
 import { daysBetween } from "@/lib/engine/date-utils";
 import { ProgressBar } from "@/components/ProgressBar";
 import { SampleDataBanner } from "@/components/SampleDataBanner";
+import { DashboardTour } from "@/components/DashboardTour";
 import type { RecurringItem } from "@/lib/engine/types";
 
 // T48/user follow-up: reshapes computeMonthlyPeaksAndDrops's flat "YYYY-MM"
@@ -160,6 +161,7 @@ export default async function Home() {
 
   return (
     <div className="p-4 md:p-8">
+      <DashboardTour />
       <div className="mx-auto max-w-5xl">
         <div className="mb-6">
           <h1 className="text-xl font-semibold text-notion-text">Dashboard</h1>
@@ -168,7 +170,7 @@ export default async function Home() {
 
         {sampleDataSeededAt && <SampleDataBanner />}
 
-        <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3" data-tour="dashboard-stats">
           <DashboardCard title="Total Balance" value={formatCentavos(totalBalance, currency)} />
           <DashboardCard
             title="Total Monthly Bills"
@@ -181,7 +183,7 @@ export default async function Home() {
           />
         </div>
 
-        <div className="mb-6 rounded-lg border border-notion-hairline bg-white p-4">
+        <div className="mb-6 rounded-lg border border-notion-hairline bg-white p-4" data-tour="dashboard-accounts">
           <div className="mb-2 flex items-center justify-between">
             <h2 className="text-sm font-semibold text-notion-text">Accounts</h2>
             <Link
@@ -336,7 +338,7 @@ export default async function Home() {
           )}
         </div>
 
-        <div className="mb-6 rounded-lg border border-notion-hairline bg-white p-4">
+        <div className="mb-6 rounded-lg border border-notion-hairline bg-white p-4" data-tour="dashboard-lowest-balance">
           <h2 className="mb-2 text-sm font-semibold text-notion-text">Lowest Balance Ahead</h2>
           {/* T76: color + wording now reflect the actual balance_ranges risk
               tier (danger/low/medium/high/higher/highest), not a hardcoded
@@ -378,7 +380,7 @@ export default async function Home() {
           )}
         </div>
 
-        <div className="rounded-lg border border-notion-hairline bg-white">
+        <div className="rounded-lg border border-notion-hairline bg-white" data-tour="dashboard-peaks-drops">
           <h2 className="p-4 pb-2 text-sm font-semibold text-notion-text">Peaks and Drops</h2>
           <div className="max-h-64 space-y-4 overflow-y-auto p-4 pt-2 md:max-h-[420px]">
             {peaksAndDropsByYear.map(({ year, months }) => (

@@ -310,6 +310,7 @@ export function RemindersPanel({ reminders }: { reminders: ReminderRow[] }) {
   return (
     <>
       <aside
+        data-tour="forecast-reminders"
         className={`sticky top-0 relative hidden h-screen shrink-0 flex-col border-l border-notion-hairline bg-white transition-all duration-200 lg:flex ${
           collapsed ? "w-16" : "w-72"
         }`}
@@ -341,6 +342,7 @@ export function RemindersPanel({ reminders }: { reminders: ReminderRow[] }) {
         type="button"
         onClick={() => setMobileOpen(true)}
         aria-label={`Open reminders${activeReminders.length > 0 ? ` (${activeReminders.length})` : ""}`}
+        data-tour="forecast-reminders"
         className="fixed bottom-4 right-4 z-30 flex h-12 w-12 items-center justify-center rounded-full border border-notion-hairline bg-white text-slate-500 shadow-lg hover:text-notion-text lg:hidden"
       >
         <BellIcon className="h-5 w-5" />
