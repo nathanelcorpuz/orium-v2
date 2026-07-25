@@ -8,7 +8,7 @@ import { addYears, MAX_TRACKING_YEARS } from "@/lib/engine/date-utils";
 
 export type ExtraActionState = { error: string | null };
 
-function readExtraForm(formData: FormData) {
+function readExtraForm(formData: FormData, isCreate: boolean) {
   const name = (formData.get("name") as string).trim();
   const magnitude = parseCentavos(formData.get("amountPesos") as string);
   const direction = formData.get("direction") as string;
@@ -29,6 +29,11 @@ function readExtraForm(formData: FormData) {
   if (dueDate > addYears(todayInManila(), MAX_TRACKING_YEARS)) {
     return { error: `Due date can't be more than ${MAX_TRACKING_YEARS} years from today.` } as const;
   }
+  // T107: only a brand-new misc item can't be due in the past - editing an
+  // existing (possibly overdue, not-yet-settled) one must stay unrestricted.
+  if (isCreate && dueDate < todayInManila()) {
+    return { error: "Due date can't be in the past." } as const;
+  }
 
   return {
     error: null,
@@ -44,7 +49,7 @@ export async function createExtra(
   _prevState: ExtraActionState,
   formData: FormData,
 ): Promise<ExtraActionState> {
-  const fields = readExtraForm(formData);
+  const fields = readExtraForm(formData, true);
   if (fields.error) return { error: fields.error };
 
   const supabase = await createClient();
@@ -73,7 +78,7 @@ export async function updateExtra(
   formData: FormData,
 ): Promise<ExtraActionState> {
   const id = formData.get("id") as string;
-  const fields = readExtraForm(formData);
+  const fields = readExtraForm(formData, false);
   if (fields.error) return { error: fields.error };
 
   const supabase = await createClient();

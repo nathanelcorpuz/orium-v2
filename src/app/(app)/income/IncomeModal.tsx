@@ -117,6 +117,8 @@ export function IncomeModal({
             required
             value={startDate}
             onChange={setStartDate}
+            // T107: only a brand-new income item can't start in the past.
+            min={isEdit ? undefined : todayInManila()}
             className="mt-1 w-full rounded border border-notion-hairline p-2 text-left focus:border-notion-accent focus:outline-none"
           />
         </div>

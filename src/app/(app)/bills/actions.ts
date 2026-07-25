@@ -8,7 +8,7 @@ import { deleteStaleOverrides } from "@/lib/staleOverrides";
 
 export type BillActionState = { error: string | null };
 
-function readBillForm(formData: FormData) {
+function readBillForm(formData: FormData, isCreate: boolean) {
   const name = (formData.get("name") as string).trim();
   const amountPesos = parseCentavos(formData.get("amountPesos") as string);
   const startDate = formData.get("startDate") as string;
@@ -21,7 +21,10 @@ function readBillForm(formData: FormData) {
   }
   if (!startDate) return { error: "Start date is required." } as const;
 
-  const rule = readRecurrenceRuleForm(formData);
+  // T107: only a brand-new bill can't start in the past - editing an
+  // existing one (whose start date is almost always already in the past,
+  // legitimately) must stay unrestricted.
+  const rule = readRecurrenceRuleForm(formData, { enforceFutureStart: isCreate });
   if (rule.error !== null) return { error: rule.error };
 
   return {
@@ -38,7 +41,7 @@ export async function createBill(
   _prevState: BillActionState,
   formData: FormData,
 ): Promise<BillActionState> {
-  const fields = readBillForm(formData);
+  const fields = readBillForm(formData, true);
   if (fields.error !== null) return { error: fields.error };
 
   const supabase = await createClient();
@@ -78,7 +81,7 @@ export async function updateBill(
   formData: FormData,
 ): Promise<BillActionState> {
   const id = formData.get("id") as string;
-  const fields = readBillForm(formData);
+  const fields = readBillForm(formData, false);
   if (fields.error !== null) return { error: fields.error };
 
   const supabase = await createClient();

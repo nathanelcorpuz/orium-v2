@@ -4,6 +4,7 @@ import { useActionState, useEffect, useRef, useState } from "react";
 import { Modal } from "@/components/Modal";
 import { DatePicker } from "@/components/DatePicker";
 import { centavosToPesosString } from "@/lib/money";
+import { todayInManila } from "@/lib/date";
 import { createExtra, updateExtra, type ExtraActionState } from "./actions";
 
 export type ExtraRow = {
@@ -117,6 +118,9 @@ export function ExtraModal({
             name="dueDate"
             required
             defaultValue={extra?.due_date}
+            // T107: only a brand-new misc item can't be due in the past -
+            // editing an existing (possibly overdue) one stays unrestricted.
+            min={isEdit ? undefined : todayInManila()}
             className="mt-1 w-full rounded border border-notion-hairline p-2 text-left focus:border-notion-accent focus:outline-none"
           />
         </div>

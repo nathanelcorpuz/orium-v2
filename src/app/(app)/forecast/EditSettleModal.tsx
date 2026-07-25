@@ -5,7 +5,7 @@ import { Modal } from "@/components/Modal";
 import { DatePicker } from "@/components/DatePicker";
 import { SegmentedControl } from "@/components/SegmentedControl";
 import { centavosToPesosString } from "@/lib/money";
-import { formatFullDate } from "@/lib/date";
+import { formatFullDate, todayInManila } from "@/lib/date";
 import type { ForecastRow } from "@/lib/engine/types";
 import { deleteBudgetEntry, updateBudgetEntry, type BudgetActionState } from "@/app/(app)/budgets/actions";
 import {
@@ -149,6 +149,8 @@ export function EditSettleModal({
               name="actualDate"
               required
               defaultValue={row.dueDate}
+              // T107: can't settle something that hasn't happened yet.
+              max={todayInManila()}
               className="mt-1 w-full rounded border border-notion-hairline p-2 text-left focus:border-notion-accent focus:outline-none"
             />
           </div>
@@ -299,6 +301,9 @@ export function EditSettleModal({
               name="date"
               required
               defaultValue={row.dueDate}
+              // T107: editing a forecast occurrence can only move it to
+              // today or later, never into the past.
+              min={todayInManila()}
               className="mt-1 w-full rounded border border-notion-hairline p-2 text-left focus:border-notion-accent focus:outline-none"
             />
           </div>
@@ -363,6 +368,8 @@ export function EditSettleModal({
               name="actualDate"
               required
               defaultValue={row.dueDate}
+              // T107: can't settle something that hasn't happened yet.
+              max={todayInManila()}
               className="mt-1 w-full rounded border border-notion-hairline p-2 text-left focus:border-notion-accent focus:outline-none"
             />
           </div>

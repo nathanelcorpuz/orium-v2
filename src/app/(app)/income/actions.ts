@@ -8,7 +8,7 @@ import { deleteStaleOverrides } from "@/lib/staleOverrides";
 
 export type IncomeActionState = { error: string | null };
 
-function readIncomeForm(formData: FormData) {
+function readIncomeForm(formData: FormData, isCreate: boolean) {
   const name = (formData.get("name") as string).trim();
   const amountPesos = parseCentavos(formData.get("amountPesos") as string);
   const startDate = formData.get("startDate") as string;
@@ -21,7 +21,8 @@ function readIncomeForm(formData: FormData) {
   }
   if (!startDate) return { error: "Start date is required." } as const;
 
-  const rule = readRecurrenceRuleForm(formData);
+  // T107: only a brand-new income item can't start in the past.
+  const rule = readRecurrenceRuleForm(formData, { enforceFutureStart: isCreate });
   if (rule.error !== null) return { error: rule.error };
 
   return {
@@ -38,7 +39,7 @@ export async function createIncome(
   _prevState: IncomeActionState,
   formData: FormData,
 ): Promise<IncomeActionState> {
-  const fields = readIncomeForm(formData);
+  const fields = readIncomeForm(formData, true);
   if (fields.error !== null) return { error: fields.error };
 
   const supabase = await createClient();
@@ -78,7 +79,7 @@ export async function updateIncome(
   formData: FormData,
 ): Promise<IncomeActionState> {
   const id = formData.get("id") as string;
-  const fields = readIncomeForm(formData);
+  const fields = readIncomeForm(formData, false);
   if (fields.error !== null) return { error: fields.error };
 
   const supabase = await createClient();

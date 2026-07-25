@@ -55,6 +55,8 @@ export function DatePicker({
   placeholder = "Select date",
   className = "",
   ariaLabel,
+  min,
+  max,
 }: {
   id?: string;
   name?: string;
@@ -65,6 +67,11 @@ export function DatePicker({
   placeholder?: string;
   className?: string;
   ariaLabel?: string;
+  // T107: "YYYY-MM-DD" bounds - a day outside this range renders disabled
+  // (greyed, unclickable) in the calendar grid rather than being hidden or
+  // navigation-blocked, so the month/year selects stay freely browsable.
+  min?: string;
+  max?: string;
 }) {
   const isControlled = value !== undefined;
   const [internalValue, setInternalValue] = useState(defaultValue ?? "");
@@ -217,15 +224,20 @@ export function DatePicker({
               if (day === null) return <div key={`empty-${index}`} />;
               const isSelected =
                 selected?.year === viewYear && selected.month === viewMonth && selected.day === day;
+              const dayStr = toDateStr(viewYear, viewMonth, day);
+              const isDisabled = (min !== undefined && dayStr < min) || (max !== undefined && dayStr > max);
               return (
                 <button
                   type="button"
                   key={day}
-                  onClick={() => selectDay(day)}
+                  onClick={() => !isDisabled && selectDay(day)}
+                  disabled={isDisabled}
                   className={`rounded p-1.5 text-xs ${
-                    isSelected
-                      ? "bg-notion-text text-white"
-                      : "text-notion-text hover:bg-notion-hover"
+                    isDisabled
+                      ? "cursor-not-allowed text-slate-300"
+                      : isSelected
+                        ? "bg-notion-text text-white"
+                        : "text-notion-text hover:bg-notion-hover"
                   }`}
                 >
                   {day}

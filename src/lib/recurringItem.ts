@@ -7,7 +7,7 @@ import { deleteStaleOverrides } from "@/lib/staleOverrides";
 
 export type RecurringItemActionState = { error: string | null };
 
-function readMonthlyGoalForm(formData: FormData) {
+function readMonthlyGoalForm(formData: FormData, isCreate: boolean) {
   const name = (formData.get("name") as string).trim();
   const amountPesos = parseCentavos(formData.get("amountPesos") as string);
   const startDate = formData.get("startDate") as string;
@@ -20,7 +20,8 @@ function readMonthlyGoalForm(formData: FormData) {
   }
   if (!startDate) return { error: "Start date is required." } as const;
 
-  const rule = readRecurrenceRuleForm(formData);
+  // T107: only a brand-new debt/savings item can't start in the past.
+  const rule = readRecurrenceRuleForm(formData, { enforceFutureStart: isCreate });
   if (rule.error !== null) return { error: rule.error };
   // T72: createMonthlyGoal/updateMonthlyGoal (below) are only ever used by
   // Debt and Savings, which must always have a finite end (DB-enforced,
@@ -47,7 +48,7 @@ export async function createMonthlyGoal(
   path: string,
   formData: FormData,
 ): Promise<RecurringItemActionState> {
-  const fields = readMonthlyGoalForm(formData);
+  const fields = readMonthlyGoalForm(formData, true);
   if (fields.error !== null) return { error: fields.error };
 
   const supabase = await createClient();
@@ -87,7 +88,7 @@ export async function updateMonthlyGoal(
   formData: FormData,
 ): Promise<RecurringItemActionState> {
   const id = formData.get("id") as string;
-  const fields = readMonthlyGoalForm(formData);
+  const fields = readMonthlyGoalForm(formData, false);
   if (fields.error !== null) return { error: fields.error };
 
   const supabase = await createClient();

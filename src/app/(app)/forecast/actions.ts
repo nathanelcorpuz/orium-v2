@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { parseCentavos } from "@/lib/money";
+import { todayInManila } from "@/lib/date";
 
 export type ForecastActionState = { error: string | null };
 
@@ -18,6 +19,12 @@ function normalizeSignedAmount(rawAmount: number, type: string): number {
   return type === "income" ? magnitude : -magnitude;
 }
 
+// T107 (user request 2026-07-26): editing a forecast occurrence (this is
+// always moving an *existing, still-upcoming* item - never creating a new
+// one) can't push it into the past - only ever used by
+// editRecurringOccurrence/editOneOff below, so this is unconditional, no
+// opt-in flag needed (unlike the CRUD create/update forms, which share one
+// helper between genuinely different create-vs-edit cases).
 function readOccurrenceForm(formData: FormData) {
   const name = (formData.get("name") as string).trim();
   const type = formData.get("type") as string;
@@ -27,6 +34,7 @@ function readOccurrenceForm(formData: FormData) {
   if (!name) return { error: "Name is required." } as const;
   if (amount === null) return { error: "Enter a valid amount." } as const;
   if (!date) return { error: "Date is required." } as const;
+  if (date < todayInManila()) return { error: "Date can't be in the past." } as const;
 
   return { error: null, name, amount: normalizeSignedAmount(amount, type), date } as const;
 }
@@ -86,6 +94,9 @@ export async function editOneOff(
   return { error: null };
 }
 
+// T107: settling something that hasn't happened yet doesn't make sense -
+// shared by settleOccurrence and settleBudgetReplenish, both "settle"
+// actions only, so this is unconditional too.
 function readSettleForm(formData: FormData) {
   const actualAmount = parseCentavos(formData.get("actualAmountPesos") as string);
   const actualDate = formData.get("actualDate") as string;
@@ -93,6 +104,7 @@ function readSettleForm(formData: FormData) {
 
   if (actualAmount === null) return { error: "Enter a valid actual amount." } as const;
   if (!actualDate) return { error: "Actual date is required." } as const;
+  if (actualDate > todayInManila()) return { error: "Actual date can't be in the future." } as const;
 
   return { error: null, actualAmount, actualDate, balanceId } as const;
 }

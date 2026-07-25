@@ -25,7 +25,17 @@ export type RecurrenceFormResult =
 const UNITS: RecurrenceUnit[] = ["day", "week", "month", "year"];
 const ENDS_TYPES: RecurrenceEndsType[] = ["never", "on_date", "after_count"];
 
-export function readRecurrenceRuleForm(formData: FormData): RecurrenceFormResult {
+// T107 (user request 2026-07-26): new bills/income/debt/savings can't start
+// in the past - `enforceFutureStart` is opt-in (default off) since this
+// same function also validates *editing* an existing item (whose start date
+// is almost always already in the past, legitimately) and budgets' own
+// optional replenish schedule (a different concept from "when did this item
+// start"), neither of which this restriction should ever touch. Only the
+// four `create*` actions (bills/income/debt/savings) pass `true`.
+export function readRecurrenceRuleForm(
+  formData: FormData,
+  options?: { enforceFutureStart?: boolean },
+): RecurrenceFormResult {
   const interval = Number(formData.get("interval"));
   const unitRaw = formData.get("unit") as string;
   const endsTypeRaw = formData.get("endsType") as string;
@@ -62,9 +72,13 @@ export function readRecurrenceRuleForm(formData: FormData): RecurrenceFormResult
   // own start date) - "5 years from present day" per the user's own
   // framing. Applies to the rule's start, an explicit on_date end, and an
   // after_count rule's resolved last occurrence alike.
-  const maxTrackingDate = addYears(todayInManila(), MAX_TRACKING_YEARS);
+  const today = todayInManila();
+  const maxTrackingDate = addYears(today, MAX_TRACKING_YEARS);
   if (startDate && startDate > maxTrackingDate) {
     return { error: `Start date can't be more than ${MAX_TRACKING_YEARS} years from today.` };
+  }
+  if (options?.enforceFutureStart && startDate && startDate < today) {
+    return { error: "Start date can't be in the past." };
   }
 
   let endDate: string | null = null;
