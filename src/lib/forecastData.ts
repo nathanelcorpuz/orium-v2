@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { todayInManila } from "@/lib/date";
-import { formatDate } from "@/lib/engine/date-utils";
+import { addYears, MAX_TRACKING_YEARS } from "@/lib/engine/date-utils";
 import { generateForecast } from "@/lib/engine/forecast";
 import { toEngineBudget, toEngineEntries, type BudgetEntryRow, type BudgetRow } from "@/lib/budgetView";
 import { DEFAULT_TIER_LABELS } from "@/lib/balanceColor";
@@ -26,12 +26,6 @@ const DEFAULT_CURRENCY = "₱";
 // page's edit modal (which needs it), unlike the engine's minimal Balance.
 export type ForecastBalance = Balance & { comments: string | null };
 
-function addYears(dateStr: string, years: number): string {
-  const [year, month, day] = dateStr.split("-").map(Number);
-  const date = new Date(Date.UTC(year + years, month - 1, day));
-  return formatDate(date.getUTCFullYear(), date.getUTCMonth() + 1, date.getUTCDate());
-}
-
 export type ForecastData = {
   forecast: ForecastRow[];
   balances: ForecastBalance[];
@@ -50,7 +44,7 @@ export type ForecastData = {
 export async function loadForecast(): Promise<ForecastData> {
   const supabase = await createClient();
   const today = todayInManila();
-  const horizon = addYears(today, 3);
+  const horizon = addYears(today, MAX_TRACKING_YEARS);
 
   const [
     balancesRes,

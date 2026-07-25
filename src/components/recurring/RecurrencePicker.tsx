@@ -59,7 +59,11 @@ export function RecurrencePicker({
   initialValue?: RecurrenceValue | null;
   // T72 (SPEC.md Phase 12): Debt/Savings must always have a finite end so
   // their occurrence count is computable (goalProgress.ts) - MonthlyGoalModal
-  // passes allowNever={false} to hide "Never" from the Ends control.
+  // passes allowNever={false} to hide "Never" from the Ends control. Every
+  // other form keeps it (T85, Phase 12): a "Never" item is still bounded in
+  // practice, since the forecast horizon itself is capped at
+  // MAX_TRACKING_YEARS (forecastData.ts) - nothing beyond that ever
+  // generates or displays, "Never" or not.
   allowNever?: boolean;
 }) {
   const presets = useMemo(() => computeRecurrencePresets(startDate), [startDate]);

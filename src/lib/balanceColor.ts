@@ -18,7 +18,11 @@ const TIER_COLOR_CLASS: Record<BalanceRangeTier, string> = {
   medium: "bg-white",
   high: "bg-green-100",
   higher: "bg-green-300",
-  highest: "bg-green-500",
+  // User request 2026-07-25: bg-green-500 read as low-contrast against the
+  // default dark text every other non-danger tier inherits - white text
+  // fixes it without dulling the color, matching the danger tier's own
+  // text-white treatment.
+  highest: "bg-green-500 text-white",
 };
 
 export function balanceRangeColorClass(balance: number, ranges: number[]): string {

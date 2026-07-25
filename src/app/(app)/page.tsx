@@ -178,9 +178,9 @@ export default async function Home() {
           {balances.length === 0 ? (
             <p className="text-sm text-slate-400">No accounts yet.</p>
           ) : (
-            <ul className="space-y-1 text-sm">
+            <ul className="divide-y divide-notion-hairline text-sm">
               {balances.map((balance) => (
-                <li key={balance.id} className="flex justify-between text-notion-text">
+                <li key={balance.id} className="flex justify-between py-1.5 text-notion-text first:pt-0 last:pb-0">
                   <span>{balance.name}</span>
                   <span>{formatCentavos(balance.amount, currency)}</span>
                 </li>

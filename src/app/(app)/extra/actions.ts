@@ -3,6 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { parseCentavos } from "@/lib/money";
+import { todayInManila } from "@/lib/date";
+import { addYears, MAX_TRACKING_YEARS } from "@/lib/engine/date-utils";
 
 export type ExtraActionState = { error: string | null };
 
@@ -22,6 +24,11 @@ function readExtraForm(formData: FormData) {
     return { error: "Choose money in or money out." } as const;
   }
   if (!dueDate) return { error: "Due date is required." } as const;
+  // T85 (SPEC.md): the same free-tier tracking cap recurrenceForm.ts
+  // enforces for recurring items, applied here to a one-off's due date.
+  if (dueDate > addYears(todayInManila(), MAX_TRACKING_YEARS)) {
+    return { error: `Due date can't be more than ${MAX_TRACKING_YEARS} years from today.` } as const;
+  }
 
   return {
     error: null,

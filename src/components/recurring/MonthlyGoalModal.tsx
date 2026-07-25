@@ -116,7 +116,8 @@ export function MonthlyGoalModal({
           />
         </div>
         {/* T72: debt/savings must always have a finite end, so their total
-            occurrence count is computable for the progress bar. */}
+            occurrence count is computable for the progress bar - unlike
+            other recurring types, which keep "Never" (T85). */}
         <RecurrencePicker startDate={startDate} initialValue={initialRecurrenceValue} allowNever={false} />
         <div>
           <label className="block text-sm text-slate-600" htmlFor="balanceId">

@@ -14,6 +14,19 @@ export function addDays(dateStr: string, days: number): string {
   return formatDate(date.getUTCFullYear(), date.getUTCMonth() + 1, date.getUTCDate());
 }
 
+export function addYears(dateStr: string, years: number): string {
+  const [year, month, day] = dateStr.split("-").map(Number);
+  const date = new Date(Date.UTC(year + years, month - 1, day));
+  return formatDate(date.getUTCFullYear(), date.getUTCMonth() + 1, date.getUTCDate());
+}
+
+// T85 (SPEC.md): the free-tier cap on how far into the future anything can
+// be tracked or scheduled - shared by the forecast horizon
+// (forecastData.ts) and recurrence/one-off end-date validation
+// (recurrenceForm.ts, extra/actions.ts) so both stay in sync. Raising this
+// for a future paid tier (10/15/20 years) is a one-line change here.
+export const MAX_TRACKING_YEARS = 5;
+
 export function daysBetween(a: string, b: string): number {
   const toUTC = (s: string) => {
     const [y, m, d] = s.split("-").map(Number);
