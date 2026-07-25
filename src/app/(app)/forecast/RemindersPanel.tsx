@@ -1,7 +1,16 @@
 "use client";
 
 import { useActionState, useEffect, useRef, useState } from "react";
-import { CheckIcon, ChevronIcon, CloseIcon, DeleteIcon, EditIcon, RestoreIcon } from "@/components/navIcons";
+import {
+  BellIcon,
+  CheckIcon,
+  ChevronIcon,
+  CloseIcon,
+  DeleteIcon,
+  EditIcon,
+  RestoreIcon,
+} from "@/components/navIcons";
+import { MobileDrawer } from "@/components/MobileDrawer";
 import {
   createReminder,
   deleteReminder,
@@ -211,15 +220,75 @@ function ReminderItem({ reminder }: { reminder: ReminderRow }) {
 
 const COLLAPSED_STORAGE_KEY = "orium.remindersCollapsed";
 
+// The panel body shared between the desktop collapsible panel and the
+// mobile slide-over (T89): header + add form + active/completed lists.
+function RemindersContent({
+  activeReminders,
+  completedReminders,
+  showCompleted,
+  setShowCompleted,
+}: {
+  activeReminders: ReminderRow[];
+  completedReminders: ReminderRow[];
+  showCompleted: boolean;
+  setShowCompleted: (updater: (prev: boolean) => boolean) => void;
+}) {
+  return (
+    <div className="flex min-h-0 flex-1 flex-col p-4">
+      <h2 className="mb-3 text-sm font-semibold text-notion-text">Reminders</h2>
+      <AddReminderForm />
+      {activeReminders.length === 0 ? (
+        <p className="text-sm text-slate-400">No reminders yet.</p>
+      ) : (
+        <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+          <ul className="divide-y divide-notion-hairline">
+            {activeReminders.map((reminder) => (
+              <li key={reminder.id} className="py-2 first:pt-0">
+                <ReminderItem reminder={reminder} />
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {completedReminders.length > 0 && (
+        <div className="mt-3 shrink-0 border-t border-notion-hairline pt-3">
+          <button
+            type="button"
+            onClick={() => setShowCompleted((prev) => !prev)}
+            className="text-xs font-medium text-slate-400 hover:text-notion-text"
+          >
+            {showCompleted ? "Hide" : "Show"} completed ({completedReminders.length})
+          </button>
+          {showCompleted && (
+            <ul className="mt-2 max-h-40 divide-y divide-notion-hairline overflow-y-auto pr-1">
+              {completedReminders.map((reminder) => (
+                <li key={reminder.id} className="py-2 first:pt-0">
+                  <ReminderItem reminder={reminder} />
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // Full-height collapsible right panel, mirroring AppShell's left sidebar
 // (user request 2026-07-23: "occupy the entire right panel, like the menu
 // in the left, also collapsible"). Same hydration-safe localStorage pattern
 // as AppShell: `collapsed` starts `false` on both server and first client
 // render, then a post-mount effect applies the stored preference, avoiding
 // a server/client markup mismatch.
+//
+// Mobile (SPEC.md T89): the panel above is `lg`-only (it was already
+// `hidden` below `lg` with no mobile access at all). Below `lg`, a small
+// floating trigger - badged with the active reminder count - opens the same
+// content as a right-edge MobileDrawer.
 export function RemindersPanel({ reminders }: { reminders: ReminderRow[] }) {
   const [collapsed, setCollapsed] = useState(false);
   const [showCompleted, setShowCompleted] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
   const activeReminders = reminders.filter((r) => !r.completed);
   const completedReminders = reminders.filter((r) => r.completed);
 
@@ -239,63 +308,67 @@ export function RemindersPanel({ reminders }: { reminders: ReminderRow[] }) {
   }
 
   return (
-    <aside
-      className={`sticky top-0 relative hidden h-screen shrink-0 flex-col border-l border-notion-hairline bg-white transition-all duration-200 lg:flex ${
-        collapsed ? "w-16" : "w-72"
-      }`}
-    >
+    <>
+      <aside
+        className={`sticky top-0 relative hidden h-screen shrink-0 flex-col border-l border-notion-hairline bg-white transition-all duration-200 lg:flex ${
+          collapsed ? "w-16" : "w-72"
+        }`}
+      >
+        <button
+          type="button"
+          onClick={toggleCollapsed}
+          title={
+            collapsed
+              ? `Expand reminders${activeReminders.length > 0 ? ` (${activeReminders.length})` : ""}`
+              : "Collapse reminders"
+          }
+          aria-label={collapsed ? "Expand reminders" : "Collapse reminders"}
+          className="absolute -left-3 top-1/2 z-20 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full border border-notion-hairline bg-white text-slate-400 shadow-sm hover:bg-notion-hover hover:text-notion-text"
+        >
+          <ChevronIcon direction={collapsed ? "left" : "right"} className="h-3.5 w-3.5" />
+        </button>
+        {!collapsed && (
+          <RemindersContent
+            activeReminders={activeReminders}
+            completedReminders={completedReminders}
+            showCompleted={showCompleted}
+            setShowCompleted={setShowCompleted}
+          />
+        )}
+      </aside>
+
       <button
         type="button"
-        onClick={toggleCollapsed}
-        title={
-          collapsed
-            ? `Expand reminders${activeReminders.length > 0 ? ` (${activeReminders.length})` : ""}`
-            : "Collapse reminders"
-        }
-        aria-label={collapsed ? "Expand reminders" : "Collapse reminders"}
-        className="absolute -left-3 top-1/2 z-20 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full border border-notion-hairline bg-white text-slate-400 shadow-sm hover:bg-notion-hover hover:text-notion-text"
+        onClick={() => setMobileOpen(true)}
+        aria-label={`Open reminders${activeReminders.length > 0 ? ` (${activeReminders.length})` : ""}`}
+        className="fixed bottom-4 right-4 z-30 flex h-12 w-12 items-center justify-center rounded-full border border-notion-hairline bg-white text-slate-500 shadow-lg hover:text-notion-text lg:hidden"
       >
-        <ChevronIcon direction={collapsed ? "left" : "right"} className="h-3.5 w-3.5" />
+        <BellIcon className="h-5 w-5" />
+        {activeReminders.length > 0 && (
+          <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-notion-accent px-1 text-xs font-medium text-white">
+            {activeReminders.length}
+          </span>
+        )}
       </button>
-      {!collapsed && (
-        <div className="flex min-h-0 flex-1 flex-col p-4">
-          <h2 className="mb-3 text-sm font-semibold text-notion-text">Reminders</h2>
-          <AddReminderForm />
-          {activeReminders.length === 0 ? (
-            <p className="text-sm text-slate-400">No reminders yet.</p>
-          ) : (
-            <div className="min-h-0 flex-1 overflow-y-auto pr-1">
-              <ul className="divide-y divide-notion-hairline">
-                {activeReminders.map((reminder) => (
-                  <li key={reminder.id} className="py-2 first:pt-0">
-                    <ReminderItem reminder={reminder} />
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-          {completedReminders.length > 0 && (
-            <div className="mt-3 shrink-0 border-t border-notion-hairline pt-3">
-              <button
-                type="button"
-                onClick={() => setShowCompleted((prev) => !prev)}
-                className="text-xs font-medium text-slate-400 hover:text-notion-text"
-              >
-                {showCompleted ? "Hide" : "Show"} completed ({completedReminders.length})
-              </button>
-              {showCompleted && (
-                <ul className="mt-2 max-h-40 divide-y divide-notion-hairline overflow-y-auto pr-1">
-                  {completedReminders.map((reminder) => (
-                    <li key={reminder.id} className="py-2 first:pt-0">
-                      <ReminderItem reminder={reminder} />
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          )}
+
+      <MobileDrawer open={mobileOpen} onClose={() => setMobileOpen(false)} side="right" widthClassName="w-80">
+        <div className="flex items-center justify-end border-b border-notion-hairline p-2">
+          <button
+            type="button"
+            onClick={() => setMobileOpen(false)}
+            aria-label="Close reminders"
+            className="rounded p-1.5 text-slate-400 hover:bg-notion-hover hover:text-notion-text"
+          >
+            <CloseIcon className="h-4 w-4" />
+          </button>
         </div>
-      )}
-    </aside>
+        <RemindersContent
+          activeReminders={activeReminders}
+          completedReminders={completedReminders}
+          showCompleted={showCompleted}
+          setShowCompleted={setShowCompleted}
+        />
+      </MobileDrawer>
+    </>
   );
 }

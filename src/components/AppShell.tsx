@@ -4,7 +4,8 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { logout } from "@/app/auth/actions";
-import { ChevronIcon, LogoutIcon, NAV_ICONS } from "./navIcons";
+import { ChevronIcon, CloseIcon, LogoutIcon, MenuIcon, NAV_ICONS } from "./navIcons";
+import { MobileDrawer } from "./MobileDrawer";
 
 const NAV_ITEMS = [
   { href: "/", label: "Dashboard" },
@@ -22,6 +23,88 @@ const NAV_ITEMS = [
 
 const COLLAPSED_STORAGE_KEY = "orium.sidebarCollapsed";
 
+// The nav content shared between the desktop rail (collapsible, T44) and the
+// mobile drawer (T89, always full-width): header + link list + logout.
+// `onNavigate` (drawer only) closes the drawer after a link is tapped;
+// `onClose` (drawer only) renders an explicit X next to the header, since a
+// backdrop-tap-to-close isn't discoverable on its own.
+function SidebarContent({
+  collapsed,
+  pathname,
+  greetingName,
+  onNavigate,
+  onClose,
+}: {
+  collapsed: boolean;
+  pathname: string;
+  greetingName: string;
+  onNavigate?: () => void;
+  onClose?: () => void;
+}) {
+  return (
+    <>
+      <div className={`flex items-center p-4 ${collapsed ? "justify-center" : "justify-between"}`}>
+        {collapsed ? (
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded bg-notion-text text-sm font-semibold text-white">
+            O
+          </div>
+        ) : (
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-notion-text">Orium</p>
+            <p className="truncate text-xs text-slate-500">{greetingName}</p>
+          </div>
+        )}
+        {onClose && (
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close menu"
+            className="shrink-0 rounded p-1.5 text-slate-400 hover:bg-notion-hover hover:text-notion-text"
+          >
+            <CloseIcon className="h-4 w-4" />
+          </button>
+        )}
+      </div>
+      <nav className="flex-1 space-y-0.5 overflow-y-auto px-2">
+        {NAV_ITEMS.map((item) => {
+          const active = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
+          const Icon = NAV_ICONS[item.href];
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              onClick={onNavigate}
+              title={collapsed ? item.label : undefined}
+              className={`flex items-center gap-2 rounded py-1.5 text-sm ${collapsed ? "justify-center px-2" : "px-3"} ${
+                active
+                  ? "bg-notion-hover font-medium text-notion-accent"
+                  : "text-notion-text hover:bg-notion-hover"
+              }`}
+            >
+              <Icon className="h-4 w-4 shrink-0" />
+              {!collapsed && <span className="truncate">{item.label}</span>}
+            </Link>
+          );
+        })}
+      </nav>
+      <div className="border-t border-notion-hairline p-2">
+        <form action={logout}>
+          <button
+            type="submit"
+            title={collapsed ? "Log out" : undefined}
+            className={`flex w-full items-center gap-2 rounded py-1.5 text-sm text-slate-500 hover:bg-notion-hover ${
+              collapsed ? "justify-center px-2" : "px-3 text-left"
+            }`}
+          >
+            <LogoutIcon className="h-4 w-4 shrink-0" />
+            {!collapsed && <span>Log out</span>}
+          </button>
+        </form>
+      </div>
+    </>
+  );
+}
+
 // Full-width shell with a 240px sidebar (SPEC.md T28) - every authenticated
 // page (`src/app/(app)/*`) renders inside this via `(app)/layout.tsx`
 // instead of each page building its own nav/logout, which is what every
@@ -33,6 +116,10 @@ const COLLAPSED_STORAGE_KEY = "orium.sidebarCollapsed";
 // and first client render (so there's no hydration mismatch), then a
 // post-mount effect reads the stored preference and flips it if needed,
 // same tradeoff any localStorage-backed UI preference makes in an SSR app.
+//
+// Mobile (SPEC.md T89): below `lg` the rail is fully hidden (it was never
+// usable at phone widths) and replaced by a slim top bar with a hamburger
+// button; tapping it opens the same nav as a left-edge MobileDrawer.
 export function AppShell({
   greetingName,
   children,
@@ -42,6 +129,7 @@ export function AppShell({
 }) {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
 
   useEffect(() => {
     // Reading localStorage during the lazy useState initializer instead
@@ -57,6 +145,12 @@ export function AppShell({
     }
   }, []);
 
+  // Close the drawer on navigation to a different route (back/forward,
+  // browser gestures) as well as on link taps handled via onNavigate below.
+  useEffect(() => {
+    setMobileOpen(false);
+  }, [pathname]);
+
   function toggleCollapsed() {
     setCollapsed((prev) => {
       const next = !prev;
@@ -66,9 +160,21 @@ export function AppShell({
   }
 
   return (
-    <div className="flex min-h-screen bg-slate-50">
+    <div className="flex min-h-screen flex-col bg-slate-50 lg:flex-row">
+      <div className="flex items-center gap-2 border-b border-notion-hairline bg-white p-3 lg:hidden">
+        <button
+          type="button"
+          onClick={() => setMobileOpen(true)}
+          aria-label="Open menu"
+          className="rounded p-1.5 text-slate-500 hover:bg-notion-hover hover:text-notion-text"
+        >
+          <MenuIcon className="h-5 w-5" />
+        </button>
+        <p className="text-sm font-semibold text-notion-text">Orium</p>
+      </div>
+
       <aside
-        className={`sticky top-0 relative flex h-screen shrink-0 flex-col border-r border-notion-hairline bg-white transition-all duration-200 ${
+        className={`sticky top-0 relative hidden h-screen shrink-0 flex-col border-r border-notion-hairline bg-white transition-all duration-200 lg:flex ${
           collapsed ? "w-16" : "w-60"
         }`}
       >
@@ -81,54 +187,19 @@ export function AppShell({
         >
           <ChevronIcon direction={collapsed ? "right" : "left"} className="h-3.5 w-3.5" />
         </button>
-        <div className={`flex items-center p-4 ${collapsed ? "justify-center" : ""}`}>
-          {collapsed ? (
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded bg-notion-text text-sm font-semibold text-white">
-              O
-            </div>
-          ) : (
-            <div className="min-w-0">
-              <p className="text-sm font-semibold text-notion-text">Orium</p>
-              <p className="truncate text-xs text-slate-500">{greetingName}</p>
-            </div>
-          )}
-        </div>
-        <nav className="flex-1 space-y-0.5 overflow-y-auto px-2">
-          {NAV_ITEMS.map((item) => {
-            const active = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
-            const Icon = NAV_ICONS[item.href];
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                title={collapsed ? item.label : undefined}
-                className={`flex items-center gap-2 rounded py-1.5 text-sm ${collapsed ? "justify-center px-2" : "px-3"} ${
-                  active
-                    ? "bg-notion-hover font-medium text-notion-accent"
-                    : "text-notion-text hover:bg-notion-hover"
-                }`}
-              >
-                <Icon className="h-4 w-4 shrink-0" />
-                {!collapsed && <span className="truncate">{item.label}</span>}
-              </Link>
-            );
-          })}
-        </nav>
-        <div className="border-t border-notion-hairline p-2">
-          <form action={logout}>
-            <button
-              type="submit"
-              title={collapsed ? "Log out" : undefined}
-              className={`flex w-full items-center gap-2 rounded py-1.5 text-sm text-slate-500 hover:bg-notion-hover ${
-                collapsed ? "justify-center px-2" : "px-3 text-left"
-              }`}
-            >
-              <LogoutIcon className="h-4 w-4 shrink-0" />
-              {!collapsed && <span>Log out</span>}
-            </button>
-          </form>
-        </div>
+        <SidebarContent collapsed={collapsed} pathname={pathname} greetingName={greetingName} />
       </aside>
+
+      <MobileDrawer open={mobileOpen} onClose={() => setMobileOpen(false)} side="left" widthClassName="w-64">
+        <SidebarContent
+          collapsed={false}
+          pathname={pathname}
+          greetingName={greetingName}
+          onNavigate={() => setMobileOpen(false)}
+          onClose={() => setMobileOpen(false)}
+        />
+      </MobileDrawer>
+
       <main className="min-w-0 flex-1">{children}</main>
     </div>
   );

@@ -188,6 +188,25 @@ export function RestoreIcon({ className }: IconProps) {
   );
 }
 
+export function MenuIcon({ className }: IconProps) {
+  return (
+    <svg {...BASE} className={className}>
+      <line x1="3" y1="6" x2="17" y2="6" />
+      <line x1="3" y1="10" x2="17" y2="10" />
+      <line x1="3" y1="14" x2="17" y2="14" />
+    </svg>
+  );
+}
+
+export function BellIcon({ className }: IconProps) {
+  return (
+    <svg {...BASE} className={className}>
+      <path d="M10 3 a4 4 0 0 0 -4 4 v2 c0 2 -1 3 -1.5 3.5 h11 C15 12 14 11 14 9 V7 a4 4 0 0 0 -4 -4 Z" />
+      <path d="M8.3 15.5 a1.8 1.8 0 0 0 3.4 0" />
+    </svg>
+  );
+}
+
 // Keyed by nav href (see AppShell.tsx's NAV_ITEMS) so the sidebar can look
 // up each item's icon without a big switch statement.
 export const NAV_ICONS: Record<string, (props: IconProps) => React.JSX.Element> = {
