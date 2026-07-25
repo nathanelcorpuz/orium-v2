@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 export type TourStep = {
   target: string; // CSS selector, e.g. `[data-tour="dashboard-stats"]`
@@ -49,7 +49,20 @@ const TOOLTIP_MARGIN = 16;
 // walkthrough) and steps forward/back through `steps`, silently skipping any
 // step whose target isn't currently visible (e.g. a panel that only renders
 // above a breakpoint) instead of getting stuck on it.
-export function SpotlightTour({ tourId, steps }: { tourId: string; steps: TourStep[] }) {
+export function SpotlightTour({
+  tourId,
+  steps,
+  onFinish,
+}: {
+  tourId: string;
+  steps: TourStep[];
+  // Called every time the tour ends (Skip, Escape, or Done on the last
+  // step) - `wasFirstCompletion` tells the caller whether this was the
+  // tour's very first-ever completion (the localStorage flag hadn't been
+  // set yet) versus a later replay, so a caller can react just once (e.g.
+  // T102's end-of-tour "keep or reset sample data?" prompt).
+  onFinish?: (wasFirstCompletion: boolean) => void;
+}) {
   const storageKey = `orium.tour.${tourId}.done`;
   const [active, setActive] = useState(false);
   const [stepIndex, setStepIndex] = useState(0);
@@ -63,9 +76,20 @@ export function SpotlightTour({ tourId, steps }: { tourId: string; steps: TourSt
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Read via a ref rather than a `useCallback` dependency so `finish`'s own
+  // identity stays stable across parent re-renders (it feeds several other
+  // effects below) even when the caller passes a fresh inline `onFinish`
+  // function on every render.
+  const onFinishRef = useRef(onFinish);
+  useEffect(() => {
+    onFinishRef.current = onFinish;
+  });
+
   const finish = useCallback(() => {
+    const wasFirstCompletion = localStorage.getItem(storageKey) !== "1";
     localStorage.setItem(storageKey, "1");
     setActive(false);
+    onFinishRef.current?.(wasFirstCompletion);
   }, [storageKey]);
 
   useEffect(() => {

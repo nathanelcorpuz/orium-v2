@@ -11,6 +11,7 @@ import { Modal } from "@/components/Modal";
 import { DatePicker } from "@/components/DatePicker";
 import { ChevronIcon } from "@/components/navIcons";
 import { SpotlightTour, type TourStep } from "@/components/SpotlightTour";
+import { SampleDataDecisionModal } from "@/components/SampleDataDecisionModal";
 import type { ForecastRow } from "@/lib/engine/types";
 import type { LowestBalancePoint } from "@/lib/engine/lowestBalance";
 import { EditSettleModal } from "./EditSettleModal";
@@ -138,6 +139,7 @@ export function ForecastClient({
   reminders,
   lowestBalance,
   firstDanger,
+  sampleDataSeededAt,
 }: {
   forecast: ForecastRow[];
   balances: BalanceRow[];
@@ -147,10 +149,16 @@ export function ForecastClient({
   reminders: ReminderRow[];
   lowestBalance: LowestBalancePoint;
   firstDanger: LowestBalancePoint | null;
+  sampleDataSeededAt: string | null;
 }) {
   const [editingBalance, setEditingBalance] = useState<BalanceRow | null>(null);
   const [selectedRow, setSelectedRow] = useState<ForecastRow | null>(null);
   const [insightsCollapsed, setInsightsCollapsed] = useState(false);
+  // T102: once a new signup finishes this page's intro tour for the first
+  // time, offer the choice to keep exploring with the sample data or reset
+  // and start entering real numbers - only relevant when there's sample
+  // data to begin with.
+  const [showSampleDataDecision, setShowSampleDataDecision] = useState(false);
 
   useEffect(() => {
     // Reading localStorage during the lazy useState initializer instead
@@ -319,7 +327,13 @@ export function ForecastClient({
 
   return (
     <div className="flex min-h-full">
-      <SpotlightTour tourId="forecast-intro" steps={FORECAST_TOUR_STEPS} />
+      <SpotlightTour
+        tourId="forecast-intro"
+        steps={FORECAST_TOUR_STEPS}
+        onFinish={(wasFirstCompletion) => {
+          if (wasFirstCompletion && sampleDataSeededAt) setShowSampleDataDecision(true);
+        }}
+      />
       <div className="min-w-0 flex-1 p-4 md:p-8">
         <div className="mx-auto max-w-6xl">
           <div className="mb-6">
@@ -624,6 +638,10 @@ export function ForecastClient({
           balances={balances}
           onClose={() => setSelectedRow(null)}
         />
+      )}
+
+      {showSampleDataDecision && (
+        <SampleDataDecisionModal onClose={() => setShowSampleDataDecision(false)} />
       )}
     </div>
   );
