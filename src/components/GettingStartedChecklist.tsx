@@ -6,7 +6,7 @@ import { CheckIcon, CloseIcon } from "@/components/navIcons";
 
 const DISMISSED_KEY = "orium.gettingStartedDismissed";
 
-type Step = { key: string; label: string; href: string; done: boolean };
+type Step = { key: string; label: string; href: string; done: boolean; optional: boolean };
 
 // T99: "Getting started" checklist - the add-data steps from Phase 16's
 // locked order (dashboard intro -> forecast intro -> add accounts -> add
@@ -46,22 +46,37 @@ export function GettingStartedChecklist({
     }
   }, []);
 
+  // T105 (user request 2026-07-26): debt/savings joins budgets and misc as
+  // optional - not every household carries debt or has a savings goal, so
+  // it shouldn't block the checklist from graduating any more than an
+  // unused optional budget does.
   const steps: Step[] = [
-    { key: "accounts", label: "Add your accounts", href: "/accounts", done: hasAccounts },
-    { key: "bills", label: "Add your bills", href: "/bills", done: hasBills },
-    { key: "income", label: "Add your income", href: "/income", done: hasIncome },
-    { key: "debt-savings", label: "Add debt or savings goals", href: "/debt", done: hasDebtOrSavings },
-    { key: "budgets", label: "Set up a budget (optional)", href: "/budgets", done: hasBudgets },
-    { key: "extras", label: "Log a one-off extra (optional)", href: "/extra", done: hasExtras },
+    { key: "accounts", label: "Add your accounts", href: "/accounts", done: hasAccounts, optional: false },
+    { key: "bills", label: "Add your bills", href: "/bills", done: hasBills, optional: false },
+    { key: "income", label: "Add your income", href: "/income", done: hasIncome, optional: false },
+    {
+      key: "debt-savings",
+      label: "Add debt or savings goals (optional)",
+      href: "/debt",
+      done: hasDebtOrSavings,
+      optional: true,
+    },
+    { key: "budgets", label: "Set up a budget (optional)", href: "/budgets", done: hasBudgets, optional: true },
+    {
+      key: "extras",
+      label: "Add a Misc future transaction (optional)",
+      href: "/extra",
+      done: hasExtras,
+      optional: true,
+    },
   ];
   const doneCount = steps.filter((step) => step.done).length;
-  const allDone = doneCount === steps.length;
+  // Auto-graduates once every *required* step is checked - the optional
+  // ones (debt/savings, budgets, misc) don't need to block the checklist
+  // from going away for a household that genuinely has none of those.
+  const allRequiredDone = steps.filter((step) => !step.optional).every((step) => step.done);
 
-  // Auto-graduates once every step (including the optional ones) is
-  // checked - a fully-done checklist has nothing left to nudge toward, and
-  // T100 (replay/skip polish) is where a deliberate "bring this back"
-  // affordance would go if that turns out to be wanted later.
-  if (allDone || dismissed) return null;
+  if (allRequiredDone || dismissed) return null;
 
   function dismiss() {
     localStorage.setItem(DISMISSED_KEY, "true");

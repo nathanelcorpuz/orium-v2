@@ -237,6 +237,87 @@ export default async function Home({
           />
         </div>
 
+        {/* User request 2026-07-26: Lowest Balance Ahead and Peaks and Drops
+            moved up here, directly under the stats row - they're the
+            forward-looking "is my money okay" numbers, more important at a
+            glance than the per-category cards below. */}
+        <div className="mb-6 rounded-lg border border-notion-hairline bg-white p-4" data-tour="dashboard-lowest-balance">
+          <h2 className="mb-2 text-sm font-semibold text-notion-text">Lowest Balance Ahead</h2>
+          {/* T76: color + wording now reflect the actual balance_ranges risk
+              tier (danger/low/medium/high/higher/highest), not a hardcoded
+              <=0 check - matches the Forecast table (T62) and Peaks and
+              Drops (T67). Danger shows the deficit magnitude ("Goes negative
+              by"); every other tier shows the (positive) balance directly. */}
+          <p className="text-xl font-semibold text-notion-text">
+            {lowestBalanceLabel(lowestBalance.balance, balanceRanges, tierLabels)}{" "}
+            <span
+              className={`inline-block rounded px-1.5 py-0.5 ${balanceRangeColorClass(lowestBalance.balance, balanceRanges)}`}
+            >
+              {formatCentavos(
+                balanceRangeTier(lowestBalance.balance, balanceRanges) === "danger"
+                  ? Math.abs(lowestBalance.balance)
+                  : lowestBalance.balance,
+                currency,
+              )}
+            </span>
+          </p>
+          <p className="mt-1 text-sm text-slate-500">On {formatFullDate(lowestBalance.date)}</p>
+          {/* User feedback 2026-07-25: the worst point (above) can land well
+              after the balance first crosses into trouble - a big hit
+              followed by an oscillating recovery reads as if the WORST
+              date is when things first go wrong, when they may have started
+              days or weeks earlier. Only shown when it adds new information
+              (a real earlier date), and always in fixed danger-only wording
+              rather than the customizable 6-tier labels above, since this
+              stat by definition is always the negative case. */}
+          {firstDanger && firstDanger.date !== lowestBalance.date && (
+            <div className="mt-4">
+              <p className="text-xl font-semibold text-notion-text">
+                First goes negative:{" "}
+                <span className="inline-block rounded bg-slate-900 px-1.5 py-0.5 text-white">
+                  {formatCentavos(Math.abs(firstDanger.balance), currency)}
+                </span>
+              </p>
+              <p className="mt-1 text-sm text-slate-500">On {formatFullDate(firstDanger.date)}</p>
+            </div>
+          )}
+        </div>
+
+        <div className="mb-6 rounded-lg border border-notion-hairline bg-white" data-tour="dashboard-peaks-drops">
+          <h2 className="p-4 pb-2 text-sm font-semibold text-notion-text">Peaks and Drops</h2>
+          <div className="max-h-64 space-y-4 overflow-y-auto p-4 pt-2 md:max-h-[420px]">
+            {peaksAndDropsByYear.map(({ year, months }) => (
+              <div key={year}>
+                <p className="mb-2 text-sm font-medium text-notion-text">{year}</p>
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
+                  {months.map((entry) => (
+                    <div
+                      key={entry.month}
+                      className="rounded border border-notion-hairline p-2 text-right text-xs"
+                    >
+                      <p className="mb-1 text-slate-400">{formatMonthYear(entry.month)}</p>
+                      <p>
+                        <span
+                          className={`inline-block rounded px-1.5 py-0.5 ${balanceRangeColorClass(entry.peak, balanceRanges)}`}
+                        >
+                          {formatCentavos(entry.peak, currency)}
+                        </span>
+                      </p>
+                      <p className="mt-1">
+                        <span
+                          className={`inline-block rounded px-1.5 py-0.5 ${balanceRangeColorClass(entry.drop, balanceRanges)}`}
+                        >
+                          {formatCentavos(entry.drop, currency)}
+                        </span>
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
         <div className="mb-6 rounded-lg border border-notion-hairline bg-white p-4" data-tour="dashboard-accounts">
           <div className="mb-2 flex items-center justify-between">
             <h2 className="text-sm font-semibold text-notion-text">Accounts</h2>
@@ -390,83 +471,6 @@ export default async function Home({
               })}
             </ul>
           )}
-        </div>
-
-        <div className="mb-6 rounded-lg border border-notion-hairline bg-white p-4" data-tour="dashboard-lowest-balance">
-          <h2 className="mb-2 text-sm font-semibold text-notion-text">Lowest Balance Ahead</h2>
-          {/* T76: color + wording now reflect the actual balance_ranges risk
-              tier (danger/low/medium/high/higher/highest), not a hardcoded
-              <=0 check - matches the Forecast table (T62) and Peaks and
-              Drops (T67). Danger shows the deficit magnitude ("Goes negative
-              by"); every other tier shows the (positive) balance directly. */}
-          <p className="text-xl font-semibold text-notion-text">
-            {lowestBalanceLabel(lowestBalance.balance, balanceRanges, tierLabels)}{" "}
-            <span
-              className={`inline-block rounded px-1.5 py-0.5 ${balanceRangeColorClass(lowestBalance.balance, balanceRanges)}`}
-            >
-              {formatCentavos(
-                balanceRangeTier(lowestBalance.balance, balanceRanges) === "danger"
-                  ? Math.abs(lowestBalance.balance)
-                  : lowestBalance.balance,
-                currency,
-              )}
-            </span>
-          </p>
-          <p className="mt-1 text-sm text-slate-500">On {formatFullDate(lowestBalance.date)}</p>
-          {/* User feedback 2026-07-25: the worst point (above) can land well
-              after the balance first crosses into trouble - a big hit
-              followed by an oscillating recovery reads as if the WORST
-              date is when things first go wrong, when they may have started
-              days or weeks earlier. Only shown when it adds new information
-              (a real earlier date), and always in fixed danger-only wording
-              rather than the customizable 6-tier labels above, since this
-              stat by definition is always the negative case. */}
-          {firstDanger && firstDanger.date !== lowestBalance.date && (
-            <div className="mt-4">
-              <p className="text-xl font-semibold text-notion-text">
-                First goes negative:{" "}
-                <span className="inline-block rounded bg-slate-900 px-1.5 py-0.5 text-white">
-                  {formatCentavos(Math.abs(firstDanger.balance), currency)}
-                </span>
-              </p>
-              <p className="mt-1 text-sm text-slate-500">On {formatFullDate(firstDanger.date)}</p>
-            </div>
-          )}
-        </div>
-
-        <div className="rounded-lg border border-notion-hairline bg-white" data-tour="dashboard-peaks-drops">
-          <h2 className="p-4 pb-2 text-sm font-semibold text-notion-text">Peaks and Drops</h2>
-          <div className="max-h-64 space-y-4 overflow-y-auto p-4 pt-2 md:max-h-[420px]">
-            {peaksAndDropsByYear.map(({ year, months }) => (
-              <div key={year}>
-                <p className="mb-2 text-sm font-medium text-notion-text">{year}</p>
-                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
-                  {months.map((entry) => (
-                    <div
-                      key={entry.month}
-                      className="rounded border border-notion-hairline p-2 text-right text-xs"
-                    >
-                      <p className="mb-1 text-slate-400">{formatMonthYear(entry.month)}</p>
-                      <p>
-                        <span
-                          className={`inline-block rounded px-1.5 py-0.5 ${balanceRangeColorClass(entry.peak, balanceRanges)}`}
-                        >
-                          {formatCentavos(entry.peak, currency)}
-                        </span>
-                      </p>
-                      <p className="mt-1">
-                        <span
-                          className={`inline-block rounded px-1.5 py-0.5 ${balanceRangeColorClass(entry.drop, balanceRanges)}`}
-                        >
-                          {formatCentavos(entry.drop, currency)}
-                        </span>
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
         </div>
       </div>
     </div>
