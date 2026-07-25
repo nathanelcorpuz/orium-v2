@@ -37,6 +37,11 @@ export type ForecastData = {
   currency: string;
   balanceRanges: number[];
   tierLabels: string[];
+  // T97: null once the account has never been auto-seeded or has had its
+  // data reset; a real timestamp whenever it currently holds the sample
+  // dataset (auto-seeded at signup or brought back via "Restore sample
+  // data") - the Dashboard's sample-data banner keys off this.
+  sampleDataSeededAt: string | null;
   today: string;
   horizon: string;
 };
@@ -71,7 +76,10 @@ export async function loadForecast(): Promise<ForecastData> {
     // needs full history to compute a running total (budgetLedger.ts).
     supabase.from("budget_entries").select("id, budget_id, entry_date, amount, note, direction"),
     supabase.from("budget_replenish_overrides").select("id, budget_id, original_date, skipped"),
-    supabase.from("preferences").select("currency, balance_ranges, balance_tier_labels").single(),
+    supabase
+      .from("preferences")
+      .select("currency, balance_ranges, balance_tier_labels, sample_data_seeded_at")
+      .single(),
   ]);
 
   // These queries determine the forecast's correctness - silently treating a
@@ -177,6 +185,7 @@ export async function loadForecast(): Promise<ForecastData> {
     currency: preferencesRes.data?.currency ?? DEFAULT_CURRENCY,
     balanceRanges: preferencesRes.data?.balance_ranges ?? DEFAULT_BALANCE_RANGES,
     tierLabels: preferencesRes.data?.balance_tier_labels ?? DEFAULT_TIER_LABELS,
+    sampleDataSeededAt: preferencesRes.data?.sample_data_seeded_at ?? null,
     today,
     horizon,
   };

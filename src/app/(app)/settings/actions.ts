@@ -71,15 +71,41 @@ export async function updatePreferences(
   return { error: null, message: "Preferences saved." };
 }
 
-const DATA_TABLES = [
+// T97: every financial/transactional table, in FK-safe (child-before-
+// parent) order - shared between `deleteAccount` and `resetData` below.
+// Matches `supabase/wipe_test_data.sql`'s exact table list and order.
+// Deliberately excludes `preferences` - a currency symbol or custom balance
+// thresholds are a display preference, not "data" in the sense either of
+// these actions mean to wipe, and `wipe_test_data.sql` already established
+// that same precedent.
+//
+// NOTE: this used to be a shorter, out-of-date list on `deleteAccount`
+// alone (missing `budgets`, `budget_entries`, and
+// `budget_replenish_overrides` entirely) - a real bug, since account
+// deletion silently left every budget behind. Fixed here as this list
+// became shared.
+const FINANCIAL_DATA_TABLES = [
+  "budget_entries",
+  "budget_replenish_overrides",
   "occurrence_overrides",
-  "recurring_items",
-  "balances",
-  "one_off_items",
   "settlements",
   "reminders",
-  "preferences",
+  "budgets",
+  "one_off_items",
+  "recurring_items",
+  "balances",
 ] as const;
+
+async function wipeFinancialData(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  userId: string,
+): Promise<string | null> {
+  for (const table of FINANCIAL_DATA_TABLES) {
+    const { error } = await supabase.from(table).delete().eq("user_id", userId);
+    if (error) return error.message;
+  }
+  return null;
+}
 
 export async function deleteAccount(
   _prevState: SettingsActionState,
@@ -96,11 +122,76 @@ export async function deleteAccount(
   } = await supabase.auth.getUser();
   if (!user) return { error: "Not signed in." };
 
-  for (const table of DATA_TABLES) {
-    const { error } = await supabase.from(table).delete().eq("user_id", user.id);
-    if (error) return { error: error.message };
-  }
+  const wipeError = await wipeFinancialData(supabase, user.id);
+  if (wipeError) return { error: wipeError };
+
+  const { error } = await supabase.from("preferences").delete().eq("user_id", user.id);
+  if (error) return { error: error.message };
 
   await supabase.auth.signOut();
   redirect("/login");
+}
+
+// T97: wipes every financial/transactional table (same list as account
+// deletion, minus `preferences`) but keeps the account itself and its
+// display preferences intact - for a user who wants to clear out sample or
+// test data and start entering their own, without losing currency/
+// threshold settings or having to sign back in.
+export async function resetData(
+  _prevState: SettingsActionState,
+  formData: FormData,
+): Promise<SettingsActionState> {
+  const confirmation = formData.get("confirmation") as string;
+  if (confirmation !== "RESET") {
+    return { error: 'Type "RESET" to confirm.' };
+  }
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Not signed in." };
+
+  const wipeError = await wipeFinancialData(supabase, user.id);
+  if (wipeError) return { error: wipeError };
+
+  revalidatePath("/", "layout");
+  return { error: null, message: "All data cleared. Your account and preferences are untouched." };
+}
+
+// T97: wipes first (same as resetData) then re-seeds the sample dataset via
+// the `seed_sample_data` Postgres function (supabase/migrations/
+// 0016_sample_data_seeding.sql) - always wipe-then-seed, never layered on
+// top of existing data, so the account never ends up with a mix of sample
+// and real entries the user didn't ask for (confirmed with the user
+// 2026-07-25; the confirmation modal's copy is what carries the warning).
+export async function restoreSampleData(
+  _prevState: SettingsActionState,
+  formData: FormData,
+): Promise<SettingsActionState> {
+  const confirmation = formData.get("confirmation") as string;
+  if (confirmation !== "RESTORE") {
+    return { error: 'Type "RESTORE" to confirm.' };
+  }
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Not signed in." };
+
+  const wipeError = await wipeFinancialData(supabase, user.id);
+  if (wipeError) return { error: wipeError };
+
+  const { error: seedError } = await supabase.rpc("seed_sample_data", { target_user: user.id });
+  if (seedError) return { error: seedError.message };
+
+  const { error: stampError } = await supabase
+    .from("preferences")
+    .update({ sample_data_seeded_at: new Date().toISOString() })
+    .eq("user_id", user.id);
+  if (stampError) return { error: stampError.message };
+
+  revalidatePath("/", "layout");
+  return { error: null, message: "Sample data restored." };
 }

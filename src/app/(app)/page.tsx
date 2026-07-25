@@ -18,6 +18,7 @@ import {
 } from "@/lib/engine/budgetLedger";
 import { daysBetween } from "@/lib/engine/date-utils";
 import { ProgressBar } from "@/components/ProgressBar";
+import { SampleDataBanner } from "@/components/SampleDataBanner";
 import type { RecurringItem } from "@/lib/engine/types";
 
 // T48/user follow-up: reshapes computeMonthlyPeaksAndDrops's flat "YYYY-MM"
@@ -77,7 +78,19 @@ export default async function Home() {
   } = await supabase.auth.getUser();
 
   const [
-    { forecast, balances, recurringItems, budgets, budgetEntries, currency, balanceRanges, tierLabels, today, horizon },
+    {
+      forecast,
+      balances,
+      recurringItems,
+      budgets,
+      budgetEntries,
+      currency,
+      balanceRanges,
+      tierLabels,
+      sampleDataSeededAt,
+      today,
+      horizon,
+    },
     settlementsRes,
   ] =
     await Promise.all([
@@ -152,6 +165,8 @@ export default async function Home() {
           <h1 className="text-xl font-semibold text-notion-text">Dashboard</h1>
           <p className="text-slate-500">Welcome, {greetingName}</p>
         </div>
+
+        {sampleDataSeededAt && <SampleDataBanner />}
 
         <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
           <DashboardCard title="Total Balance" value={formatCentavos(totalBalance, currency)} />
