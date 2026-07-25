@@ -7,7 +7,7 @@ export default async function ForecastPage() {
   const supabase = await createClient();
   const [{ forecast, balances, currency, balanceRanges, tierLabels, today }, remindersRes] = await Promise.all([
     loadForecast(),
-    supabase.from("reminders").select("id, text").order("created_at", { ascending: true }),
+    supabase.from("reminders").select("id, text, completed").order("created_at", { ascending: true }),
   ]);
 
   const totalBalance = balances.reduce((sum, balance) => sum + balance.amount, 0);

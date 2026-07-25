@@ -1,10 +1,16 @@
 "use client";
 
 import { useActionState, useEffect, useRef, useState } from "react";
-import { CheckIcon, ChevronIcon, CloseIcon, DeleteIcon, EditIcon } from "@/components/navIcons";
-import { createReminder, deleteReminder, updateReminder, type ReminderActionState } from "./reminderActions";
+import { CheckIcon, ChevronIcon, CloseIcon, DeleteIcon, EditIcon, RestoreIcon } from "@/components/navIcons";
+import {
+  createReminder,
+  deleteReminder,
+  setReminderCompleted,
+  updateReminder,
+  type ReminderActionState,
+} from "./reminderActions";
 
-export type ReminderRow = { id: string; text: string };
+export type ReminderRow = { id: string; text: string; completed: boolean };
 
 const initialState: ReminderActionState = { error: null };
 
@@ -133,10 +139,53 @@ function ReminderItem({ reminder }: { reminder: ReminderRow }) {
     );
   }
 
+  if (reminder.completed) {
+    return (
+      <div className="flex items-start justify-between gap-2 text-sm">
+        <span className="flex-1 break-words text-slate-400 line-through">{reminder.text}</span>
+        <div className="flex shrink-0 items-center gap-1">
+          <form action={setReminderCompleted}>
+            <input type="hidden" name="id" value={reminder.id} />
+            <input type="hidden" name="completed" value="false" />
+            <button
+              type="submit"
+              title="Restore reminder"
+              aria-label="Restore reminder"
+              className="rounded p-1 text-slate-400 hover:bg-notion-hover hover:text-notion-text"
+            >
+              <RestoreIcon className="h-3.5 w-3.5" />
+            </button>
+          </form>
+          <button
+            type="button"
+            onClick={() => setMode("delete")}
+            title="Delete reminder"
+            aria-label="Delete reminder"
+            className="rounded p-1 text-slate-400 hover:bg-red-50 hover:text-red-600"
+          >
+            <DeleteIcon className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex items-start justify-between gap-2 text-sm">
       <span className="flex-1 break-words text-notion-text">{reminder.text}</span>
       <div className="flex shrink-0 items-center gap-1">
+        <form action={setReminderCompleted}>
+          <input type="hidden" name="id" value={reminder.id} />
+          <input type="hidden" name="completed" value="true" />
+          <button
+            type="submit"
+            title="Mark complete"
+            aria-label="Mark complete"
+            className="rounded p-1 text-slate-400 hover:bg-notion-hover hover:text-notion-text"
+          >
+            <CheckIcon className="h-3.5 w-3.5" />
+          </button>
+        </form>
         <button
           type="button"
           onClick={() => setMode("edit")}
@@ -170,6 +219,9 @@ const COLLAPSED_STORAGE_KEY = "orium.remindersCollapsed";
 // a server/client markup mismatch.
 export function RemindersPanel({ reminders }: { reminders: ReminderRow[] }) {
   const [collapsed, setCollapsed] = useState(false);
+  const [showCompleted, setShowCompleted] = useState(false);
+  const activeReminders = reminders.filter((r) => !r.completed);
+  const completedReminders = reminders.filter((r) => r.completed);
 
   useEffect(() => {
     if (localStorage.getItem(COLLAPSED_STORAGE_KEY) === "true") {
@@ -197,7 +249,7 @@ export function RemindersPanel({ reminders }: { reminders: ReminderRow[] }) {
         onClick={toggleCollapsed}
         title={
           collapsed
-            ? `Expand reminders${reminders.length > 0 ? ` (${reminders.length})` : ""}`
+            ? `Expand reminders${activeReminders.length > 0 ? ` (${activeReminders.length})` : ""}`
             : "Collapse reminders"
         }
         aria-label={collapsed ? "Expand reminders" : "Collapse reminders"}
@@ -209,17 +261,37 @@ export function RemindersPanel({ reminders }: { reminders: ReminderRow[] }) {
         <div className="flex min-h-0 flex-1 flex-col p-4">
           <h2 className="mb-3 text-sm font-semibold text-notion-text">Reminders</h2>
           <AddReminderForm />
-          {reminders.length === 0 ? (
+          {activeReminders.length === 0 ? (
             <p className="text-sm text-slate-400">No reminders yet.</p>
           ) : (
             <div className="min-h-0 flex-1 overflow-y-auto pr-1">
               <ul className="divide-y divide-notion-hairline">
-                {reminders.map((reminder) => (
+                {activeReminders.map((reminder) => (
                   <li key={reminder.id} className="py-2 first:pt-0">
                     <ReminderItem reminder={reminder} />
                   </li>
                 ))}
               </ul>
+            </div>
+          )}
+          {completedReminders.length > 0 && (
+            <div className="mt-3 shrink-0 border-t border-notion-hairline pt-3">
+              <button
+                type="button"
+                onClick={() => setShowCompleted((prev) => !prev)}
+                className="text-xs font-medium text-slate-400 hover:text-notion-text"
+              >
+                {showCompleted ? "Hide" : "Show"} completed ({completedReminders.length})
+              </button>
+              {showCompleted && (
+                <ul className="mt-2 max-h-40 divide-y divide-notion-hairline overflow-y-auto pr-1">
+                  {completedReminders.map((reminder) => (
+                    <li key={reminder.id} className="py-2 first:pt-0">
+                      <ReminderItem reminder={reminder} />
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
           )}
         </div>

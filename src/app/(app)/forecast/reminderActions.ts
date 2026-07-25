@@ -47,3 +47,18 @@ export async function deleteReminder(formData: FormData) {
   await supabase.from("reminders").delete().eq("id", id);
   revalidatePath("/forecast");
 }
+
+// T84: marks a reminder complete (persists it, out of the default list) or
+// restores it back to active - same action handles both directions via the
+// "completed" hidden field, mirroring how deleteReminder is a plain (no
+// useActionState) form action since there's no error state worth surfacing.
+export async function setReminderCompleted(formData: FormData) {
+  const id = formData.get("id") as string;
+  const completed = formData.get("completed") === "true";
+  const supabase = await createClient();
+  await supabase
+    .from("reminders")
+    .update({ completed, completed_at: completed ? new Date().toISOString() : null })
+    .eq("id", id);
+  revalidatePath("/forecast");
+}

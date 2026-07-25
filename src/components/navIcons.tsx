@@ -179,6 +179,15 @@ export function ChevronIcon({ className, direction }: IconProps & { direction: "
   );
 }
 
+export function RestoreIcon({ className }: IconProps) {
+  return (
+    <svg {...BASE} className={className}>
+      <path d="M4 8a6.5 6.5 0 1 1 1.2 6" />
+      <polyline points="3 4.5 4 8 7.5 7" />
+    </svg>
+  );
+}
+
 // Keyed by nav href (see AppShell.tsx's NAV_ITEMS) so the sidebar can look
 // up each item's icon without a big switch statement.
 export const NAV_ICONS: Record<string, (props: IconProps) => React.JSX.Element> = {
