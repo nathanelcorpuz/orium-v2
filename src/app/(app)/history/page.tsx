@@ -31,7 +31,7 @@ export default async function HistoryPage() {
   const currency = preferencesRes.data?.currency ?? "₱";
 
   return (
-    <div className="p-8">
+    <div className="p-4 md:p-8">
       <div className="mx-auto max-w-4xl">
         <h1 className="mb-6 text-xl font-semibold text-notion-text">History</h1>
 
@@ -39,7 +39,12 @@ export default async function HistoryPage() {
           <p className="text-slate-500">No settled transactions yet.</p>
         ) : (
           <div className="overflow-x-auto rounded-lg border border-notion-hairline bg-white">
-            <table className="w-full text-sm">
+            {/* T93: `min-w-full` (not `w-full`) + `whitespace-nowrap` so the
+                table can grow past the container's width when it needs to -
+                `w-full` was capping it at the viewport, which defeated the
+                `overflow-x-auto` scroll above and forced long names to wrap
+                into a wall of text instead at narrow widths. */}
+            <table className="min-w-full whitespace-nowrap text-sm">
               <thead>
                 <tr className="border-b border-notion-hairline text-left text-slate-500">
                   <th className="p-3">Name</th>

@@ -22,7 +22,7 @@ export default async function SettingsPage() {
   const tierLabels = preferencesRes.data?.balance_tier_labels ?? DEFAULT_TIER_LABELS;
 
   return (
-    <div className="p-8">
+    <div className="p-4 md:p-8">
       <div className="mx-auto max-w-xl">
         <h1 className="mb-6 text-xl font-semibold text-notion-text">Settings</h1>
 
