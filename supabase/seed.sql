@@ -13,7 +13,7 @@
 -- bill: simple monthly (Rent), semi-monthly/two-days-a-month (Health insurance), a
 -- weekly bill (Parking fee), and an nth-weekday bill ("3rd Friday of the
 -- month" — House helper). Budgets cover all three replenish modes:
--- income-linked (Groceries, replenishes when Freelance — Aya settles),
+-- income-linked (Groceries, replenishes when Freelance - Sheena settles),
 -- "replenish every" own-schedule (Dining out, weekly), and manual (Gas &
 -- transport, Add/Take funds). Debt and Savings each have a few already-
 -- settled occurrences so their progress bars show real partial progress,
@@ -107,10 +107,10 @@ begin
      "interval", unit, weekdays, days_of_month, ordinal, ordinal_weekday, ends_type)
   values
     -- Income
-    ('00000000-0000-4000-a000-000000000011', v_user, 'Salary — Nathan', 'income', 3500000,
+    ('00000000-0000-4000-a000-000000000011', v_user, 'Salary - NJ', 'income', 3500000,
      '2026-01-15', '2030-12-31', 'net of taxes', '00000000-0000-4000-a000-000000000001',
      1, 'month', null, array[15, 30], null, null, 'on_date'),
-    ('00000000-0000-4000-a000-000000000012', v_user, 'Freelance — Aya', 'income', 650000,
+    ('00000000-0000-4000-a000-000000000012', v_user, 'Freelance - Sheena', 'income', 650000,
      '2026-01-02', '2028-12-31', 'design retainer, paid Fridays', '00000000-0000-4000-a000-000000000002',
      1, 'week', array[5], null, null, null, 'on_date'),
     -- Bills — one of each recurrence shape
@@ -136,7 +136,7 @@ begin
      '2026-01-12', '2030-12-31', null, null,
      1, 'month', null, array[12], null, null, 'on_date'),
     -- Debt (end_date = payoff date, drives the debt-free countdown + progress bar)
-    ('00000000-0000-4000-a000-000000000031', v_user, 'Car loan — BPI Auto', 'debt', -950000,
+    ('00000000-0000-4000-a000-000000000031', v_user, 'Car loan - BPI Auto', 'debt', -950000,
      '2026-01-15', '2028-01-15', '24 monthly payments', '00000000-0000-4000-a000-000000000001',
      1, 'month', null, array[15], null, null, 'on_date'),
     ('00000000-0000-4000-a000-000000000032', v_user, 'Credit card installment', 'debt', -320000,
@@ -146,7 +146,7 @@ begin
     ('00000000-0000-4000-a000-000000000041', v_user, 'Emergency fund', 'savings', -300000,
      '2026-01-06', '2027-12-06', 'building up 6 months of expenses', '00000000-0000-4000-a000-000000000002',
      1, 'month', null, array[6], null, null, 'on_date'),
-    ('00000000-0000-4000-a000-000000000042', v_user, 'Kids'' college fund', 'savings', -400000,
+    ('00000000-0000-4000-a000-000000000042', v_user, 'Orius''s college fund', 'savings', -400000,
      '2026-01-30', '2031-01-30', null, null,
      1, 'month', null, array[30], null, null, 'on_date')
   on conflict (id) do nothing;
@@ -164,7 +164,7 @@ begin
     -- for the remaining ~3.7 years of the horizon. Gives the Lowest
     -- Balance Ahead card and Peaks and Drops a real, bounded multi-month
     -- warning-then-recovery story to demo, not a permanent trench.
-    ('00000000-0000-4000-a000-000000000055', v_user, 'Roof repair — typhoon damage', -26000000, '2027-09-01', 'storm damage to the roof and ceiling, not covered by insurance', null)
+    ('00000000-0000-4000-a000-000000000055', v_user, 'Roof repair - typhoon damage', -26000000, '2027-09-01', 'storm damage to the roof and ceiling, not covered by insurance', null)
   on conflict (id) do nothing;
 
   -- ── Budgets — one of each replenish mode ──────────────────────────────────
@@ -174,7 +174,7 @@ begin
     (id, user_id, name, allocation, monthly_allocation, linked_income_id,
      start_date, "interval", unit, weekdays, days_of_month, ordinal, ordinal_weekday, ends_type, end_date, occurrence_count)
   values
-    -- Income-linked: replenishes when Freelance — Aya settles (T56).
+    -- Income-linked: replenishes when Freelance - Sheena settles (T56).
     ('00000000-0000-4000-a000-000000000061', v_user, 'Groceries', 600000, 600000,
      '00000000-0000-4000-a000-000000000012',
      null, null, null, null, null, null, null, null, null, null),
@@ -188,16 +188,16 @@ begin
 
   -- ── Budget ledger entries ──────────────────────────────────────────────
   -- Groceries (income-linked): replenished twice this past June alongside
-  -- Freelance — Aya settling, with grocery runs logged against it.
+  -- Freelance - Sheena settling, with grocery runs logged against it.
   -- Dining out (replenish-every): three weekly replenishes plus two spends.
   -- Gas & transport (manual): a "Starting balance" bootstrap, two manual
   -- top-ups (one still in the future, dated after "today" — demonstrates a
   -- future-dated ledger entry rendering as its own Forecast row), and three
   -- spends.
   insert into public.budget_entries (id, user_id, budget_id, entry_date, amount, note, direction) values
-    ('00000000-0000-4000-a000-000000000071', v_user, '00000000-0000-4000-a000-000000000061', '2026-06-05', 600000, 'Replenished from Freelance — Aya', 'incoming'),
+    ('00000000-0000-4000-a000-000000000071', v_user, '00000000-0000-4000-a000-000000000061', '2026-06-05', 600000, 'Replenished from Freelance - Sheena', 'incoming'),
     ('00000000-0000-4000-a000-000000000072', v_user, '00000000-0000-4000-a000-000000000061', '2026-06-08', 285000, 'SM Hypermarket run', 'outgoing'),
-    ('00000000-0000-4000-a000-000000000073', v_user, '00000000-0000-4000-a000-000000000061', '2026-06-19', 600000, 'Replenished from Freelance — Aya', 'incoming'),
+    ('00000000-0000-4000-a000-000000000073', v_user, '00000000-0000-4000-a000-000000000061', '2026-06-19', 600000, 'Replenished from Freelance - Sheena', 'incoming'),
     ('00000000-0000-4000-a000-000000000074', v_user, '00000000-0000-4000-a000-000000000061', '2026-06-22', 312000, 'weekly groceries', 'outgoing'),
     ('00000000-0000-4000-a000-000000000075', v_user, '00000000-0000-4000-a000-000000000061', '2026-07-06', 264000, 'weekly groceries', 'outgoing'),
     ('00000000-0000-4000-a000-000000000076', v_user, '00000000-0000-4000-a000-000000000062', '2026-06-05', 150000, 'Weekly dining budget', 'incoming'),
@@ -231,7 +231,7 @@ begin
   insert into public.reminders (id, user_id, text, completed, completed_at) values
     ('00000000-0000-4000-a000-0000000000a1', v_user, 'Renew car insurance before Sept 30', false, null),
     ('00000000-0000-4000-a000-0000000000a2', v_user, 'Ask HR about SSS loan balance', false, null),
-    ('00000000-0000-4000-a000-0000000000a3', v_user, 'Review Q2 budget with Aya', true, '2026-06-15 10:00:00+08')
+    ('00000000-0000-4000-a000-0000000000a3', v_user, 'Review Q2 budget with Sheena', true, '2026-06-15 10:00:00+08')
   on conflict (id) do nothing;
 
   -- ── Settlement history (History page) ─────────────────────────────────────
@@ -251,23 +251,23 @@ begin
     ('00000000-0000-4000-a000-0000000000b2', v_user, 'recurring', '00000000-0000-4000-a000-000000000027',
      'Netflix', 'bill', -54900, -54900, '2026-06-12', '2026-06-13', 6300000),
     ('00000000-0000-4000-a000-0000000000b3', v_user, 'recurring', '00000000-0000-4000-a000-000000000011',
-     'Salary — Nathan', 'income', 3500000, 3500000, '2026-06-15', '2026-06-15', 6800000),
+     'Salary - NJ', 'income', 3500000, 3500000, '2026-06-15', '2026-06-15', 6800000),
     ('00000000-0000-4000-a000-0000000000b4', v_user, 'recurring', '00000000-0000-4000-a000-000000000012',
-     'Freelance — Aya', 'income', 650000, 650000, '2026-06-05', '2026-06-05', 6200000),
+     'Freelance - Sheena', 'income', 650000, 650000, '2026-06-05', '2026-06-05', 6200000),
     ('00000000-0000-4000-a000-0000000000b5', v_user, 'recurring', '00000000-0000-4000-a000-000000000012',
-     'Freelance — Aya', 'income', 650000, 650000, '2026-06-19', '2026-06-19', 6500000),
+     'Freelance - Sheena', 'income', 650000, 650000, '2026-06-19', '2026-06-19', 6500000),
     -- Debt (Car loan: first 3 of 24; Credit card: first 2 of 10)
     ('00000000-0000-4000-a000-0000000000b6', v_user, 'recurring', '00000000-0000-4000-a000-000000000031',
-     'Car loan — BPI Auto', 'debt', -950000, -950000, '2026-01-15', '2026-01-15', 5800000),
+     'Car loan - BPI Auto', 'debt', -950000, -950000, '2026-01-15', '2026-01-15', 5800000),
     ('00000000-0000-4000-a000-0000000000b7', v_user, 'recurring', '00000000-0000-4000-a000-000000000031',
-     'Car loan — BPI Auto', 'debt', -950000, -950000, '2026-02-15', '2026-02-15', 5900000),
+     'Car loan - BPI Auto', 'debt', -950000, -950000, '2026-02-15', '2026-02-15', 5900000),
     ('00000000-0000-4000-a000-0000000000b8', v_user, 'recurring', '00000000-0000-4000-a000-000000000031',
-     'Car loan — BPI Auto', 'debt', -950000, -950000, '2026-03-15', '2026-03-15', 6000000),
+     'Car loan - BPI Auto', 'debt', -950000, -950000, '2026-03-15', '2026-03-15', 6000000),
     ('00000000-0000-4000-a000-0000000000b9', v_user, 'recurring', '00000000-0000-4000-a000-000000000032',
      'Credit card installment', 'debt', -320000, -320000, '2026-02-28', '2026-02-28', 5950000),
     ('00000000-0000-4000-a000-0000000000ba', v_user, 'recurring', '00000000-0000-4000-a000-000000000032',
      'Credit card installment', 'debt', -320000, -320000, '2026-03-28', '2026-03-28', 6050000),
-    -- Savings (Emergency fund: first 3 of 24; Kids' college fund: first 2 of 61)
+    -- Savings (Emergency fund: first 3 of 24; Orius's college fund: first 2 of 61)
     ('00000000-0000-4000-a000-0000000000bb', v_user, 'recurring', '00000000-0000-4000-a000-000000000041',
      'Emergency fund', 'savings', -300000, -300000, '2026-01-06', '2026-01-06', 5700000),
     ('00000000-0000-4000-a000-0000000000bc', v_user, 'recurring', '00000000-0000-4000-a000-000000000041',
@@ -275,16 +275,16 @@ begin
     ('00000000-0000-4000-a000-0000000000bd', v_user, 'recurring', '00000000-0000-4000-a000-000000000041',
      'Emergency fund', 'savings', -300000, -300000, '2026-03-06', '2026-03-06', 5850000),
     ('00000000-0000-4000-a000-0000000000be', v_user, 'recurring', '00000000-0000-4000-a000-000000000042',
-     'Kids'' college fund', 'savings', -400000, -400000, '2026-01-30', '2026-01-30', 5650000),
+     'Orius''s college fund', 'savings', -400000, -400000, '2026-01-30', '2026-01-30', 5650000),
     ('00000000-0000-4000-a000-0000000000bf', v_user, 'recurring', '00000000-0000-4000-a000-000000000042',
-     'Kids'' college fund', 'savings', -400000, -400000, '2026-02-28', '2026-02-28', 5700000),
+     'Orius''s college fund', 'savings', -400000, -400000, '2026-02-28', '2026-02-28', 5700000),
     -- Groceries (income-linked replenishes carry the real forecasted deduction; spends forecast 0)
     ('00000000-0000-4000-a000-0000000000c0', v_user, 'budget', '00000000-0000-4000-a000-000000000061',
-     'Groceries - Replenished from Freelance — Aya', 'budget', -600000, -600000, '2026-06-05', '2026-06-05', 0),
+     'Groceries - Replenished from Freelance - Sheena', 'budget', -600000, -600000, '2026-06-05', '2026-06-05', 0),
     ('00000000-0000-4000-a000-0000000000c1', v_user, 'budget', '00000000-0000-4000-a000-000000000061',
      'Groceries - SM Hypermarket run', 'budget', 0, -285000, '2026-06-08', '2026-06-08', 0),
     ('00000000-0000-4000-a000-0000000000c2', v_user, 'budget', '00000000-0000-4000-a000-000000000061',
-     'Groceries - Replenished from Freelance — Aya', 'budget', -600000, -600000, '2026-06-19', '2026-06-19', 0),
+     'Groceries - Replenished from Freelance - Sheena', 'budget', -600000, -600000, '2026-06-19', '2026-06-19', 0),
     ('00000000-0000-4000-a000-0000000000c3', v_user, 'budget', '00000000-0000-4000-a000-000000000061',
      'Groceries - weekly groceries', 'budget', 0, -312000, '2026-06-22', '2026-06-22', 0),
     ('00000000-0000-4000-a000-0000000000c4', v_user, 'budget', '00000000-0000-4000-a000-000000000061',

@@ -64,11 +64,18 @@ export function getSampleFixtureData(): ForecastData {
 
   const recurringItems: RecurringItem[] = [
     recurring(
-      { id: "preview-inc-salary", name: "Salary", type: "income", amount: 3_500_000, daysOfMonth: [15, 30] },
+      { id: "preview-inc-salary", name: "Salary - NJ", type: "income", amount: 3_500_000, daysOfMonth: [15, 30] },
       startDate,
     ),
     recurring(
-      { id: "preview-inc-freelance", name: "Freelance", type: "income", amount: 300_000, unit: "week", weekdays: [5] },
+      {
+        id: "preview-inc-freelance",
+        name: "Freelance - Sheena",
+        type: "income",
+        amount: 300_000,
+        unit: "week",
+        weekdays: [5],
+      },
       startDate,
     ),
     recurring({ id: "preview-bill-rent", name: "Rent", type: "bill", amount: -1_800_000, daysOfMonth: [1] }, startDate),
@@ -95,7 +102,7 @@ export function getSampleFixtureData(): ForecastData {
     recurring(
       {
         id: "preview-sav-emergency",
-        name: "Emergency fund",
+        name: "Orius's college fund",
         type: "savings",
         amount: -300_000,
         daysOfMonth: [25],
