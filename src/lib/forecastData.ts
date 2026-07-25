@@ -3,6 +3,7 @@ import { todayInManila } from "@/lib/date";
 import { formatDate } from "@/lib/engine/date-utils";
 import { generateForecast } from "@/lib/engine/forecast";
 import { toEngineBudget, toEngineEntries, type BudgetEntryRow, type BudgetRow } from "@/lib/budgetView";
+import { DEFAULT_TIER_LABELS } from "@/lib/balanceColor";
 import type {
   Balance,
   Budget,
@@ -41,6 +42,7 @@ export type ForecastData = {
   budgetReplenishOverrides: BudgetReplenishOverride[];
   currency: string;
   balanceRanges: number[];
+  tierLabels: string[];
   today: string;
   horizon: string;
 };
@@ -75,7 +77,7 @@ export async function loadForecast(): Promise<ForecastData> {
     // needs full history to compute a running total (budgetLedger.ts).
     supabase.from("budget_entries").select("id, budget_id, entry_date, amount, note, direction"),
     supabase.from("budget_replenish_overrides").select("id, budget_id, original_date, skipped"),
-    supabase.from("preferences").select("currency, balance_ranges").single(),
+    supabase.from("preferences").select("currency, balance_ranges, balance_tier_labels").single(),
   ]);
 
   // These queries determine the forecast's correctness - silently treating a
@@ -180,6 +182,7 @@ export async function loadForecast(): Promise<ForecastData> {
     budgetReplenishOverrides,
     currency: preferencesRes.data?.currency ?? DEFAULT_CURRENCY,
     balanceRanges: preferencesRes.data?.balance_ranges ?? DEFAULT_BALANCE_RANGES,
+    tierLabels: preferencesRes.data?.balance_tier_labels ?? DEFAULT_TIER_LABELS,
     today,
     horizon,
   };

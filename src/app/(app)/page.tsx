@@ -75,7 +75,10 @@ export default async function Home() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const [{ forecast, balances, recurringItems, budgets, budgetEntries, currency, balanceRanges, today, horizon }, settlementsRes] =
+  const [
+    { forecast, balances, recurringItems, budgets, budgetEntries, currency, balanceRanges, tierLabels, today, horizon },
+    settlementsRes,
+  ] =
     await Promise.all([
       loadForecast(),
       // T72: settled counts for the Debt/Savings aggregate progress bars
@@ -292,7 +295,7 @@ export default async function Home() {
               Drops (T67). Danger shows the deficit magnitude ("Goes negative
               by"); every other tier shows the (positive) balance directly. */}
           <p className="text-xl font-semibold text-notion-text">
-            {lowestBalanceLabel(lowestBalance.balance, balanceRanges)}{" "}
+            {lowestBalanceLabel(lowestBalance.balance, balanceRanges, tierLabels)}{" "}
             <span
               className={`inline-block rounded px-1.5 py-0.5 ${balanceRangeColorClass(lowestBalance.balance, balanceRanges)}`}
             >

@@ -5,7 +5,7 @@ import { ForecastClient } from "./ForecastClient";
 
 export default async function ForecastPage() {
   const supabase = await createClient();
-  const [{ forecast, balances, currency, balanceRanges, today }, remindersRes] = await Promise.all([
+  const [{ forecast, balances, currency, balanceRanges, tierLabels, today }, remindersRes] = await Promise.all([
     loadForecast(),
     supabase.from("reminders").select("id, text").order("created_at", { ascending: true }),
   ]);
@@ -19,6 +19,7 @@ export default async function ForecastPage() {
       balances={balances}
       currency={currency}
       balanceRanges={balanceRanges}
+      tierLabels={tierLabels}
       reminders={remindersRes.data ?? []}
       lowestBalance={lowestBalance}
     />

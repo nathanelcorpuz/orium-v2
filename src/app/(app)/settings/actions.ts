@@ -29,17 +29,28 @@ export async function updatePreferences(
   if (!currency) return { error: "Currency symbol is required." };
   if (currency.length > 5) return { error: "Currency symbol is too long." };
 
-  const labels = ["danger", "low", "medium", "high", "higher"];
+  const thresholdKeys = ["danger", "low", "medium", "high", "higher"];
   const ranges: number[] = [];
-  for (const label of labels) {
-    const parsed = parseCentavos(formData.get(label) as string);
-    if (parsed === null) return { error: `Enter a valid amount for "${label}".` };
+  for (const key of thresholdKeys) {
+    const parsed = parseCentavos(formData.get(key) as string);
+    if (parsed === null) return { error: `Enter a valid amount for "${key}".` };
     ranges.push(parsed);
   }
   for (let i = 1; i < ranges.length; i++) {
     if (ranges[i] < ranges[i - 1]) {
       return { error: "Each threshold must be greater than or equal to the one before it." };
     }
+  }
+
+  // T80: 6 tier labels (one more than the 5 thresholds above - "highest"
+  // has no threshold of its own), in the same order balanceRangeTier/
+  // TIER_ORDER (balanceColor.ts) uses.
+  const tierKeys = ["danger", "low", "medium", "high", "higher", "highest"];
+  const tierLabels: string[] = [];
+  for (const key of tierKeys) {
+    const value = (formData.get(`label_${key}`) as string).trim();
+    if (!value) return { error: `Enter a label for "${key}".` };
+    tierLabels.push(value);
   }
 
   const supabase = await createClient();
@@ -50,7 +61,7 @@ export async function updatePreferences(
 
   const { error } = await supabase
     .from("preferences")
-    .update({ currency, balance_ranges: ranges })
+    .update({ currency, balance_ranges: ranges, balance_tier_labels: tierLabels })
     .eq("user_id", user.id);
   if (error) return { error: error.message };
 

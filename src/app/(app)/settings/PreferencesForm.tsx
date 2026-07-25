@@ -14,12 +14,28 @@ const THRESHOLDS: { key: string; label: string }[] = [
   { key: "higher", label: "Higher (at or below, above = highest)" },
 ];
 
+// T80: one label per tier the "Lowest balance ahead" stat can land in - all
+// 6 tiers here (unlike THRESHOLDS above, which only has 5 boundary values
+// for 6 tiers - "highest" has no threshold of its own). Field names are
+// prefixed to avoid colliding with THRESHOLDS' own bare tier-name fields in
+// this same form.
+const TIER_LABEL_FIELDS: { key: string; label: string }[] = [
+  { key: "danger", label: "Danger" },
+  { key: "low", label: "Low" },
+  { key: "medium", label: "Medium" },
+  { key: "high", label: "High" },
+  { key: "higher", label: "Higher" },
+  { key: "highest", label: "Highest" },
+];
+
 export function PreferencesForm({
   currency,
   balanceRanges,
+  tierLabels,
 }: {
   currency: string;
   balanceRanges: number[];
+  tierLabels: string[];
 }) {
   const [state, formAction, pending] = useActionState(updatePreferences, initialState);
 
@@ -61,6 +77,31 @@ export function PreferencesForm({
                   required
                   defaultValue={centavosToPesosString(balanceRanges[index] ?? 0)}
                   className="w-32 rounded border border-notion-hairline p-2 text-notion-text focus:border-notion-accent focus:outline-none"
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div>
+          <p className="mb-2 text-sm text-slate-600">
+            Lowest-balance labels &mdash; the wording shown for each risk tier on the Dashboard
+            and Forecast pages, before the amount.
+          </p>
+          <div className="space-y-2">
+            {TIER_LABEL_FIELDS.map((tier, index) => (
+              <div key={tier.key} className="flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-2">
+                <label className="text-sm text-slate-600 sm:w-64" htmlFor={`label-${tier.key}`}>
+                  {tier.label}
+                </label>
+                <input
+                  id={`label-${tier.key}`}
+                  name={`label_${tier.key}`}
+                  type="text"
+                  required
+                  maxLength={40}
+                  defaultValue={tierLabels[index]}
+                  className="w-full rounded border border-notion-hairline p-2 text-notion-text focus:border-notion-accent focus:outline-none sm:w-64"
                 />
               </div>
             ))}

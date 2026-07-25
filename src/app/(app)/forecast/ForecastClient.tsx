@@ -52,6 +52,7 @@ export function ForecastClient({
   balances,
   currency,
   balanceRanges,
+  tierLabels,
   reminders,
   lowestBalance,
 }: {
@@ -59,6 +60,7 @@ export function ForecastClient({
   balances: BalanceRow[];
   currency: string;
   balanceRanges: number[];
+  tierLabels: string[];
   reminders: ReminderRow[];
   lowestBalance: LowestBalancePoint;
 }) {
@@ -259,7 +261,7 @@ export function ForecastClient({
                     risk tier, not a hardcoded <=0 check - matches the
                     Dashboard card and this same page's Balance column (T62). */}
                 <p className="text-sm text-slate-500">
-                  {lowestBalanceLabel(lowestBalance.balance, balanceRanges)}{" "}
+                  {lowestBalanceLabel(lowestBalance.balance, balanceRanges, tierLabels)}{" "}
                   <span
                     className={`inline-block rounded px-1.5 py-0.5 ${balanceRangeColorClass(lowestBalance.balance, balanceRanges)}`}
                   >

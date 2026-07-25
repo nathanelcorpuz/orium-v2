@@ -4,6 +4,7 @@ import { logout } from "@/app/auth/actions";
 import { ProfileForm } from "./ProfileForm";
 import { PreferencesForm } from "./PreferencesForm";
 import { DeleteAccountButton } from "./DeleteAccountModal";
+import { DEFAULT_TIER_LABELS } from "@/lib/balanceColor";
 
 const DEFAULT_BALANCE_RANGES = [0, 500000, 2000000, 5000000, 10000000];
 
@@ -11,13 +12,14 @@ export default async function SettingsPage() {
   const supabase = await createClient();
   const [{ data: userData }, preferencesRes] = await Promise.all([
     supabase.auth.getUser(),
-    supabase.from("preferences").select("currency, balance_ranges").single(),
+    supabase.from("preferences").select("currency, balance_ranges, balance_tier_labels").single(),
   ]);
 
   const user = userData.user;
   const name = (user?.user_metadata?.name as string | undefined) ?? "";
   const currency = preferencesRes.data?.currency ?? "₱";
   const balanceRanges = preferencesRes.data?.balance_ranges ?? DEFAULT_BALANCE_RANGES;
+  const tierLabels = preferencesRes.data?.balance_tier_labels ?? DEFAULT_TIER_LABELS;
 
   return (
     <div className="p-8">
@@ -26,7 +28,7 @@ export default async function SettingsPage() {
 
         <div className="space-y-6">
           <ProfileForm email={user?.email ?? ""} name={name} />
-          <PreferencesForm currency={currency} balanceRanges={balanceRanges} />
+          <PreferencesForm currency={currency} balanceRanges={balanceRanges} tierLabels={tierLabels} />
 
           <div className="rounded-lg border border-notion-hairline bg-white p-4">
             <h2 className="mb-3 text-sm font-semibold text-notion-text">Account</h2>
