@@ -71,7 +71,7 @@ export function PreferencesForm({
       <div id="balance-thresholds" className="rounded-lg border border-notion-hairline bg-white p-4">
         <h2 className="mb-3 text-sm font-semibold text-notion-text">Balance color thresholds</h2>
         <p className="mb-2 text-sm text-slate-600">
-          In {currency} &mdash; each must be greater than or equal to the one before it.
+          In {currency} - each must be greater than or equal to the one before it.
         </p>
         <div className="space-y-2">
           {THRESHOLDS.map((threshold, index) => (

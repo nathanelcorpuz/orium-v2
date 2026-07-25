@@ -5,6 +5,7 @@ import { ProfileForm } from "./ProfileForm";
 import { PreferencesForm } from "./PreferencesForm";
 import { DeleteAccountButton } from "./DeleteAccountModal";
 import { SampleDataActions } from "./SampleDataActions";
+import { ReviewTourButton } from "@/components/ReviewTourButton";
 import { DEFAULT_TIER_LABELS } from "@/lib/balanceColor";
 
 const DEFAULT_BALANCE_RANGES = [0, 500000, 2000000, 5000000, 10000000];
@@ -38,6 +39,14 @@ export default async function SettingsPage() {
               entering your own.
             </p>
             <SampleDataActions showPreviewLink />
+          </div>
+
+          <div className="rounded-lg border border-notion-hairline bg-white p-4">
+            <h2 className="mb-1 text-sm font-semibold text-notion-text">Help</h2>
+            <p className="mb-3 text-sm text-slate-600">
+              Replay the getting-started walkthrough for the Dashboard and Forecast pages.
+            </p>
+            <ReviewTourButton />
           </div>
 
           <div className="rounded-lg border border-notion-hairline bg-white p-4">
