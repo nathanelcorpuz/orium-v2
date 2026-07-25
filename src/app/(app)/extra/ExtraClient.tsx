@@ -60,7 +60,7 @@ export function ExtraClient({ extras, balances }: { extras: ExtraRow[]; balances
       <div className="mx-auto max-w-2xl">
         <div className="mb-6 flex items-center justify-between">
           <div>
-            <h1 className="text-xl font-semibold text-notion-text">Extras</h1>
+            <h1 className="text-xl font-semibold text-notion-text">Misc</h1>
             <p className="text-slate-500">
               Total remaining: <span className="text-purple-700">{formatCentavos(totalRemaining)}</span>
             </p>
@@ -70,7 +70,7 @@ export function ExtraClient({ extras, balances }: { extras: ExtraRow[]; balances
             onClick={() => setModalState("new")}
             className="rounded bg-notion-text px-4 py-2 text-white hover:opacity-90"
           >
-            Add extra
+            Add misc item
           </button>
         </div>
 
@@ -124,16 +124,16 @@ export function ExtraClient({ extras, balances }: { extras: ExtraRow[]; balances
             </div>
             {filtersActive && (
               <p className="mt-2 text-xs text-slate-400">
-                Showing {filteredExtras.length} of {extras.length} extras
+                Showing {filteredExtras.length} of {extras.length} misc items
               </p>
             )}
           </div>
         )}
 
         {extras.length === 0 ? (
-          <p className="text-slate-500">No extras yet. Add your first one above.</p>
+          <p className="text-slate-500">No misc items yet. Add your first one above.</p>
         ) : filteredExtras.length === 0 ? (
-          <p className="text-slate-500">No extras match these filters.</p>
+          <p className="text-slate-500">No misc items match these filters.</p>
         ) : (
           <ul className="space-y-2">
             {filteredExtras.map((extra) => (

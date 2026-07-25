@@ -32,7 +32,12 @@ const FORECAST_TOUR_STEPS: TourStep[] = [
   {
     target: '[data-tour="forecast-table"]',
     title: "The forecast table",
-    body: "Every upcoming bill, income, debt, savings, budget, and extra shows here in date order, with your running balance after each one. Click a row to edit or settle it.",
+    body: "Every upcoming bill, income, debt, savings, budget, and misc item shows here in date order, with your running balance after each one. Click a row to edit or settle it.",
+  },
+  {
+    target: '[data-tour="forecast-table"]',
+    title: "Keep it accurate: settle your transactions",
+    body: "When a bill actually gets paid or income actually arrives, click it and choose Settle (not just Edit) - that's what locks in the real amount and date and updates your balances. A forecast that's never settled just shows guesses forever, not what really happened.",
   },
   {
     target: '[data-tour="forecast-reminders"]',
@@ -64,12 +69,25 @@ const TYPE_COLOR: Record<ForecastRow["type"], string> = {
   budget: "text-notion-budget",
 };
 
+// T106: user-facing display only - the underlying `type: "extra"` value
+// (schema, engine, filter state) is unchanged, so this is the one place
+// that needs to map it to "misc" for display in the table's Type column,
+// which otherwise renders `row.type` directly.
+const TYPE_LABEL: Record<ForecastRow["type"], string> = {
+  income: "income",
+  debt: "debt",
+  savings: "savings",
+  extra: "misc",
+  bill: "bill",
+  budget: "budget",
+};
+
 const TYPE_OPTIONS: { value: ForecastRow["type"]; label: string }[] = [
   { value: "income", label: "Income" },
   { value: "bill", label: "Bill" },
   { value: "debt", label: "Debt" },
   { value: "savings", label: "Savings" },
-  { value: "extra", label: "Extra" },
+  { value: "extra", label: "Misc" },
   { value: "budget", label: "Budget" },
 ];
 
@@ -562,7 +580,7 @@ export function ForecastClient({
                         <td className="px-2 py-1.5">
                           <ForecastNameCell row={row} isAutoReplenish={isAutoReplenish} />
                         </td>
-                        <td className={`px-2 py-1.5 ${TYPE_COLOR[row.type]}`}>{row.type}</td>
+                        <td className={`px-2 py-1.5 ${TYPE_COLOR[row.type]}`}>{TYPE_LABEL[row.type]}</td>
                         <td className="px-2 py-1.5 text-slate-500">
                           {row.balanceId ? (balanceNameById.get(row.balanceId) ?? "—") : "—"}
                         </td>
@@ -621,7 +639,7 @@ export function ForecastClient({
                               <ForecastNameCell row={row} isAutoReplenish={isAutoReplenish} />
                             </td>
                             <td className={`hidden px-2 py-1.5 sm:table-cell ${TYPE_COLOR[row.type]}`}>
-                              {row.type}
+                              {TYPE_LABEL[row.type]}
                             </td>
                             <td className="hidden px-2 py-1.5 text-slate-500 md:table-cell">
                               {row.balanceId ? (balanceNameById.get(row.balanceId) ?? "—") : "—"}

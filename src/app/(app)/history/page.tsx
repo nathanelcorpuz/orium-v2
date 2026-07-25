@@ -10,6 +10,12 @@ const TYPE_COLOR: Record<string, string> = {
   budget: "text-teal-700",
 };
 
+// T106: display-only mapping - `settlements.type` stores "extra" (unchanged
+// schema value), this just renders it as "misc".
+const TYPE_LABEL: Record<string, string> = {
+  extra: "misc",
+};
+
 export default async function HistoryPage() {
   const supabase = await createClient();
 
@@ -82,7 +88,7 @@ export default async function HistoryPage() {
                             budget
                           </span>
                         ) : (
-                          <span className={TYPE_COLOR[row.type] ?? ""}>{row.type}</span>
+                          <span className={TYPE_COLOR[row.type] ?? ""}>{TYPE_LABEL[row.type] ?? row.type}</span>
                         )}
                       </td>
                       <td className="p-3 text-right">

@@ -16,7 +16,7 @@ const NAV_ITEMS = [
   { href: "/debt", label: "Debt" },
   { href: "/savings", label: "Savings" },
   { href: "/budgets", label: "Budgets" },
-  { href: "/extra", label: "Extras" },
+  { href: "/extra", label: "Misc" },
   { href: "/history", label: "History" },
   { href: "/settings", label: "Settings" },
 ];

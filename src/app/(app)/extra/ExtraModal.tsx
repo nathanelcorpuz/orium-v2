@@ -46,7 +46,7 @@ export function ExtraModal({
   }, [pending, state, onClose]);
 
   return (
-    <Modal title={isEdit ? "Edit extra" : "Add extra"} onClose={onClose}>
+    <Modal title={isEdit ? "Edit misc item" : "Add misc item"} onClose={onClose}>
       <form
         action={formAction}
         onSubmit={() => {
