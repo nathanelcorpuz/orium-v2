@@ -37,7 +37,7 @@ export default async function SettingsPage() {
               Bring back the sample dataset to explore the app, or clear everything out to start
               entering your own.
             </p>
-            <SampleDataActions />
+            <SampleDataActions showPreviewLink />
           </div>
 
           <div className="rounded-lg border border-notion-hairline bg-white p-4">

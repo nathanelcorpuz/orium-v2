@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useState } from "react";
+import Link from "next/link";
 import { Modal } from "@/components/Modal";
 import { resetData, restoreSampleData, type SettingsActionState } from "./actions";
 
@@ -12,7 +13,15 @@ const initialState: SettingsActionState = { error: null };
 // the account never ends up with a mix of sample and real entries the user
 // didn't ask for (confirmed with the user 2026-07-25 - the warning lives in
 // this modal's copy, not in any extra "are you sure" step).
-export function SampleDataActions() {
+//
+// `showPreviewLink` (T103) adds a third, non-destructive entry - "Preview
+// with sample data" - available regardless of whether the account currently
+// holds sample or real data (unlike Restore/Reset, which do touch real
+// rows). Only passed `true` from Settings' own Sample Data card, not from
+// the Dashboard banner this component is also reused by (SampleDataBanner),
+// since that banner only ever shows when sample data is already loaded -
+// a "preview sample data" link there would be redundant.
+export function SampleDataActions({ showPreviewLink = false }: { showPreviewLink?: boolean }) {
   const [openModal, setOpenModal] = useState<"reset" | "restore" | null>(null);
   const [resetConfirmation, setResetConfirmation] = useState("");
   const [restoreConfirmation, setRestoreConfirmation] = useState("");
@@ -44,6 +53,14 @@ export function SampleDataActions() {
   return (
     <>
       <div className="flex flex-wrap items-center gap-3">
+        {showPreviewLink && (
+          <Link
+            href="/?preview=1"
+            className="rounded border border-notion-hairline px-4 py-2 text-notion-text hover:bg-notion-hover"
+          >
+            Preview with sample data
+          </Link>
+        )}
         <button
           type="button"
           onClick={() => setOpenModal("restore")}

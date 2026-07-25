@@ -53,6 +53,7 @@ export function SpotlightTour({
   tourId,
   steps,
   onFinish,
+  forceActive = false,
 }: {
   tourId: string;
   steps: TourStep[];
@@ -62,6 +63,11 @@ export function SpotlightTour({
   // set yet) versus a later replay, so a caller can react just once (e.g.
   // T102's end-of-tour "keep or reset sample data?" prompt).
   onFinish?: (wasFirstCompletion: boolean) => void;
+  // T103: preview mode always replays the tour from the start, regardless
+  // of whether the real account already marked it "done" - and never
+  // touches that real flag while doing so, so exiting preview leaves the
+  // account's actual tour-seen state exactly as it was.
+  forceActive?: boolean;
 }) {
   const storageKey = `orium.tour.${tourId}.done`;
   const [active, setActive] = useState(false);
@@ -69,12 +75,12 @@ export function SpotlightTour({
   const [rect, setRect] = useState<Rect | null>(null);
 
   useEffect(() => {
-    if (localStorage.getItem(storageKey) !== "1") {
+    if (forceActive || localStorage.getItem(storageKey) !== "1") {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setActive(true);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [forceActive]);
 
   // Read via a ref rather than a `useCallback` dependency so `finish`'s own
   // identity stays stable across parent re-renders (it feeds several other
@@ -86,11 +92,16 @@ export function SpotlightTour({
   });
 
   const finish = useCallback(() => {
+    if (forceActive) {
+      setActive(false);
+      onFinishRef.current?.(false);
+      return;
+    }
     const wasFirstCompletion = localStorage.getItem(storageKey) !== "1";
     localStorage.setItem(storageKey, "1");
     setActive(false);
     onFinishRef.current?.(wasFirstCompletion);
-  }, [storageKey]);
+  }, [storageKey, forceActive]);
 
   useEffect(() => {
     if (!active) return;

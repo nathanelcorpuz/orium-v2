@@ -12,6 +12,7 @@ import { DatePicker } from "@/components/DatePicker";
 import { ChevronIcon } from "@/components/navIcons";
 import { SpotlightTour, type TourStep } from "@/components/SpotlightTour";
 import { SampleDataDecisionModal } from "@/components/SampleDataDecisionModal";
+import { PreviewModeBar } from "@/components/PreviewModeBar";
 import type { ForecastRow } from "@/lib/engine/types";
 import type { LowestBalancePoint } from "@/lib/engine/lowestBalance";
 import { EditSettleModal } from "./EditSettleModal";
@@ -93,16 +94,22 @@ function forecastRowProps(row: ForecastRow, isClickable: boolean, onSelect: (row
   } as const;
 }
 
-function ForecastNameCell({ row, isClickable }: { row: ForecastRow; isClickable: boolean }) {
+// `isAutoReplenish` (income-linked budget_replenish, never independently
+// settleable) is its own concept from `isClickable` - T103's preview mode
+// also makes every row non-clickable, but for a totally different reason,
+// so it must not also dress every ordinary bill/income/debt row up in the
+// "auto"-replenish italic+badge treatment meant specifically for that one
+// row kind.
+function ForecastNameCell({ row, isAutoReplenish }: { row: ForecastRow; isAutoReplenish: boolean }) {
   return (
     <>
-      {!isClickable ? <span className="italic text-slate-500">{row.name}</span> : row.name}
+      {isAutoReplenish ? <span className="italic text-slate-500">{row.name}</span> : row.name}
       {row.edited && (
         <span className="ml-1.5 text-slate-400" title="Edited from its usual schedule">
           ✎
         </span>
       )}
-      {!isClickable && (
+      {isAutoReplenish && (
         <span
           className="ml-1.5 rounded-full bg-notion-hover px-1.5 py-0.5 text-xs text-slate-500"
           title="Replenishes automatically when its linked income is settled"
@@ -140,6 +147,7 @@ export function ForecastClient({
   lowestBalance,
   firstDanger,
   sampleDataSeededAt,
+  previewMode = false,
 }: {
   forecast: ForecastRow[];
   balances: BalanceRow[];
@@ -150,6 +158,16 @@ export function ForecastClient({
   lowestBalance: LowestBalancePoint;
   firstDanger: LowestBalancePoint | null;
   sampleDataSeededAt: string | null;
+  // T103: opt-in sample-data preview - real financial data isn't touched by
+  // any of this page's mutating controls while it's on, since `forecast`/
+  // `balances`/etc. are themselves already a static fixture in that case
+  // (wired by forecast/page.tsx), not real rows. Row click-to-settle, the
+  // balance chips, and Reminders' add/edit/delete/complete are disabled
+  // here too, on top of that - a settle/edit attempt against a fixture id
+  // would just 404 against the real server actions rather than do anything
+  // useful, and a reminder typed during preview would otherwise write a
+  // real row tied to the account behind it.
+  previewMode?: boolean;
 }) {
   const [editingBalance, setEditingBalance] = useState<BalanceRow | null>(null);
   const [selectedRow, setSelectedRow] = useState<ForecastRow | null>(null);
@@ -326,15 +344,18 @@ export function ForecastClient({
   }, [filteredForecast.length]);
 
   return (
-    <div className="flex min-h-full">
-      <SpotlightTour
-        tourId="forecast-intro"
-        steps={FORECAST_TOUR_STEPS}
-        onFinish={(wasFirstCompletion) => {
-          if (wasFirstCompletion && sampleDataSeededAt) setShowSampleDataDecision(true);
-        }}
-      />
-      <div className="min-w-0 flex-1 p-4 md:p-8">
+    <div className="flex min-h-full flex-col">
+      {previewMode && <PreviewModeBar />}
+      <div className="flex min-h-0 flex-1">
+        <SpotlightTour
+          tourId="forecast-intro"
+          steps={FORECAST_TOUR_STEPS}
+          forceActive={previewMode}
+          onFinish={(wasFirstCompletion) => {
+            if (wasFirstCompletion && sampleDataSeededAt) setShowSampleDataDecision(true);
+          }}
+        />
+        <div className="min-w-0 flex-1 p-4 md:p-8">
         <div className="mx-auto max-w-6xl">
           <div className="mb-6">
             <h1 className="text-xl font-semibold text-notion-text">Forecast</h1>
@@ -346,8 +367,10 @@ export function ForecastClient({
                 <button
                   key={balance.id}
                   type="button"
-                  onClick={() => setEditingBalance(balance)}
-                  className="rounded-full border border-notion-hairline bg-white px-3 py-1 text-sm text-notion-text hover:bg-notion-hover"
+                  onClick={() => {
+                    if (!previewMode) setEditingBalance(balance);
+                  }}
+                  className={`rounded-full border border-notion-hairline bg-white px-3 py-1 text-sm text-notion-text ${previewMode ? "" : "hover:bg-notion-hover"}`}
                 >
                   {balance.name}: {formatCentavos(balance.amount, currency)}
                 </button>
@@ -526,7 +549,9 @@ export function ForecastClient({
                     // settled (T56's hook, extended) - it's never
                     // independently clickable, unlike an own-schedule
                     // ("replenish every") budget_replenish row, which is.
-                    const isClickable = row.sourceType !== "budget_replenish" || row.budgetSettleable === true;
+                    const isAutoReplenish = row.sourceType === "budget_replenish" && row.budgetSettleable !== true;
+                    // T103: never clickable at all in preview mode.
+                    const isClickable = !previewMode && !isAutoReplenish;
                     return (
                       <tr
                         key={`${row.sourceType}-${row.sourceId}-${row.originalDate}-${index}`}
@@ -535,7 +560,7 @@ export function ForecastClient({
                       >
                         <td className="px-2 py-1.5">{formatFullDate(row.dueDate)}</td>
                         <td className="px-2 py-1.5">
-                          <ForecastNameCell row={row} isClickable={isClickable} />
+                          <ForecastNameCell row={row} isAutoReplenish={isAutoReplenish} />
                         </td>
                         <td className={`px-2 py-1.5 ${TYPE_COLOR[row.type]}`}>{row.type}</td>
                         <td className="px-2 py-1.5 text-slate-500">
@@ -583,7 +608,9 @@ export function ForecastClient({
                         </td>
                       </tr>
                       {group.rows.map(({ row, index }) => {
-                        const isClickable = row.sourceType !== "budget_replenish" || row.budgetSettleable === true;
+                        const isAutoReplenish =
+                          row.sourceType === "budget_replenish" && row.budgetSettleable !== true;
+                        const isClickable = !previewMode && !isAutoReplenish;
                         return (
                           <tr
                             key={`${row.sourceType}-${row.sourceId}-${row.originalDate}-${index}`}
@@ -591,7 +618,7 @@ export function ForecastClient({
                             className={`border-b border-notion-hairline text-notion-text last:border-0 ${isClickable ? "cursor-pointer hover:opacity-80" : ""}`}
                           >
                             <td className="px-2 py-1.5">
-                              <ForecastNameCell row={row} isClickable={isClickable} />
+                              <ForecastNameCell row={row} isAutoReplenish={isAutoReplenish} />
                             </td>
                             <td className={`hidden px-2 py-1.5 sm:table-cell ${TYPE_COLOR[row.type]}`}>
                               {row.type}
@@ -625,7 +652,8 @@ export function ForecastClient({
         </div>
       </div>
 
-      <RemindersPanel reminders={reminders} />
+        <RemindersPanel reminders={reminders} readOnly={previewMode} />
+      </div>
 
       {editingBalance && (
         <BalanceModal balance={editingBalance} onClose={() => setEditingBalance(null)} />

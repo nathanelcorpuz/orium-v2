@@ -20,6 +20,8 @@ import { daysBetween } from "@/lib/engine/date-utils";
 import { ProgressBar } from "@/components/ProgressBar";
 import { SampleDataBanner } from "@/components/SampleDataBanner";
 import { DashboardTour } from "@/components/DashboardTour";
+import { PreviewModeBar } from "@/components/PreviewModeBar";
+import { getSampleFixtureData } from "@/lib/sampleFixture";
 import type { RecurringItem } from "@/lib/engine/types";
 
 // T48/user follow-up: reshapes computeMonthlyPeaksAndDrops's flat "YYYY-MM"
@@ -72,38 +74,55 @@ function DashboardCard({
   );
 }
 
-export default async function Home() {
+export default async function Home({
+  searchParams,
+}: {
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+}) {
+  // T103: opt-in preview mode (?preview=1) renders a static sample fixture
+  // instead of querying Supabase at all - real financial data is never
+  // touched. Auth still runs normally (just the greeting), but the
+  // settled-counts query below is skipped entirely in preview, same as the
+  // fixture's own settled counts (there's nothing to settle against - see
+  // sampleFixture.ts).
+  const preview = (await searchParams).preview === "1";
+
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const [
-    {
-      forecast,
-      balances,
-      recurringItems,
-      budgets,
-      budgetEntries,
-      currency,
-      balanceRanges,
-      tierLabels,
-      sampleDataSeededAt,
-      today,
-      horizon,
-    },
-    settlementsRes,
-  ] =
-    await Promise.all([
+  const settledCountByItemId = new Map<string, number>();
+  let forecastData;
+  if (preview) {
+    forecastData = getSampleFixtureData();
+    // Skipped in preview - the fixture's items have nothing to settle
+    // against, so every progress bar just reads "0 of N".
+  } else {
+    const [data, settlementsRes] = await Promise.all([
       loadForecast(),
       // T72: settled counts for the Debt/Savings aggregate progress bars
       // below - not part of loadForecast()'s own data, so fetched separately.
       supabase.from("settlements").select("source_id, type").in("type", ["debt", "savings"]),
     ]);
-  const settledCountByItemId = new Map<string, number>();
-  for (const row of settlementsRes.data ?? []) {
-    settledCountByItemId.set(row.source_id, (settledCountByItemId.get(row.source_id) ?? 0) + 1);
+    forecastData = data;
+    for (const row of settlementsRes.data ?? []) {
+      settledCountByItemId.set(row.source_id, (settledCountByItemId.get(row.source_id) ?? 0) + 1);
+    }
   }
+  const {
+    forecast,
+    balances,
+    recurringItems,
+    budgets,
+    budgetEntries,
+    currency,
+    balanceRanges,
+    tierLabels,
+    sampleDataSeededAt,
+    today,
+    horizon,
+  } = forecastData;
 
   const profileName = (user?.user_metadata?.name as string | undefined) ?? "";
   const greetingName = displayName(profileName, user?.email);
@@ -160,15 +179,17 @@ export default async function Home() {
   const firstDanger = findFirstDangerPoint(forecast, totalBalance, balanceRanges[0], today);
 
   return (
-    <div className="p-4 md:p-8">
-      <DashboardTour />
-      <div className="mx-auto max-w-5xl">
-        <div className="mb-6">
-          <h1 className="text-xl font-semibold text-notion-text">Dashboard</h1>
-          <p className="text-slate-500">Welcome, {greetingName}</p>
-        </div>
+    <div>
+      {preview && <PreviewModeBar />}
+      <div className="p-4 md:p-8">
+        <DashboardTour forceActive={preview} />
+        <div className="mx-auto max-w-5xl">
+          <div className="mb-6">
+            <h1 className="text-xl font-semibold text-notion-text">Dashboard</h1>
+            <p className="text-slate-500">Welcome, {greetingName}</p>
+          </div>
 
-        {sampleDataSeededAt && <SampleDataBanner />}
+          {sampleDataSeededAt && <SampleDataBanner />}
 
         <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3" data-tour="dashboard-stats">
           <DashboardCard title="Total Balance" value={formatCentavos(totalBalance, currency)} />
@@ -415,6 +436,7 @@ export default async function Home() {
           </div>
         </div>
       </div>
+    </div>
     </div>
   );
 }

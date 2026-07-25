@@ -1,0 +1,19 @@
+import Link from "next/link";
+
+// T103: shown on Dashboard/Forecast whenever `?preview=1` is active - the
+// one visible, persistent signal that the numbers on screen are a sample
+// fixture, not the user's real account, plus the documented way out. Exits
+// to a plain `/` (no query param), which drops straight back to real data.
+export function PreviewModeBar() {
+  return (
+    <div className="sticky top-0 z-40 flex flex-wrap items-center justify-between gap-2 bg-notion-text px-4 py-2 text-sm text-white">
+      <span>You&apos;re previewing sample data - nothing here is saved to your real account.</span>
+      <Link
+        href="/"
+        className="shrink-0 rounded border border-white/40 px-3 py-1 hover:bg-white/10"
+      >
+        Exit preview
+      </Link>
+    </div>
+  );
+}

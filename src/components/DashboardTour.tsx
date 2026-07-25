@@ -25,6 +25,6 @@ const DASHBOARD_STEPS: TourStep[] = [
   },
 ];
 
-export function DashboardTour() {
-  return <SpotlightTour tourId="dashboard-intro" steps={DASHBOARD_STEPS} />;
+export function DashboardTour({ forceActive }: { forceActive?: boolean }) {
+  return <SpotlightTour tourId="dashboard-intro" steps={DASHBOARD_STEPS} forceActive={forceActive} />;
 }

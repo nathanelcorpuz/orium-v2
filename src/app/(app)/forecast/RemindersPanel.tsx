@@ -65,7 +65,7 @@ function AddReminderForm() {
   );
 }
 
-function ReminderItem({ reminder }: { reminder: ReminderRow }) {
+function ReminderItem({ reminder, readOnly }: { reminder: ReminderRow; readOnly?: boolean }) {
   const [mode, setMode] = useState<"view" | "edit" | "delete">("view");
   const [editState, editFormAction, editPending] = useActionState(updateReminder, initialState);
   const submitted = useRef(false);
@@ -76,6 +76,18 @@ function ReminderItem({ reminder }: { reminder: ReminderRow }) {
       submitted.current = false;
     }
   }, [editPending, editState]);
+
+  // T103: preview mode shows canned sample reminders with no way to
+  // mutate them (there's nothing real behind them to save) - short-circuit
+  // before the mode-based branches below, but keep the same completed/active
+  // text styling so it still looks like a real reminder, just inert.
+  if (readOnly) {
+    return (
+      <div className={`text-sm ${reminder.completed ? "text-slate-400 line-through" : "text-notion-text"}`}>
+        {reminder.text}
+      </div>
+    );
+  }
 
   if (mode === "edit") {
     return (
@@ -227,16 +239,18 @@ function RemindersContent({
   completedReminders,
   showCompleted,
   setShowCompleted,
+  readOnly,
 }: {
   activeReminders: ReminderRow[];
   completedReminders: ReminderRow[];
   showCompleted: boolean;
   setShowCompleted: (updater: (prev: boolean) => boolean) => void;
+  readOnly?: boolean;
 }) {
   return (
     <div className="flex min-h-0 flex-1 flex-col p-4">
       <h2 className="mb-3 text-sm font-semibold text-notion-text">Reminders</h2>
-      <AddReminderForm />
+      {!readOnly && <AddReminderForm />}
       {activeReminders.length === 0 ? (
         <p className="text-sm text-slate-400">No reminders yet.</p>
       ) : (
@@ -244,7 +258,7 @@ function RemindersContent({
           <ul className="divide-y divide-notion-hairline">
             {activeReminders.map((reminder) => (
               <li key={reminder.id} className="py-2 first:pt-0">
-                <ReminderItem reminder={reminder} />
+                <ReminderItem reminder={reminder} readOnly={readOnly} />
               </li>
             ))}
           </ul>
@@ -263,7 +277,7 @@ function RemindersContent({
             <ul className="mt-2 max-h-40 divide-y divide-notion-hairline overflow-y-auto pr-1">
               {completedReminders.map((reminder) => (
                 <li key={reminder.id} className="py-2 first:pt-0">
-                  <ReminderItem reminder={reminder} />
+                  <ReminderItem reminder={reminder} readOnly={readOnly} />
                 </li>
               ))}
             </ul>
@@ -285,7 +299,13 @@ function RemindersContent({
 // `hidden` below `lg` with no mobile access at all). Below `lg`, a small
 // floating trigger - badged with the active reminder count - opens the same
 // content as a right-edge MobileDrawer.
-export function RemindersPanel({ reminders }: { reminders: ReminderRow[] }) {
+export function RemindersPanel({
+  reminders,
+  readOnly,
+}: {
+  reminders: ReminderRow[];
+  readOnly?: boolean;
+}) {
   const [collapsed, setCollapsed] = useState(false);
   const [showCompleted, setShowCompleted] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -334,6 +354,7 @@ export function RemindersPanel({ reminders }: { reminders: ReminderRow[] }) {
             completedReminders={completedReminders}
             showCompleted={showCompleted}
             setShowCompleted={setShowCompleted}
+            readOnly={readOnly}
           />
         )}
       </aside>
@@ -369,6 +390,7 @@ export function RemindersPanel({ reminders }: { reminders: ReminderRow[] }) {
           completedReminders={completedReminders}
           showCompleted={showCompleted}
           setShowCompleted={setShowCompleted}
+          readOnly={readOnly}
         />
       </MobileDrawer>
     </>
