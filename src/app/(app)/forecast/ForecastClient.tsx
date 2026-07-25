@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { formatCentavos } from "@/lib/money";
 import { formatFullDate } from "@/lib/date";
 import { balanceRangeColorClass, balanceRangeTier, lowestBalanceLabel } from "@/lib/balanceColor";
@@ -47,6 +47,64 @@ const TYPE_OPTIONS: { value: ForecastRow["type"]; label: string }[] = [
   { value: "budget", label: "Budget" },
 ];
 
+// T90: shared between the full desktop table and the compact mobile/tablet
+// table below - a row's clickability (Phase 11/T59: an income-linked
+// budget_replenish row settles automatically with its income, so it's never
+// independently clickable) drives identical role/tabIndex/click/keydown
+// handling in both.
+function forecastRowProps(row: ForecastRow, isClickable: boolean, onSelect: (row: ForecastRow) => void) {
+  return {
+    role: isClickable ? "button" : undefined,
+    tabIndex: isClickable ? 0 : undefined,
+    onClick: isClickable ? () => onSelect(row) : undefined,
+    onKeyDown: isClickable
+      ? (event: React.KeyboardEvent) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            onSelect(row);
+          }
+        }
+      : undefined,
+  } as const;
+}
+
+function ForecastNameCell({ row, isClickable }: { row: ForecastRow; isClickable: boolean }) {
+  return (
+    <>
+      {!isClickable ? <span className="italic text-slate-500">{row.name}</span> : row.name}
+      {row.edited && (
+        <span className="ml-1.5 text-slate-400" title="Edited from its usual schedule">
+          ✎
+        </span>
+      )}
+      {!isClickable && (
+        <span
+          className="ml-1.5 rounded-full bg-notion-hover px-1.5 py-0.5 text-xs text-slate-500"
+          title="Replenishes automatically when its linked income is settled"
+        >
+          auto
+        </span>
+      )}
+    </>
+  );
+}
+
+function ForecastBalanceCell({
+  balance,
+  balanceRanges,
+  currency,
+}: {
+  balance: number;
+  balanceRanges: number[];
+  currency: string;
+}) {
+  return (
+    <span className={`inline-block rounded px-1.5 py-0.5 ${balanceRangeColorClass(balance, balanceRanges)}`}>
+      {formatCentavos(balance, currency)}
+    </span>
+  );
+}
+
 export function ForecastClient({
   forecast,
   balances,
@@ -92,7 +150,7 @@ export function ForecastClient({
   }
   const [visibleCount, setVisibleCount] = useState(INITIAL_VISIBLE_ROWS);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
-  const sentinelRef = useRef<HTMLTableRowElement>(null);
+  const sentinelRef = useRef<HTMLDivElement>(null);
 
   // T50: Forecast table filters - all client-side, filtering the
   // already-loaded `forecast` array before it feeds into T49's incremental
@@ -200,6 +258,24 @@ export function ForecastClient({
   const totalBalance = balances.reduce((sum, balance) => sum + balance.amount, 0);
   const visibleForecast = filteredForecast.slice(0, visibleCount);
 
+  // T90: the compact mobile/tablet table drops the per-row Date column in
+  // favor of a sticky group-header row per distinct due date - rows are
+  // already sorted by date, so a single forward scan groups them without
+  // re-sorting. `index` is carried along per-row for the same key/row-props
+  // wiring the full desktop table already used.
+  const visibleGroups = useMemo(() => {
+    const groups: { date: string; rows: { row: ForecastRow; index: number }[] }[] = [];
+    visibleForecast.forEach((row, index) => {
+      const last = groups[groups.length - 1];
+      if (last && last.date === row.dueDate) {
+        last.rows.push({ row, index });
+      } else {
+        groups.push({ date: row.dueDate, rows: [{ row, index }] });
+      }
+    });
+    return groups;
+  }, [visibleForecast]);
+
   useEffect(() => {
     const sentinel = sentinelRef.current;
     const root = scrollContainerRef.current;
@@ -219,7 +295,7 @@ export function ForecastClient({
 
   return (
     <div className="flex min-h-full">
-      <div className="min-w-0 flex-1 p-8">
+      <div className="min-w-0 flex-1 p-4 md:p-8">
         <div className="mx-auto max-w-6xl">
           <div className="mb-6">
             <h1 className="text-xl font-semibold text-notion-text">Forecast</h1>
@@ -389,7 +465,10 @@ export function ForecastClient({
               ref={scrollContainerRef}
               className="max-h-[50vh] overflow-auto rounded-lg border border-notion-hairline bg-white md:max-h-[70vh]"
             >
-              <table className="w-full text-xs">
+              {/* T90: full 6-column table, unchanged - `lg`+ only (the same
+                  breakpoint T89 already uses for the desktop nav/reminders
+                  layout), so desktop behavior here is untouched. */}
+              <table className="hidden w-full text-xs lg:table">
                 <thead>
                   <tr className="border-b border-notion-hairline text-left text-slate-500">
                     <th className="sticky top-0 z-10 bg-white px-2 py-1.5">Date</th>
@@ -411,37 +490,12 @@ export function ForecastClient({
                     return (
                       <tr
                         key={`${row.sourceType}-${row.sourceId}-${row.originalDate}-${index}`}
-                        role={isClickable ? "button" : undefined}
-                        tabIndex={isClickable ? 0 : undefined}
-                        onClick={isClickable ? () => setSelectedRow(row) : undefined}
-                        onKeyDown={
-                          isClickable
-                            ? (event) => {
-                                if (event.key === "Enter" || event.key === " ") {
-                                  event.preventDefault();
-                                  setSelectedRow(row);
-                                }
-                              }
-                            : undefined
-                        }
+                        {...forecastRowProps(row, isClickable, setSelectedRow)}
                         className={`border-b border-notion-hairline text-notion-text last:border-0 ${isClickable ? "cursor-pointer hover:opacity-80" : ""}`}
                       >
                         <td className="px-2 py-1.5">{formatFullDate(row.dueDate)}</td>
                         <td className="px-2 py-1.5">
-                          {!isClickable ? <span className="italic text-slate-500">{row.name}</span> : row.name}
-                          {row.edited && (
-                            <span className="ml-1.5 text-slate-400" title="Edited from its usual schedule">
-                              ✎
-                            </span>
-                          )}
-                          {!isClickable && (
-                            <span
-                              className="ml-1.5 rounded-full bg-notion-hover px-1.5 py-0.5 text-xs text-slate-500"
-                              title="Replenishes automatically when its linked income is settled"
-                            >
-                              auto
-                            </span>
-                          )}
+                          <ForecastNameCell row={row} isClickable={isClickable} />
                         </td>
                         <td className={`px-2 py-1.5 ${TYPE_COLOR[row.type]}`}>{row.type}</td>
                         <td className="px-2 py-1.5 text-slate-500">
@@ -449,24 +503,83 @@ export function ForecastClient({
                         </td>
                         <td className="px-2 py-1.5 text-right">{formatCentavos(row.amount, currency)}</td>
                         <td className="px-2 py-1.5 text-right font-medium">
-                          <span
-                            className={`inline-block rounded px-1.5 py-0.5 ${balanceRangeColorClass(row.runningBalance, balanceRanges)}`}
-                          >
-                            {formatCentavos(row.runningBalance, currency)}
-                          </span>
+                          <ForecastBalanceCell
+                            balance={row.runningBalance}
+                            balanceRanges={balanceRanges}
+                            currency={currency}
+                          />
                         </td>
                       </tr>
                     );
                   })}
-                  {visibleCount < filteredForecast.length && (
-                    <tr ref={sentinelRef}>
-                      <td colSpan={6} className="p-2 text-center text-xs text-slate-400">
-                        Loading more…
-                      </td>
-                    </tr>
-                  )}
                 </tbody>
               </table>
+
+              {/* T90: compact table below `lg` - Name/Amount/Balance always,
+                  Type from `sm`, Account from `md`; the Date column is
+                  replaced by a sticky group-header row per distinct due
+                  date (rows are already date-sorted) so date context
+                  survives without spending a column on it at narrow
+                  widths. */}
+              <table className="w-full text-xs lg:hidden">
+                <thead>
+                  <tr className="border-b border-notion-hairline text-left text-slate-500">
+                    <th className="sticky top-0 z-20 bg-white px-2 py-1.5">Name</th>
+                    <th className="sticky top-0 z-20 hidden bg-white px-2 py-1.5 sm:table-cell">Type</th>
+                    <th className="sticky top-0 z-20 hidden bg-white px-2 py-1.5 md:table-cell">Account</th>
+                    <th className="sticky top-0 z-20 bg-white px-2 py-1.5 text-right">Amount</th>
+                    <th className="sticky top-0 z-20 bg-white px-2 py-1.5 text-right">Balance</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {visibleGroups.map((group) => (
+                    <Fragment key={group.date}>
+                      <tr>
+                        <td
+                          colSpan={5}
+                          className="sticky top-[29px] z-10 border-b border-notion-hairline bg-slate-50 px-2 py-1 font-medium text-slate-500"
+                        >
+                          {formatFullDate(group.date)}
+                        </td>
+                      </tr>
+                      {group.rows.map(({ row, index }) => {
+                        const isClickable = row.sourceType !== "budget_replenish" || row.budgetSettleable === true;
+                        return (
+                          <tr
+                            key={`${row.sourceType}-${row.sourceId}-${row.originalDate}-${index}`}
+                            {...forecastRowProps(row, isClickable, setSelectedRow)}
+                            className={`border-b border-notion-hairline text-notion-text last:border-0 ${isClickable ? "cursor-pointer hover:opacity-80" : ""}`}
+                          >
+                            <td className="px-2 py-1.5">
+                              <ForecastNameCell row={row} isClickable={isClickable} />
+                            </td>
+                            <td className={`hidden px-2 py-1.5 sm:table-cell ${TYPE_COLOR[row.type]}`}>
+                              {row.type}
+                            </td>
+                            <td className="hidden px-2 py-1.5 text-slate-500 md:table-cell">
+                              {row.balanceId ? (balanceNameById.get(row.balanceId) ?? "—") : "—"}
+                            </td>
+                            <td className="px-2 py-1.5 text-right">{formatCentavos(row.amount, currency)}</td>
+                            <td className="px-2 py-1.5 text-right font-medium">
+                              <ForecastBalanceCell
+                                balance={row.runningBalance}
+                                balanceRanges={balanceRanges}
+                                currency={currency}
+                              />
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </Fragment>
+                  ))}
+                </tbody>
+              </table>
+
+              {visibleCount < filteredForecast.length && (
+                <div ref={sentinelRef} className="p-2 text-center text-xs text-slate-400">
+                  Loading more…
+                </div>
+              )}
             </div>
           )}
         </div>
