@@ -146,7 +146,7 @@ export default async function Home() {
   const firstDanger = findFirstDangerPoint(forecast, totalBalance, balanceRanges[0], today);
 
   return (
-    <div className="p-8">
+    <div className="p-4 md:p-8">
       <div className="mx-auto max-w-5xl">
         <div className="mb-6">
           <h1 className="text-xl font-semibold text-notion-text">Dashboard</h1>
