@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { loadForecast } from "@/lib/forecastData";
-import { findLowestBalancePoint } from "@/lib/engine/lowestBalance";
+import { findFirstDangerPoint, findLowestBalancePoint } from "@/lib/engine/lowestBalance";
 import { ForecastClient } from "./ForecastClient";
 
 export default async function ForecastPage() {
@@ -12,6 +12,7 @@ export default async function ForecastPage() {
 
   const totalBalance = balances.reduce((sum, balance) => sum + balance.amount, 0);
   const lowestBalance = findLowestBalancePoint(forecast, totalBalance, today);
+  const firstDanger = findFirstDangerPoint(forecast, totalBalance, balanceRanges[0], today);
 
   return (
     <ForecastClient
@@ -22,6 +23,7 @@ export default async function ForecastPage() {
       tierLabels={tierLabels}
       reminders={remindersRes.data ?? []}
       lowestBalance={lowestBalance}
+      firstDanger={firstDanger}
     />
   );
 }

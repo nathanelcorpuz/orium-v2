@@ -81,7 +81,7 @@ begin
     v_user, '₱',
     array[0, 1500000, 4000000, 8000000, 30000000]::bigint[],
     array[
-      '⚠ We''d dip into the red by',
+      '⚠ Lowest point goes negative by',
       'Getting tight:',
       'Lowest point ahead:',
       'Comfortable cushion:',

@@ -55,6 +55,7 @@ export function ForecastClient({
   tierLabels,
   reminders,
   lowestBalance,
+  firstDanger,
 }: {
   forecast: ForecastRow[];
   balances: BalanceRow[];
@@ -63,6 +64,7 @@ export function ForecastClient({
   tierLabels: string[];
   reminders: ReminderRow[];
   lowestBalance: LowestBalancePoint;
+  firstDanger: LowestBalancePoint | null;
 }) {
   const [editingBalance, setEditingBalance] = useState<BalanceRow | null>(null);
   const [selectedRow, setSelectedRow] = useState<ForecastRow | null>(null);
@@ -274,6 +276,18 @@ export function ForecastClient({
                   </span>{" "}
                   on {formatFullDate(lowestBalance.date)}
                 </p>
+                {/* User feedback 2026-07-25: mirrors the Dashboard card's
+                    same addition - only shown when it's a real, earlier
+                    date than the lowest point above. */}
+                {firstDanger && firstDanger.date !== lowestBalance.date && (
+                  <p className="text-sm">
+                    <span className="font-medium text-notion-text">First goes negative:</span>{" "}
+                    <span className="inline-block rounded bg-slate-900 px-1.5 py-0.5 text-white">
+                      {formatCentavos(Math.abs(firstDanger.balance), currency)}
+                    </span>{" "}
+                    <span className="text-slate-500">on {formatFullDate(firstDanger.date)}</span>
+                  </p>
+                )}
               </div>
             )}
           </div>

@@ -9,7 +9,7 @@ import { monthlyEquivalent } from "@/lib/engine/monthlyTotals";
 import { remainingTotal, ruleEndDate } from "@/lib/engine/remaining";
 import { goalProgress } from "@/lib/engine/goalProgress";
 import { computeMonthlyPeaksAndDrops } from "@/lib/engine/peaksAndDrops";
-import { findLowestBalancePoint } from "@/lib/engine/lowestBalance";
+import { findFirstDangerPoint, findLowestBalancePoint } from "@/lib/engine/lowestBalance";
 import {
   budgetProgressFraction,
   budgetReplenishRule,
@@ -143,6 +143,7 @@ export default async function Home() {
   const peaksAndDrops = computeMonthlyPeaksAndDrops(forecast, totalBalance, today, horizon);
   const peaksAndDropsByYear = groupPeaksAndDropsByYear(peaksAndDrops);
   const lowestBalance = findLowestBalancePoint(forecast, totalBalance, today);
+  const firstDanger = findFirstDangerPoint(forecast, totalBalance, balanceRanges[0], today);
 
   return (
     <div className="p-8">
@@ -341,6 +342,23 @@ export default async function Home() {
             </span>
           </p>
           <p className="mt-1 text-sm text-slate-500">On {formatFullDate(lowestBalance.date)}</p>
+          {/* User feedback 2026-07-25: the worst point (above) can land well
+              after the balance first crosses into trouble - a big hit
+              followed by an oscillating recovery reads as if the WORST
+              date is when things first go wrong, when they may have started
+              days or weeks earlier. Only shown when it adds new information
+              (a real earlier date), and always in fixed danger-only wording
+              rather than the customizable 6-tier labels above, since this
+              stat by definition is always the negative case. */}
+          {firstDanger && firstDanger.date !== lowestBalance.date && (
+            <p className="mt-3 border-t border-notion-hairline pt-3 text-sm">
+              <span className="font-medium text-notion-text">First goes negative:</span>{" "}
+              <span className="inline-block rounded bg-slate-900 px-1.5 py-0.5 text-white">
+                {formatCentavos(Math.abs(firstDanger.balance), currency)}
+              </span>{" "}
+              <span className="text-slate-500">on {formatFullDate(firstDanger.date)}</span>
+            </p>
+          )}
         </div>
 
         <div className="rounded-lg border border-notion-hairline bg-white">
