@@ -180,21 +180,28 @@ export function ChevronIcon({ className, direction }: IconProps & { direction: "
 }
 
 // T94: the Orium mark itself ("Trendline" - a ring standing in for the "O"
-// of Orium, with a forecast line crossing through its middle). User
-// feedback (2026-07-25): the original line poked past the ring's edge out
-// toward one corner, which pulled the mark's visual weight off-center even
-// though its bounding box was technically centered - every point here now
-// stays within the ring (max radius ~7.1 vs the ring's own 8), so the trend
-// line reads as an accent through the O rather than a shape escaping it.
-// Ring stroke bumped up from BASE's 1.5 to 2 so the "O" reads as the
-// primary letterform and the thinner trend line as the secondary accent.
-// Also re-drawn as a standalone `src/app/icon.svg` for the favicon, where
-// `currentColor` isn't available.
+// of Orium, with a forecast line crossing through its middle).
+//
+// User feedback (2026-07-25, round 2): the mark looked clipped and pushed
+// toward the bottom-right of its own box. Root cause - this component spreads
+// `{...BASE}`, which sets `viewBox="0 0 20 20"` (shared by every icon in this
+// file), but the circle below was drawn assuming a 24x24 canvas (`cx=12
+// cy=12 r=8`). Its right/bottom edge landed exactly on the 20x20 boundary
+// and got clipped by the SVG's default `overflow: hidden` - not a design
+// problem, a coordinate-space mismatch. Redrawn to actually fit BASE's
+// 20x20 viewBox with even margins on every side. Also switched the ring
+// from a perfect circle to a taller ellipse ("a slim vertical circle, but
+// not too slim") so it reads more like the letterform O and less like a
+// generic ring; the trend line's points were rescaled to stay inside the
+// new ellipse the same way the previous round contained it inside the
+// circle. Ring stroke stays heavier than the line so the O reads as the
+// primary letterform. Also re-drawn as a standalone `src/app/icon.svg` for
+// the favicon, where `currentColor` isn't available.
 export function LogoMark({ className }: IconProps) {
   return (
     <svg {...BASE} className={className}>
-      <circle cx="12" cy="12" r="8" strokeWidth="2" />
-      <polyline points="7.5 14.5 10.5 11 13 12.5 17 7" />
+      <ellipse cx="10" cy="10" rx="6" ry="7" strokeWidth="1.75" />
+      <polyline points="6.6 12.3 8.9 9.1 10.8 10.5 13.8 5.3" strokeWidth="1.4" />
     </svg>
   );
 }
