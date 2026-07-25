@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { loadForecast } from "@/lib/forecastData";
 import { formatCentavos } from "@/lib/money";
@@ -165,7 +166,15 @@ export default async function Home() {
         </div>
 
         <div className="mb-6 rounded-lg border border-notion-hairline bg-white p-4">
-          <h2 className="mb-2 text-sm font-semibold text-notion-text">Accounts</h2>
+          <div className="mb-2 flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-notion-text">Accounts</h2>
+            <Link
+              href="/accounts"
+              className="rounded border border-notion-hairline px-2 py-1 text-xs text-notion-text hover:bg-notion-hover"
+            >
+              Manage
+            </Link>
+          </div>
           {balances.length === 0 ? (
             <p className="text-sm text-slate-400">No accounts yet.</p>
           ) : (
@@ -181,7 +190,15 @@ export default async function Home() {
         </div>
 
         <div className="mb-6 rounded-lg border border-notion-hairline bg-white p-4">
-          <h2 className="mb-2 text-sm font-semibold text-notion-text">Remaining Debt</h2>
+          <div className="mb-2 flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-notion-text">Remaining Debt</h2>
+            <Link
+              href="/debt"
+              className="rounded border border-notion-hairline px-2 py-1 text-xs text-notion-text hover:bg-notion-hover"
+            >
+              Manage
+            </Link>
+          </div>
           <p className="text-xl font-semibold text-orange-700">
             {formatCentavos(remainingDebt, currency)}
           </p>
@@ -206,7 +223,15 @@ export default async function Home() {
         </div>
 
         <div className="mb-6 rounded-lg border border-notion-hairline bg-white p-4">
-          <h2 className="mb-2 text-sm font-semibold text-notion-text">Savings</h2>
+          <div className="mb-2 flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-notion-text">Savings</h2>
+            <Link
+              href="/savings"
+              className="rounded border border-notion-hairline px-2 py-1 text-xs text-notion-text hover:bg-notion-hover"
+            >
+              Manage
+            </Link>
+          </div>
           <p className="text-xl font-semibold text-blue-700">
             {formatCentavos(remainingSavings, currency)}
           </p>
@@ -231,7 +256,15 @@ export default async function Home() {
         </div>
 
         <div className="mb-6 rounded-lg border border-notion-hairline bg-white p-4">
-          <h2 className="mb-2 text-sm font-semibold text-notion-text">Budgets</h2>
+          <div className="mb-2 flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-notion-text">Budgets</h2>
+            <Link
+              href="/budgets"
+              className="rounded border border-notion-hairline px-2 py-1 text-xs text-notion-text hover:bg-notion-hover"
+            >
+              Manage
+            </Link>
+          </div>
           {budgets.length === 0 ? (
             <p className="text-sm text-slate-400">No budgets yet.</p>
           ) : (
