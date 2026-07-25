@@ -21,6 +21,7 @@ import { ProgressBar } from "@/components/ProgressBar";
 import { SampleDataBanner } from "@/components/SampleDataBanner";
 import { DashboardTour } from "@/components/DashboardTour";
 import { PreviewModeBar } from "@/components/PreviewModeBar";
+import { GettingStartedChecklist } from "@/components/GettingStartedChecklist";
 import { getSampleFixtureData } from "@/lib/sampleFixture";
 import type { RecurringItem } from "@/lib/engine/types";
 
@@ -94,21 +95,28 @@ export default async function Home({
 
   const settledCountByItemId = new Map<string, number>();
   let forecastData;
+  let hasExtras = false;
   if (preview) {
     forecastData = getSampleFixtureData();
     // Skipped in preview - the fixture's items have nothing to settle
     // against, so every progress bar just reads "0 of N".
   } else {
-    const [data, settlementsRes] = await Promise.all([
+    const [data, settlementsRes, oneOffsRes] = await Promise.all([
       loadForecast(),
       // T72: settled counts for the Debt/Savings aggregate progress bars
       // below - not part of loadForecast()'s own data, so fetched separately.
       supabase.from("settlements").select("source_id, type").in("type", ["debt", "savings"]),
+      // T99: "has the user logged any extras yet" for the Getting Started
+      // checklist - loadForecast() only feeds one-offs into the engine
+      // internally, it doesn't return them, and a count-only head request is
+      // cheaper than fetching full rows just to check `.length > 0`.
+      supabase.from("one_off_items").select("id", { count: "exact", head: true }),
     ]);
     forecastData = data;
     for (const row of settlementsRes.data ?? []) {
       settledCountByItemId.set(row.source_id, (settledCountByItemId.get(row.source_id) ?? 0) + 1);
     }
+    hasExtras = (oneOffsRes.count ?? 0) > 0;
   }
   const {
     forecast,
@@ -126,6 +134,17 @@ export default async function Home({
 
   const profileName = (user?.user_metadata?.name as string | undefined) ?? "";
   const greetingName = displayName(profileName, user?.email);
+
+  // T99: Getting Started checklist - each row is derived live from whether
+  // the account currently has any row in that category, not a separately
+  // persisted "completed" flag (see SPEC.md T99 for why - no new DB state
+  // needed, and it "just works" the moment real data appears, the same way
+  // it would go blank again after a Reset).
+  const hasAccounts = balances.length > 0;
+  const hasBills = recurringItems.some((item) => item.type === "bill");
+  const hasIncome = recurringItems.some((item) => item.type === "income");
+  const hasDebtOrSavings = recurringItems.some((item) => item.type === "debt" || item.type === "savings");
+  const hasBudgets = budgets.length > 0;
 
   const totalBalance = balances.reduce((sum, balance) => sum + balance.amount, 0);
 
@@ -190,6 +209,20 @@ export default async function Home({
           </div>
 
           {sampleDataSeededAt && <SampleDataBanner />}
+
+          {/* T99: hidden in preview mode - it's not the account's real
+              progress, so nothing here should nudge someone previewing
+              sample data to go "finish" a checklist that isn't theirs. */}
+          {!preview && (
+            <GettingStartedChecklist
+              hasAccounts={hasAccounts}
+              hasBills={hasBills}
+              hasIncome={hasIncome}
+              hasDebtOrSavings={hasDebtOrSavings}
+              hasBudgets={hasBudgets}
+              hasExtras={hasExtras}
+            />
+          )}
 
         <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3" data-tour="dashboard-stats">
           <DashboardCard title="Total Balance" value={formatCentavos(totalBalance, currency)} />
