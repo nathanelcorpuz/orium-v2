@@ -68,7 +68,7 @@ export async function createExtra(
   });
   if (error) return { error: error.message };
 
-  revalidatePath("/extra");
+  revalidatePath("/misc");
   revalidatePath("/");
   return { error: null };
 }
@@ -94,7 +94,7 @@ export async function updateExtra(
     .eq("id", id);
   if (error) return { error: error.message };
 
-  revalidatePath("/extra");
+  revalidatePath("/misc");
   revalidatePath("/");
   return { error: null };
 }
@@ -103,6 +103,6 @@ export async function deleteExtra(formData: FormData) {
   const id = formData.get("id") as string;
   const supabase = await createClient();
   await supabase.from("one_off_items").delete().eq("id", id);
-  revalidatePath("/extra");
+  revalidatePath("/misc");
   revalidatePath("/");
 }

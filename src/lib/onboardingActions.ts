@@ -9,7 +9,7 @@ import { createIncome } from "@/app/(app)/income/actions";
 import { createDebt } from "@/app/(app)/debt/actions";
 import { createSavings } from "@/app/(app)/savings/actions";
 import { createBudget } from "@/app/(app)/budgets/actions";
-import { createExtra } from "@/app/(app)/extra/actions";
+import { createExtra } from "@/app/(app)/misc/actions";
 
 // T115: the required onboarding wizard's own persisted state - separate
 // from the skippable tour (T110). `onboarding_required_completed` and

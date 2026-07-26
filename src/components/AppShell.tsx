@@ -23,7 +23,7 @@ const NAV_ITEMS = [
   { href: "/debt", label: "Debt", financeGroup: true },
   { href: "/savings", label: "Savings", financeGroup: true },
   { href: "/budgets", label: "Budgets", financeGroup: true },
-  { href: "/extra", label: "Misc", financeGroup: true },
+  { href: "/misc", label: "Misc", financeGroup: true },
   { href: "/history", label: "History" },
   { href: "/settings", label: "Settings" },
 ];

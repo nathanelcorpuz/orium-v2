@@ -87,6 +87,6 @@ export async function disconnectItem(formData: FormData) {
   revalidatePath("/income");
   revalidatePath("/debt");
   revalidatePath("/savings");
-  revalidatePath("/extra");
+  revalidatePath("/misc");
   revalidatePath("/");
 }

@@ -90,7 +90,7 @@ export async function editOneOff(
 
   revalidatePath("/forecast");
   revalidatePath("/");
-  revalidatePath("/extra");
+  revalidatePath("/misc");
   return { error: null };
 }
 
@@ -259,7 +259,7 @@ export async function settleOccurrence(
   } else {
     const { error } = await supabase.from("one_off_items").delete().eq("id", sourceId);
     if (error) return { error: error.message };
-    revalidatePath("/extra");
+    revalidatePath("/misc");
   }
 
   if (fields.balanceId) revalidatePath("/accounts");

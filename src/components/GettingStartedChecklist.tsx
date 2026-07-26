@@ -65,7 +65,7 @@ export function GettingStartedChecklist({
     {
       key: "extras",
       label: "Add a Misc future transaction (optional)",
-      href: "/extra",
+      href: "/misc",
       done: hasExtras,
       optional: true,
     },

@@ -9,7 +9,7 @@ import { IncomeModal, type IncomeRow } from "@/app/(app)/income/IncomeModal";
 import { MonthlyGoalModal } from "@/components/recurring/MonthlyGoalModal";
 import type { MonthlyGoalRow } from "@/components/recurring/MonthlyGoalRow";
 import { BudgetModal, type BudgetRow } from "@/app/(app)/budgets/BudgetModal";
-import { ExtraModal, type ExtraRow } from "@/app/(app)/extra/ExtraModal";
+import { ExtraModal, type ExtraRow } from "@/app/(app)/misc/ExtraModal";
 import { createDebt, updateDebt } from "@/app/(app)/debt/actions";
 import { createSavings, updateSavings } from "@/app/(app)/savings/actions";
 import { logout } from "@/app/auth/actions";

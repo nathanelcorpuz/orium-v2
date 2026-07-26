@@ -244,7 +244,7 @@ export const NAV_ICONS: Record<string, (props: IconProps) => React.JSX.Element> 
   "/debt": DebtIcon,
   "/savings": SavingsIcon,
   "/budgets": BudgetsIcon,
-  "/extra": ExtrasIcon,
+  "/misc": ExtrasIcon,
   "/forecast": ForecastIcon,
   "/history": HistoryIcon,
   "/settings": SettingsIcon,
