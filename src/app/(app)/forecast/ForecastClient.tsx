@@ -18,38 +18,17 @@ import type { LowestBalancePoint } from "@/lib/engine/lowestBalance";
 import { EditSettleModal } from "./EditSettleModal";
 import { RemindersPanel, type ReminderRow } from "./RemindersPanel";
 
+// T110 (revised, user request 2026-07-26): a single step spotlighting the
+// whole Forecast content area (table + insights + reminders, everything
+// except the sidebar) instead of walking each part individually, matching
+// the same quick-intro treatment DashboardTour.tsx now uses.
+// `data-tour="forecast-content"` lives on this component's own content
+// wrapper further down.
 const FORECAST_TOUR_STEPS: TourStep[] = [
   {
-    target: '[data-tour="forecast-insights"]',
+    target: '[data-tour="forecast-content"]',
     title: "Welcome to Forecast",
-    body: "Every upcoming transaction lists here, using sample data for now. Forecast Insights (above) repeats your Dashboard's lowest-balance warnings, scoped to this view.",
-  },
-  {
-    target: '[data-tour="forecast-filter"]',
-    title: "Filter the list",
-    body: "Narrow the transaction list down by date, name, type, or amount.",
-  },
-  {
-    target: '[data-tour="forecast-table"]',
-    title: "The forecast table",
-    body: "Every upcoming bill, income, debt, savings, budget, and misc item shows here in date order, with your running balance. Click a row to edit or settle it.",
-  },
-  {
-    target: '[data-tour="forecast-table"]',
-    title: "Keep it accurate: settle your transactions",
-    body: "When a bill is paid or income arrives, click it and choose Settle (not Edit) - that locks in the real amount, date, and balance.",
-  },
-  {
-    target: '[data-tour="forecast-reminders"]',
-    title: "Reminders",
-    body: "Keep quick notes here - Reminders stay pinned to the Forecast page for easy reference.",
-  },
-  {
-    // T110: chains into the Accounts intro tour, same nav-link-or-hamburger
-    // target pattern the Dashboard tour's own final step uses.
-    target: '[data-tour="nav-accounts"], [data-tour="nav-menu"]',
-    title: "Continue to Accounts",
-    body: "Next, let's set up your real accounts, bills, and income. Click Accounts in the sidebar (or the menu icon on mobile) to continue.",
+    body: "Forecast lists every upcoming transaction and your running balance over time - it fills in as you add real accounts, bills, and income. Click Accounts to continue.",
   },
 ];
 
@@ -371,7 +350,7 @@ export function ForecastClient({
   return (
     <div className="flex min-h-full flex-col">
       {previewMode && <PreviewModeBar />}
-      <div className="flex min-h-0 flex-1">
+      <div data-tour="forecast-content" className="flex min-h-0 flex-1">
         <SpotlightTour
           tourId="forecast-intro"
           steps={FORECAST_TOUR_STEPS}

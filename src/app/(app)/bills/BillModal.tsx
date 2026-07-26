@@ -36,14 +36,23 @@ export function BillModal({
   bill,
   balances,
   onClose,
+  // T115: fired only on a genuine successful save, distinct from onClose
+  // (which also fires on Cancel/X). NOTE: proved unreliable for the wizard
+  // - see BalanceModal.tsx's matching comment for why (a revalidatePath
+  // race can remount this component before its own effect observes
+  // success). The wizard uses `createActionOverride` instead.
+  onSaved,
+  createActionOverride,
 }: {
   bill: BillRow | null;
   balances: BalanceOption[];
   onClose: () => void;
+  onSaved?: () => void;
+  createActionOverride?: typeof createBill;
 }) {
   const isEdit = bill !== null;
   const [state, formAction, pending] = useActionState(
-    isEdit ? updateBill : createBill,
+    isEdit ? updateBill : (createActionOverride ?? createBill),
     initialState,
   );
   const [startDate, setStartDate] = useState(bill?.start_date ?? todayInManila());
@@ -66,8 +75,9 @@ export function BillModal({
   useEffect(() => {
     if (submitted.current && !pending && !state.error) {
       onClose();
+      onSaved?.();
     }
-  }, [pending, state, onClose]);
+  }, [pending, state, onClose, onSaved]);
 
   return (
     <Modal title={isEdit ? "Edit bill" : "Add bill"} onClose={onClose}>

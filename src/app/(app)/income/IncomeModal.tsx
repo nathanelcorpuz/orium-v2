@@ -36,14 +36,22 @@ export function IncomeModal({
   income,
   balances,
   onClose,
+  // T115: fired only on a genuine successful save, distinct from onClose
+  // (which also fires on Cancel/X). NOTE: proved unreliable for the wizard
+  // - see BalanceModal.tsx's matching comment for why. The wizard uses
+  // `createActionOverride` instead.
+  onSaved,
+  createActionOverride,
 }: {
   income: IncomeRow | null;
   balances: BalanceOption[];
   onClose: () => void;
+  onSaved?: () => void;
+  createActionOverride?: typeof createIncome;
 }) {
   const isEdit = income !== null;
   const [state, formAction, pending] = useActionState(
-    isEdit ? updateIncome : createIncome,
+    isEdit ? updateIncome : (createActionOverride ?? createIncome),
     initialState,
   );
   const [startDate, setStartDate] = useState(income?.start_date ?? todayInManila());
@@ -66,8 +74,9 @@ export function IncomeModal({
   useEffect(() => {
     if (submitted.current && !pending && !state.error) {
       onClose();
+      onSaved?.();
     }
-  }, [pending, state, onClose]);
+  }, [pending, state, onClose, onSaved]);
 
   return (
     <Modal title={isEdit ? "Edit income" : "Add income"} onClose={onClose}>

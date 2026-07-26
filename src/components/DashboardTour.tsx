@@ -2,40 +2,17 @@
 
 import { SpotlightTour, type TourStep } from "./SpotlightTour";
 
-// T104: step order follows the page's own reading order (stats -> Lowest
-// Balance Ahead -> Peaks and Drops -> Accounts), which the user request
-// 2026-07-26 reordered so the forward-looking numbers read as more
-// important than the per-category cards.
+// T110 (revised, user request 2026-07-26): a single step spotlighting the
+// whole Dashboard content area (everything except the sidebar) instead of
+// walking each card individually - a quick "here's the shape of it" intro
+// rather than a guided tour of every stat. `data-tour="dashboard-content"`
+// lives on page.tsx's own content wrapper, so the sidebar/menu falls
+// outside the spotlighted rect and stays dimmed automatically.
 const DASHBOARD_STEPS: TourStep[] = [
   {
-    target: '[data-tour="dashboard-stats"]',
+    target: '[data-tour="dashboard-content"]',
     title: "Welcome to your Dashboard",
-    body: "A quick snapshot: total balance, monthly bills, and monthly income - all sample data for now. These fill in with your numbers as you add accounts, bills, and income.",
-  },
-  {
-    target: '[data-tour="dashboard-lowest-balance"]',
-    title: "Lowest Balance Ahead",
-    body: "Orium warns you about the lowest point your balance is projected to reach, plus the first date it might dip into the red.",
-  },
-  {
-    target: '[data-tour="dashboard-peaks-drops"]',
-    title: "Peaks and Drops",
-    body: "See your highest and lowest projected balance for every month at a glance.",
-  },
-  {
-    target: '[data-tour="dashboard-accounts"]',
-    title: "Your accounts",
-    body: "This is where your money lives - bills, debt, and budgets get deducted from an account, and income gets added to one.",
-  },
-  {
-    // T110: chains into the Forecast intro tour - matches either the
-    // desktop sidebar's Forecast link or the mobile hamburger button
-    // (whichever is actually visible at the current breakpoint; on mobile
-    // the sidebar itself is off-canvas until opened, so there's no real
-    // Forecast link to spotlight until then).
-    target: '[data-tour="nav-forecast"], [data-tour="nav-menu"]',
-    title: "Continue to Forecast",
-    body: "Forecast lists every upcoming transaction and your running balance over time. Click Forecast in the sidebar (or the menu icon on mobile) to continue there.",
+    body: "This is your Dashboard - it shows your total balance, bills, and income at a glance. These fill in as you add accounts, bills, and income. Click Forecast to continue.",
   },
 ];
 

@@ -25,14 +25,22 @@ export function ExtraModal({
   extra,
   balances,
   onClose,
+  // T115: fired only on a genuine successful save, distinct from onClose
+  // (which also fires on Cancel/X). NOTE: proved unreliable for the wizard
+  // - see BalanceModal.tsx's matching comment for why. The wizard uses
+  // `createActionOverride` instead.
+  onSaved,
+  createActionOverride,
 }: {
   extra: ExtraRow | null;
   balances: BalanceOption[];
   onClose: () => void;
+  onSaved?: () => void;
+  createActionOverride?: typeof createExtra;
 }) {
   const isEdit = extra !== null;
   const [state, formAction, pending] = useActionState(
-    isEdit ? updateExtra : createExtra,
+    isEdit ? updateExtra : (createActionOverride ?? createExtra),
     initialState,
   );
   const [direction, setDirection] = useState<"in" | "out">(
@@ -43,8 +51,9 @@ export function ExtraModal({
   useEffect(() => {
     if (submitted.current && !pending && !state.error) {
       onClose();
+      onSaved?.();
     }
-  }, [pending, state, onClose]);
+  }, [pending, state, onClose, onSaved]);
 
   return (
     <Modal title={isEdit ? "Edit misc item" : "Add misc item"} onClose={onClose}>

@@ -3,7 +3,7 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { ensureSampleDataSeeded, ensureUserPreferences } from "@/lib/supabase/preferences";
+import { ensureUserPreferences } from "@/lib/supabase/preferences";
 
 export type AuthActionState = { error: string | null; message?: string };
 
@@ -19,7 +19,6 @@ export async function login(
   if (error) return { error: error.message };
 
   await ensureUserPreferences(supabase);
-  await ensureSampleDataSeeded(supabase);
   redirect("/");
 }
 

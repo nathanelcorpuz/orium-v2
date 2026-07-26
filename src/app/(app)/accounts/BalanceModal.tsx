@@ -23,14 +23,30 @@ export function BalanceModal({
   // passes the real list.
   connectedItems = [],
   onClose,
+  // T115: fired only on a genuine successful save, distinct from onClose
+  // (which also fires on Cancel/X). NOTE: proved unreliable for the
+  // required onboarding wizard's own purposes - createBalance's own
+  // revalidatePath call can cause Next.js to refresh/remount this
+  // component before its pending->resolved transition is ever observed,
+  // so a save can complete with this never firing. Left in place since it
+  // still fires in the common case; the wizard uses `createActionOverride`
+  // below instead, which marks success server-side, atomically with the
+  // create - immune to that race.
+  onSaved,
+  // T115: lets the required onboarding wizard swap in a wrapper action
+  // that does everything createBalance does plus marks the wizard step
+  // "just saved" in the same request - see `onSaved`'s note above for why.
+  createActionOverride,
 }: {
   balance: BalanceRow | null;
   connectedItems?: ConnectedItem[];
   onClose: () => void;
+  onSaved?: () => void;
+  createActionOverride?: typeof createBalance;
 }) {
   const isEdit = balance !== null;
   const [state, formAction, pending] = useActionState(
-    isEdit ? updateBalance : createBalance,
+    isEdit ? updateBalance : (createActionOverride ?? createBalance),
     initialState,
   );
   const submitted = useRef(false);
@@ -38,8 +54,9 @@ export function BalanceModal({
   useEffect(() => {
     if (submitted.current && !pending && !state.error) {
       onClose();
+      onSaved?.();
     }
-  }, [pending, state, onClose]);
+  }, [pending, state, onClose, onSaved]);
 
   return (
     <Modal title={isEdit ? "Edit account" : "Add account"} onClose={onClose}>

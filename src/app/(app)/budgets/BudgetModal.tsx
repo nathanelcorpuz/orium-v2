@@ -30,14 +30,22 @@ export function BudgetModal({
   budget,
   incomes,
   onClose,
+  // T115: fired only on a genuine successful save, distinct from onClose
+  // (which also fires on Cancel/X). NOTE: proved unreliable for the wizard
+  // - see BalanceModal.tsx's matching comment for why. The wizard uses
+  // `createActionOverride` instead.
+  onSaved,
+  createActionOverride,
 }: {
   budget: BudgetRow | null;
   incomes: { id: string; name: string }[];
   onClose: () => void;
+  onSaved?: () => void;
+  createActionOverride?: typeof createBudget;
 }) {
   const isEdit = budget !== null;
   const [state, formAction, pending] = useActionState(
-    isEdit ? updateBudget : createBudget,
+    isEdit ? updateBudget : (createActionOverride ?? createBudget),
     initialState,
   );
   const submitted = useRef(false);
@@ -65,8 +73,9 @@ export function BudgetModal({
   useEffect(() => {
     if (submitted.current && !pending && !state.error) {
       onClose();
+      onSaved?.();
     }
-  }, [pending, state, onClose]);
+  }, [pending, state, onClose, onSaved]);
 
   return (
     <Modal title={isEdit ? "Edit budget" : "Add budget"} onClose={onClose}>

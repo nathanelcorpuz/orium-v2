@@ -27,6 +27,10 @@ export function MonthlyGoalModal({
   createAction,
   updateAction,
   onClose,
+  // T115: fired only on a genuine successful save, distinct from onClose
+  // (which also fires on Cancel/X) - the required onboarding wizard uses
+  // this to advance a required step only when something was actually saved.
+  onSaved,
 }: {
   item: MonthlyGoalRow | null;
   noun: string;
@@ -35,6 +39,7 @@ export function MonthlyGoalModal({
   createAction: GoalAction;
   updateAction: GoalAction;
   onClose: () => void;
+  onSaved?: () => void;
 }) {
   const isEdit = item !== null;
   const [state, formAction, pending] = useActionState(
@@ -61,8 +66,9 @@ export function MonthlyGoalModal({
   useEffect(() => {
     if (submitted.current && !pending && !state.error) {
       onClose();
+      onSaved?.();
     }
-  }, [pending, state, onClose]);
+  }, [pending, state, onClose, onSaved]);
 
   return (
     <Modal title={isEdit ? `Edit ${noun}` : `Add ${noun}`} onClose={onClose}>

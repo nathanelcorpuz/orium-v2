@@ -200,7 +200,7 @@ export default async function Home({
   return (
     <div>
       {preview && <PreviewModeBar />}
-      <div className="p-4 md:p-8">
+      <div data-tour="dashboard-content" className="p-4 md:p-8">
         <DashboardTour forceActive={preview} />
         <div className="mx-auto max-w-5xl">
           <div className="mb-6">
