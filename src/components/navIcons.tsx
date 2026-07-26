@@ -234,6 +234,19 @@ export function BellIcon({ className }: IconProps) {
   );
 }
 
+// T114: the sidebar's "How to use" entry, which starts the guided tour.
+// Not in NAV_ICONS below - that map is keyed by route href, and this one
+// runs an action instead of going anywhere, so AppShell references it
+// directly.
+export function LightbulbIcon({ className }: IconProps) {
+  return (
+    <svg {...BASE} className={className}>
+      <path d="M7.7 12.4 A4.4 4.4 0 1 1 12.3 12.4 L12 15 H8 Z" />
+      <line x1="8.6" y1="17.2" x2="11.4" y2="17.2" />
+    </svg>
+  );
+}
+
 // Keyed by nav href (see AppShell.tsx's NAV_ITEMS) so the sidebar can look
 // up each item's icon without a big switch statement.
 export const NAV_ICONS: Record<string, (props: IconProps) => React.JSX.Element> = {

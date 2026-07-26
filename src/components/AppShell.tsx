@@ -4,7 +4,16 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { logout } from "@/app/auth/actions";
-import { ChevronIcon, CloseIcon, LogoMark, LogoutIcon, MenuIcon, NAV_ICONS } from "./navIcons";
+import { replayTour } from "@/lib/onboardingActions";
+import {
+  ChevronIcon,
+  CloseIcon,
+  LightbulbIcon,
+  LogoMark,
+  LogoutIcon,
+  MenuIcon,
+  NAV_ICONS,
+} from "./navIcons";
 import { MobileDrawer } from "./MobileDrawer";
 import { GuidedTour } from "./GuidedTour";
 
@@ -98,6 +107,24 @@ function SidebarContent({
             </Link>
           );
         })}
+        {/* T114: "How to use" sits directly below Settings, but unlike every
+            item above it, it doesn't go to a route - it restarts the guided
+            tour (the same `replayTour` action Settings' "Review the tour"
+            button uses). So it's a form-button styled to match the links
+            rather than a Link, and it never gets the active-route highlight. */}
+        <form action={replayTour}>
+          <button
+            type="submit"
+            onClick={onNavigate}
+            title={collapsed ? "How to use" : undefined}
+            className={`flex w-full items-center gap-2 rounded py-1.5 text-sm text-notion-text hover:bg-notion-hover ${
+              collapsed ? "justify-center px-2" : "px-3"
+            }`}
+          >
+            <LightbulbIcon className="h-4 w-4 shrink-0" />
+            {!collapsed && <span className="truncate">How to use</span>}
+          </button>
+        </form>
       </nav>
       <div className="border-t border-notion-hairline p-2">
         <form action={logout}>
