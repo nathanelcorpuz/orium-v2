@@ -4,7 +4,12 @@ Format per bug: steps to reproduce → what happened → what was expected. Clau
 
 ## Open
 
-(none currently)
+### Bug #5 - Guided setup opens claiming "Account added" on a brand-new account that has nothing
+- **Reproduce**: create a genuinely new account (`/api/dev-new-account`, T121) and pick "Start guided setup" from the welcome modal. Reported by the user 2026-07-26 with a screenshot.
+- **What happened**: the wizard opens on "Step 1 of 7: Add an account" but immediately shows the post-add interstitial - "Account added. Add another, or continue to the next step?" - with no add form and an empty item list. Nothing had been added.
+- **Expected**: a brand-new account should open on the actual "add your first account" form.
+- **Root cause**: `restartRequiredOnboarding` (`src/lib/onboardingActions.ts`) hardcodes `onboarding_wizard_state: "prompt:accounts"`, and `OnboardingWizard.tsx` renders that state as `{step.noun} added. Add another, or continue...`. That hardcoded state is T116's fix for the opposite situation: an *existing* user with data clicking "Start guided setup" used to have the wizard find nothing unresolved and silently self-complete, so it was forced to show the accounts review screen at least once. T119 then made the same action the primary entry point for brand-new accounts, where the forced state is simply false. One forced value is being asked to serve two opposite starting conditions.
+- **Fix**: deliberately **not** patched in isolation - folded into T122's onboarding design pass (Phase 18), since "what does the wizard do on an empty account vs. one that already has data" is exactly the kind of question that pass exists to answer, and a spot fix here would likely be thrown away by it.
 
 ## Fixed
 
