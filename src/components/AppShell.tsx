@@ -6,24 +6,26 @@ import { usePathname } from "next/navigation";
 import { logout } from "@/app/auth/actions";
 import { ChevronIcon, CloseIcon, LogoMark, LogoutIcon, MenuIcon, NAV_ICONS } from "./navIcons";
 import { MobileDrawer } from "./MobileDrawer";
+import { GuidedTour } from "./GuidedTour";
 
-// `tourKey` (T110) marks the nav items the guided app walkthrough links
-// between pages - it's a distinct, stable identifier from `label` (which is
-// user-facing display text, T106 already renamed "extra" to "Misc" there)
-// so the walkthrough's step data doesn't depend on copy staying in sync.
-// History has no `tourKey`: the walkthrough chain doesn't cover it.
+// `tourKey` marks a nav item the guided tour (T117) points at individually -
+// currently just Accounts, its "add your accounts" step. `financeGroup`
+// marks the six nav items its "add your finance info" step highlights all
+// at once (rendered as `data-tour-group="finance"`, a separate attribute
+// since that step's target selector needs to match all six simultaneously,
+// unlike `tourKey`'s one-item-per-value pattern).
 const NAV_ITEMS = [
   { href: "/", label: "Dashboard" },
-  { href: "/forecast", label: "Forecast", tourKey: "forecast" },
+  { href: "/forecast", label: "Forecast" },
   { href: "/accounts", label: "Accounts", tourKey: "accounts" },
-  { href: "/bills", label: "Bills", tourKey: "bills" },
-  { href: "/income", label: "Income", tourKey: "income" },
-  { href: "/debt", label: "Debt", tourKey: "debt" },
-  { href: "/savings", label: "Savings", tourKey: "savings" },
-  { href: "/budgets", label: "Budgets", tourKey: "budgets" },
-  { href: "/extra", label: "Misc", tourKey: "misc" },
+  { href: "/bills", label: "Bills", financeGroup: true },
+  { href: "/income", label: "Income", financeGroup: true },
+  { href: "/debt", label: "Debt", financeGroup: true },
+  { href: "/savings", label: "Savings", financeGroup: true },
+  { href: "/budgets", label: "Budgets", financeGroup: true },
+  { href: "/extra", label: "Misc", financeGroup: true },
   { href: "/history", label: "History" },
-  { href: "/settings", label: "Settings", tourKey: "settings" },
+  { href: "/settings", label: "Settings" },
 ];
 
 const COLLAPSED_STORAGE_KEY = "orium.sidebarCollapsed";
@@ -84,6 +86,7 @@ function SidebarContent({
               onClick={onNavigate}
               title={collapsed ? item.label : undefined}
               data-tour={item.tourKey ? `nav-${item.tourKey}` : undefined}
+              data-tour-group={item.financeGroup ? "finance" : undefined}
               className={`flex items-center gap-2 rounded py-1.5 text-sm ${collapsed ? "justify-center px-2" : "px-3"} ${
                 active
                   ? "bg-notion-hover font-medium text-notion-accent"
@@ -131,9 +134,11 @@ function SidebarContent({
 // button; tapping it opens the same nav as a left-edge MobileDrawer.
 export function AppShell({
   greetingName,
+  sampleDataSeededAt,
   children,
 }: {
   greetingName: string;
+  sampleDataSeededAt: string | null;
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
@@ -170,6 +175,7 @@ export function AppShell({
 
   return (
     <div className="flex min-h-screen flex-col bg-slate-50 lg:flex-row">
+      <GuidedTour sampleDataSeededAt={sampleDataSeededAt} />
       <div className="flex items-center gap-2 border-b border-notion-hairline bg-white p-3 lg:hidden">
         <button
           type="button"

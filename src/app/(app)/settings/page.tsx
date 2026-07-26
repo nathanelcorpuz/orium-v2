@@ -6,7 +6,6 @@ import { PreferencesForm } from "./PreferencesForm";
 import { DeleteAccountButton } from "./DeleteAccountModal";
 import { SampleDataActions } from "./SampleDataActions";
 import { ReviewTourButton } from "@/components/ReviewTourButton";
-import { SettingsTour } from "@/components/SettingsTour";
 import { restartRequiredOnboarding, resumeOnboardingSetup } from "@/lib/onboardingActions";
 import { DEFAULT_TIER_LABELS } from "@/lib/balanceColor";
 
@@ -35,11 +34,8 @@ export default async function SettingsPage() {
 
   return (
     <div className="p-4 md:p-8">
-      <SettingsTour />
       <div className="mx-auto max-w-xl">
-        <h1 data-tour="settings-header" className="mb-6 text-xl font-semibold text-notion-text">
-          Settings
-        </h1>
+        <h1 className="mb-6 text-xl font-semibold text-notion-text">Settings</h1>
 
         <div className="space-y-6">
           <ProfileForm email={user?.email ?? ""} name={name} />

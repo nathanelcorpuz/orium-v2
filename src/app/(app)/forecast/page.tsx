@@ -29,7 +29,7 @@ export default async function ForecastPage({
     reminders = remindersRes.data ?? [];
   }
 
-  const { forecast, balances, currency, balanceRanges, tierLabels, sampleDataSeededAt, today } = forecastData;
+  const { forecast, balances, currency, balanceRanges, tierLabels, today } = forecastData;
   const totalBalance = balances.reduce((sum, balance) => sum + balance.amount, 0);
   const lowestBalance = findLowestBalancePoint(forecast, totalBalance, today);
   const firstDanger = findFirstDangerPoint(forecast, totalBalance, balanceRanges[0], today);
@@ -44,7 +44,6 @@ export default async function ForecastPage({
       reminders={reminders}
       lowestBalance={lowestBalance}
       firstDanger={firstDanger}
-      sampleDataSeededAt={sampleDataSeededAt}
       previewMode={preview}
     />
   );

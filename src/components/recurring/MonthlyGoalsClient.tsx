@@ -10,8 +10,6 @@ import { todayInManila } from "@/lib/date";
 import { AmountRangeFilter, matchesAmountFilter, type ComparisonOp } from "@/components/AmountRangeFilter";
 import { MultiSelectChips } from "@/components/MultiSelectChips";
 import { ProgressBar } from "@/components/ProgressBar";
-import { DebtTour } from "@/components/DebtTour";
-import { SavingsTour } from "@/components/SavingsTour";
 import type { ForecastRow, RecurrenceUnit } from "@/lib/engine/types";
 import type { RecurringItemActionState } from "@/lib/recurringItem";
 import { MonthlyGoalModal, type BalanceOption } from "./MonthlyGoalModal";
@@ -139,7 +137,6 @@ export function MonthlyGoalsClient({
 
   return (
     <div className="p-4 md:p-8">
-      {pageTitle === "Debt" ? <DebtTour /> : <SavingsTour />}
       <div className="mx-auto max-w-2xl">
         <div data-tour={`${pageTitle.toLowerCase()}-header`} className="mb-6 flex items-center justify-between">
           <div>

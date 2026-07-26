@@ -10,30 +10,11 @@ import { MultiSelectChips } from "@/components/MultiSelectChips";
 import { Modal } from "@/components/Modal";
 import { DatePicker } from "@/components/DatePicker";
 import { ChevronIcon } from "@/components/navIcons";
-import { SpotlightTour, type TourStep } from "@/components/SpotlightTour";
-import { SampleDataDecisionModal } from "@/components/SampleDataDecisionModal";
 import { PreviewModeBar } from "@/components/PreviewModeBar";
 import type { ForecastRow } from "@/lib/engine/types";
 import type { LowestBalancePoint } from "@/lib/engine/lowestBalance";
 import { EditSettleModal } from "./EditSettleModal";
 import { RemindersPanel, type ReminderRow } from "./RemindersPanel";
-
-// T110 (revised, user request 2026-07-26): a single step spotlighting the
-// whole Forecast content area (table + insights + reminders, everything
-// except the sidebar) instead of walking each part individually, matching
-// the same quick-intro treatment DashboardTour.tsx now uses.
-// `data-tour="forecast-content"` lives on this component's own content
-// wrapper further down.
-const FORECAST_TOUR_STEPS: TourStep[] = [
-  {
-    target: '[data-tour="forecast-content"]',
-    title: "Welcome to Forecast",
-    body: "Forecast lists every upcoming transaction and your running balance over time - it fills in as you add real accounts, bills, and income. Click Accounts to continue.",
-    // T110 bugfix (user report 2026-07-26): the whole-page target isn't a
-    // clickable nav link, so "Done" needs to navigate itself.
-    href: "/accounts",
-  },
-];
 
 // T49: the forecast list can grow into the hundreds of rows across a 3-year
 // horizon with weekly/daily items - loadForecast() already fetches the full
@@ -153,7 +134,6 @@ export function ForecastClient({
   reminders,
   lowestBalance,
   firstDanger,
-  sampleDataSeededAt,
   previewMode = false,
 }: {
   forecast: ForecastRow[];
@@ -164,7 +144,6 @@ export function ForecastClient({
   reminders: ReminderRow[];
   lowestBalance: LowestBalancePoint;
   firstDanger: LowestBalancePoint | null;
-  sampleDataSeededAt: string | null;
   // T103: opt-in sample-data preview - real financial data isn't touched by
   // any of this page's mutating controls while it's on, since `forecast`/
   // `balances`/etc. are themselves already a static fixture in that case
@@ -179,11 +158,6 @@ export function ForecastClient({
   const [editingBalance, setEditingBalance] = useState<BalanceRow | null>(null);
   const [selectedRow, setSelectedRow] = useState<ForecastRow | null>(null);
   const [insightsCollapsed, setInsightsCollapsed] = useState(false);
-  // T102: once a new signup finishes this page's intro tour for the first
-  // time, offer the choice to keep exploring with the sample data or reset
-  // and start entering real numbers - only relevant when there's sample
-  // data to begin with.
-  const [showSampleDataDecision, setShowSampleDataDecision] = useState(false);
 
   useEffect(() => {
     // Reading localStorage during the lazy useState initializer instead
@@ -354,14 +328,6 @@ export function ForecastClient({
     <div className="flex min-h-full flex-col">
       {previewMode && <PreviewModeBar />}
       <div data-tour="forecast-content" className="flex min-h-0 flex-1">
-        <SpotlightTour
-          tourId="forecast-intro"
-          steps={FORECAST_TOUR_STEPS}
-          forceActive={previewMode}
-          onFinish={(wasFirstCompletion) => {
-            if (wasFirstCompletion && sampleDataSeededAt) setShowSampleDataDecision(true);
-          }}
-        />
         <div className="min-w-0 flex-1 p-4 md:p-8">
         <div className="mx-auto max-w-6xl">
           <div className="mb-6">
@@ -673,10 +639,6 @@ export function ForecastClient({
           balances={balances}
           onClose={() => setSelectedRow(null)}
         />
-      )}
-
-      {showSampleDataDecision && (
-        <SampleDataDecisionModal onClose={() => setShowSampleDataDecision(false)} />
       )}
     </div>
   );

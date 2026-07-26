@@ -19,7 +19,6 @@ import {
 import { daysBetween } from "@/lib/engine/date-utils";
 import { ProgressBar } from "@/components/ProgressBar";
 import { SampleDataBanner } from "@/components/SampleDataBanner";
-import { DashboardTour } from "@/components/DashboardTour";
 import { PreviewModeBar } from "@/components/PreviewModeBar";
 import { GettingStartedChecklist } from "@/components/GettingStartedChecklist";
 import { getSampleFixtureData } from "@/lib/sampleFixture";
@@ -200,8 +199,7 @@ export default async function Home({
   return (
     <div>
       {preview && <PreviewModeBar />}
-      <div data-tour="dashboard-content" className="p-4 md:p-8">
-        <DashboardTour forceActive={preview} />
+      <div className="p-4 md:p-8">
         <div className="mx-auto max-w-5xl">
           <div className="mb-6">
             <h1 className="text-xl font-semibold text-notion-text">Dashboard</h1>

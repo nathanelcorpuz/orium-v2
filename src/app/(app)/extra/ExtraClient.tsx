@@ -5,7 +5,6 @@ import { formatCentavos } from "@/lib/money";
 import { todayInManila } from "@/lib/date";
 import { DatePicker } from "@/components/DatePicker";
 import { AmountRangeFilter, matchesAmountFilter, type ComparisonOp } from "@/components/AmountRangeFilter";
-import { MiscTour } from "@/components/MiscTour";
 import { deleteExtra } from "./actions";
 import { ExtraModal, type BalanceOption, type ExtraRow } from "./ExtraModal";
 
@@ -58,7 +57,6 @@ export function ExtraClient({ extras, balances }: { extras: ExtraRow[]; balances
 
   return (
     <div className="p-4 md:p-8">
-      <MiscTour />
       <div className="mx-auto max-w-2xl">
         <div data-tour="misc-header" className="mb-6 flex items-center justify-between">
           <div>

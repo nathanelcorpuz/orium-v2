@@ -15,7 +15,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const { data: prefs } = await supabase
     .from("preferences")
     .select(
-      "onboarding_required_completed, onboarding_skipped_steps, onboarding_dismissed_at, onboarding_wizard_state",
+      "onboarding_required_completed, onboarding_skipped_steps, onboarding_dismissed_at, onboarding_wizard_state, sample_data_seeded_at",
     )
     .single();
 
@@ -85,5 +85,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     );
   }
 
-  return <AppShell greetingName={greetingName}>{children}</AppShell>;
+  return (
+    <AppShell greetingName={greetingName} sampleDataSeededAt={prefs?.sample_data_seeded_at ?? null}>
+      {children}
+    </AppShell>
+  );
 }
