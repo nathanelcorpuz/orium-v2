@@ -145,6 +145,16 @@ export default async function Home({
   const hasDebtOrSavings = recurringItems.some((item) => item.type === "debt" || item.type === "savings");
   const hasBudgets = budgets.length > 0;
 
+  // T125: a brand-new account has nothing to forecast, but every
+  // forecast-derived stat still computed happily against zero and produced
+  // confident-looking output - most damagingly the Lowest Balance Ahead
+  // card, which read "Goes negative by ₱0.00" because ₱0 falls in the danger
+  // tier (`balance_ranges[0]` defaults to 0). The app's first impression was
+  // an alarm about money nobody had entered. These cards now show a real
+  // empty state instead of a number derived from nothing.
+  const hasAnyFinancialData =
+    balances.length > 0 || recurringItems.length > 0 || budgets.length > 0 || forecast.length > 0;
+
   const totalBalance = balances.reduce((sum, balance) => sum + balance.amount, 0);
 
   const totalMonthlyBills = recurringItems
@@ -241,6 +251,13 @@ export default async function Home({
             glance than the per-category cards below. */}
         <div className="mb-6 rounded-lg border border-notion-hairline bg-white p-4" data-tour="dashboard-lowest-balance">
           <h2 className="mb-2 text-sm font-semibold text-notion-text">Lowest Balance Ahead</h2>
+          {!hasAnyFinancialData ? (
+            <p className="text-sm text-slate-500">
+              Nothing to forecast yet. Add an account and a bill or two, and this will show the
+              lowest your balance gets, and when.
+            </p>
+          ) : (
+          <>
           {/* T76: color + wording now reflect the actual balance_ranges risk
               tier (danger/low/medium/high/higher/highest), not a hardcoded
               <=0 check - matches the Forecast table (T62) and Peaks and
@@ -279,10 +296,21 @@ export default async function Home({
               <p className="mt-1 text-sm text-slate-500">On {formatFullDate(firstDanger.date)}</p>
             </div>
           )}
+          </>
+          )}
         </div>
 
         <div className="mb-6 rounded-lg border border-notion-hairline bg-white" data-tour="dashboard-peaks-drops">
           <h2 className="p-4 pb-2 text-sm font-semibold text-notion-text">Peaks and Drops</h2>
+          {!hasAnyFinancialData ? (
+            // The grid itself is hidden, not just captioned: every month
+            // would render a ₱0.00 peak and drop, and ₱0 is the danger tier,
+            // so an empty account produced a wall of black "danger" pills.
+            <p className="px-4 pb-4 text-sm text-slate-500">
+              Nothing to chart yet. Once you have money coming in and going out, this shows your
+              highest and lowest balance for every month ahead.
+            </p>
+          ) : (
           <div className="max-h-64 space-y-4 overflow-y-auto p-4 pt-2 md:max-h-[420px]">
             {peaksAndDropsByYear.map(({ year, months }) => (
               <div key={year}>
@@ -314,6 +342,7 @@ export default async function Home({
               </div>
             ))}
           </div>
+          )}
         </div>
 
         <div className="mb-6 rounded-lg border border-notion-hairline bg-white p-4" data-tour="dashboard-accounts">

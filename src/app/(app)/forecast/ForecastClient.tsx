@@ -368,7 +368,17 @@ export function ForecastClient({
                 className={`h-3.5 w-3.5 text-slate-400 transition-transform ${insightsCollapsed ? "" : "rotate-90"}`}
               />
             </button>
-            {!insightsCollapsed && (
+            {!insightsCollapsed && forecast.length === 0 && balances.length === 0 && (
+              // T125: with nothing entered, every stat here is derived from
+              // zero, and a ₱0 balance lands in the danger tier - so this
+              // card used to greet a brand-new user with a "goes negative"
+              // warning about money they hadn't entered.
+              <p className="text-sm text-slate-500">
+                Nothing to forecast yet. Add an account and a bill or two, and this will show the
+                lowest your balance gets, and when.
+              </p>
+            )}
+            {!insightsCollapsed && (forecast.length > 0 || balances.length > 0) && (
               <div className="space-y-2">
                 {/* T76: color + wording now reflect the actual balance_ranges
                     risk tier, not a hardcoded <=0 check - matches the
