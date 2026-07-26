@@ -154,10 +154,10 @@ Notion palette (`#37352F` text, `#E9E9E7` hairlines, `#2383E2` accent, soft pill
 Added 2026-07-26 at the user's request, so the steps live here instead of in their head. Both routes are dev-only and send no email, so this can be repeated as often as needed (see T120/T121, and the "email rate limit exceeded" problem that made this necessary).
 
 1. **Become a brand-new user:** open `http://localhost:3000/api/dev-new-account`. This creates a real, already-confirmed account and signs into it. The **Welcome to Orium** box should appear, with a "0 of 6" Getting started checklist and zero balances behind it.
-2. **Pick a path to test.** Re-open the same link before each one so every run starts clean:
-   - *Take the short tour* - the 6-step walkthrough (Dashboard, Accounts, Bills, Forecast, Settings, Dashboard), ending in the post-tour prompt with its three choices.
-   - *Start guided setup* - T115's step-by-step wizard.
-   - *Maybe later* - skips onboarding; check it stays skipped while navigating.
+2. **Pick a path to test.** The modal offers exactly three. Re-open the same link before each one so every run starts clean:
+   - *Take the short tour* - the 6-step walkthrough: "Welcome to Orium" (centred, no highlight), then Accounts, Bills, Forecast, Settings, and back to the Dashboard's Peaks and Drops. It simply ends on the last step. **There is no post-tour prompt** - T123 deleted it, along with the tour's "Prefer step-by-step setup?" link, because between them the app was asking the same question up to four times.
+   - *Start guided setup* - goes to `/setup`, a normal page (not a gate), stepping through accounts, bills and income, then debt, savings, budgets and misc as optional. Every step has "Exit setup for now", and the nav stays usable throughout.
+   - *Maybe later* - skips onboarding; check it stays skipped while navigating, and that the modal does not return.
 3. **To test that progress survives a logout:** start the tour, click Next once or twice, log out, then log back in with the account's own address (shown in the URL bar after step 1, and in the sidebar) plus `DEV_LOGIN_PASSWORD`. The tour must resume on the same step, not restart (T119).
 4. **Clean up afterwards:** open `http://localhost:3000/api/dev-new-account?cleanup=1`. It deletes only accounts this route created (matched on the `orium-dev+` prefix), so the real test account can never be caught by it.
 5. **Return to the normal seeded account:** open `http://localhost:3000/api/dev-login`.
