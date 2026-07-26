@@ -11,9 +11,13 @@ import { createSavings } from "@/app/(app)/savings/actions";
 import { createBudget } from "@/app/(app)/budgets/actions";
 import { createExtra } from "@/app/(app)/misc/actions";
 
-// T115: the required onboarding wizard's own persisted state - separate
-// from the skippable tour (T110). `onboarding_required_completed` and
-// `onboarding_skipped_steps` live on `preferences` (migration 0019).
+// T115: guided setup's own persisted state - separate from the skippable
+// tour (T110). `onboarding_skipped_steps` lives on `preferences` (migration
+// 0019), alongside `onboarding_wizard_state` (migration 0021).
+//
+// T126: the companion flag `onboarding_required_completed` was dropped in
+// migration 0026. It only ever answered "may this user pass the gate?", and
+// T123 removed the gate - guided setup is now the ordinary /setup page.
 
 export async function skipOnboardingStep(stepKey: string) {
   const supabase = await createClient();

@@ -48,8 +48,8 @@ export default async function SettingsPage() {
           <div data-tour="settings-help" className="rounded-lg border border-notion-hairline bg-white p-4">
             <h2 className="mb-1 text-sm font-semibold text-notion-text">Help</h2>
             <p className="mb-3 text-sm text-slate-600">
-              Replay the tour, step back through guided setup, or bring back the &ldquo;what next?&rdquo;
-              options you saw after the tour.
+              Replay the tour, walk through guided setup again, or bring back the form tips
+              you&rsquo;ve dismissed.
             </p>
             <div className="flex flex-wrap items-center gap-3">
               <ReviewTourButton />

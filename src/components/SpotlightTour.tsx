@@ -147,7 +147,6 @@ export function SpotlightTour({
     if (!step.target) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setSpotlight({ holes: [], anchor: null });
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setNavigating(false);
       return;
     }

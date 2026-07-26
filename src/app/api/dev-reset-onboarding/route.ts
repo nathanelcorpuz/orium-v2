@@ -8,9 +8,9 @@ import { wipeFinancialData } from "@/lib/wipeFinancialData";
 // of signups per hour - which blocked testing the flow entirely.
 //
 // This resets the *existing* logged-in account back to a brand-new
-// onboarding state instead, so the whole flow (welcome choice -> tour ->
-// post-tour prompt, or the guided-setup wizard) can be replayed as many
-// times as needed without a single new signup or confirmation email.
+// onboarding state instead, so the whole flow (welcome choice -> tour, or
+// welcome choice -> guided setup) can be replayed as many times as needed
+// without a single new signup or confirmation email.
 //
 // Dev-only, exactly like /api/dev-login: refuses outright unless
 // NODE_ENV === "development", so it can never be reached on Vercel.
@@ -37,13 +37,10 @@ export async function GET(request: Request) {
       onboarding_choice: null,
       onboarding_tour_step: null,
       onboarding_tour_completed_at: null,
-      onboarding_post_tour_choice: null,
-      // T115's wizard state: left un-blocked (`required_completed: true`),
-      // since the welcome modal - not the wizard gate - is what a new user
-      // now meets first; picking "Start guided setup" there flips this back
-      // to false through the normal action, exactly as a real user would.
-      onboarding_required_completed: true,
-      onboarding_dismissed_at: null,
+      // T126: `onboarding_required_completed`, `onboarding_dismissed_at` and
+      // `onboarding_post_tour_choice` used to be reset here too. All three
+      // were dropped once the hard gate and the post-tour prompt they drove
+      // were removed (T123), so there is nothing left to reset.
       onboarding_wizard_state: null,
       onboarding_skipped_steps: [],
     })
