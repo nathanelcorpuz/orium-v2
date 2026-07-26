@@ -232,7 +232,7 @@ export function IncomeClient({
                         <input type="hidden" name="id" value={income.id} />
                         <button
                           type="submit"
-                          className="rounded border border-red-300 px-3 py-1 text-sm text-red-600"
+                          className="rounded border border-red-300 px-3 py-1 text-sm text-red-600 hover:bg-red-50"
                         >
                           Yes
                         </button>
@@ -257,7 +257,7 @@ export function IncomeClient({
                       <button
                         type="button"
                         onClick={() => setConfirmingDeleteId(income.id)}
-                        className="rounded border border-red-300 px-3 py-1 text-sm text-red-600"
+                        className="rounded border border-red-300 px-3 py-1 text-sm text-red-600 hover:bg-red-50"
                       >
                         Delete
                       </button>

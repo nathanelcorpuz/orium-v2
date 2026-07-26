@@ -196,7 +196,11 @@ export function RecurrencePicker({
                   onClick={() =>
                     setValue((v) => ({ ...v, daysOfMonth: v.daysOfMonth ?? [1], ordinal: null, ordinalWeekday: null }))
                   }
-                  className={monthMode === "days" ? "font-semibold text-notion-text underline" : "text-slate-500"}
+                  className={
+                    monthMode === "days"
+                      ? "font-semibold text-notion-text underline"
+                      : "text-slate-500 hover:text-notion-text"
+                  }
                 >
                   On day(s)
                 </button>
@@ -205,7 +209,11 @@ export function RecurrencePicker({
                   onClick={() =>
                     setValue((v) => ({ ...v, daysOfMonth: null, ordinal: v.ordinal ?? 1, ordinalWeekday: v.ordinalWeekday ?? 0 }))
                   }
-                  className={monthMode === "ordinal" ? "font-semibold text-notion-text underline" : "text-slate-500"}
+                  className={
+                    monthMode === "ordinal"
+                      ? "font-semibold text-notion-text underline"
+                      : "text-slate-500 hover:text-notion-text"
+                  }
                 >
                   On a weekday pattern
                 </button>

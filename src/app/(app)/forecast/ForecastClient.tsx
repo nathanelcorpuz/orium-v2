@@ -360,7 +360,7 @@ export function ForecastClient({
               type="button"
               onClick={toggleInsightsCollapsed}
               aria-expanded={!insightsCollapsed}
-              className={`flex w-full items-center justify-between text-sm font-semibold text-notion-text ${insightsCollapsed ? "" : "mb-2"}`}
+              className={`flex w-full items-center justify-between text-sm font-semibold text-notion-text hover:opacity-80 ${insightsCollapsed ? "" : "mb-2"}`}
             >
               Forecast Insights
               <ChevronIcon

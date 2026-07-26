@@ -165,7 +165,7 @@ export function ExtraClient({ extras, balances }: { extras: ExtraRow[]; balances
                         <input type="hidden" name="id" value={extra.id} />
                         <button
                           type="submit"
-                          className="rounded border border-red-300 px-3 py-1 text-sm text-red-600"
+                          className="rounded border border-red-300 px-3 py-1 text-sm text-red-600 hover:bg-red-50"
                         >
                           Yes
                         </button>
@@ -190,7 +190,7 @@ export function ExtraClient({ extras, balances }: { extras: ExtraRow[]; balances
                       <button
                         type="button"
                         onClick={() => setConfirmingDeleteId(extra.id)}
-                        className="rounded border border-red-300 px-3 py-1 text-sm text-red-600"
+                        className="rounded border border-red-300 px-3 py-1 text-sm text-red-600 hover:bg-red-50"
                       >
                         Delete
                       </button>

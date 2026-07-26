@@ -248,7 +248,7 @@ export function EditSettleModal({
           </form>
           <form action={deleteBudgetEntry} onSubmit={onClose} className="mt-3 border-t border-notion-hairline pt-3">
             <input type="hidden" name="id" value={row.sourceId} />
-            <button type="submit" className="text-sm text-red-600 underline">
+            <button type="submit" className="text-sm text-red-600 underline hover:text-red-700">
               Delete this entry
             </button>
           </form>

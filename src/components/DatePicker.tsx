@@ -158,7 +158,7 @@ export function DatePicker({
         className={`${
           className ||
           "w-full rounded border border-notion-hairline p-2 text-left focus:border-notion-accent focus:outline-none"
-        } ${current ? "text-notion-text" : "text-slate-400"}`}
+        } ${current ? "text-notion-text" : "text-slate-400"} hover:bg-notion-hover`}
       >
         {current ? formatFullDate(current) : placeholder}
         {required && !current && " *"}

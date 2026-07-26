@@ -157,7 +157,7 @@ export function BalanceModal({
                   <form action={disconnectItem}>
                     <input type="hidden" name="sourceType" value={item.sourceType} />
                     <input type="hidden" name="id" value={item.id} />
-                    <button type="submit" className="text-xs text-red-600 underline">
+                    <button type="submit" className="text-xs text-red-600 underline hover:text-red-700">
                       Disconnect
                     </button>
                   </form>
