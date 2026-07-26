@@ -1,11 +1,17 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 
 export type TourStep = {
   target: string; // CSS selector, e.g. `[data-tour="dashboard-stats"]`
   title: string;
   body: string;
+  // T110 bugfix (user report 2026-07-26): a single-step tour whose target
+  // is the whole page (Dashboard/Forecast) has no real nav link to spotlight
+  // and click - clicking "Done" on that step needs to actually take the
+  // user there itself. Only used on the last step; ignored otherwise.
+  href?: string;
 };
 
 type Rect = { top: number; left: number; width: number; height: number };
@@ -69,10 +75,12 @@ export function SpotlightTour({
   // account's actual tour-seen state exactly as it was.
   forceActive?: boolean;
 }) {
+  const router = useRouter();
   const storageKey = `orium.tour.${tourId}.done`;
   const [active, setActive] = useState(false);
   const [stepIndex, setStepIndex] = useState(0);
   const [rect, setRect] = useState<Rect | null>(null);
+  const tooltipRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (forceActive || localStorage.getItem(storageKey) !== "1") {
@@ -142,7 +150,18 @@ export function SpotlightTour({
     // just asked for. Hiding the overlay (not finishing the tour) on the
     // target's own click, capture-phase so it fires before the target's own
     // handler navigates away, fixes that without touching "done" state.
-    function hideOnTargetClick() {
+    //
+    // Bugfix (user report 2026-07-26): a whole-page target (e.g. Dashboard's
+    // single-step tour, `data-tour="dashboard-content"`) has this tour's own
+    // tooltip/buttons rendered *inside* it in the DOM (fixed positioning
+    // only changes layout, not tree position) - so clicking "Done" itself
+    // was triggering this same capture-phase handler first, hiding the
+    // tooltip (unmounting the very button being clicked) before its own
+    // onClick ever ran. Ignoring clicks that originate inside the tooltip
+    // fixes that without weakening the mobile-drawer case above, since the
+    // real nav link/hamburger there is never inside the tooltip.
+    function hideOnTargetClick(e: MouseEvent) {
+      if (tooltipRef.current?.contains(e.target as Node)) return;
       setRect(null);
     }
     current.addEventListener("click", hideOnTargetClick, true);
@@ -162,14 +181,6 @@ export function SpotlightTour({
     document.addEventListener("keydown", handleKey);
     return () => document.removeEventListener("keydown", handleKey);
   }, [active, finish]);
-
-  useEffect(() => {
-    if (!active) return;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = "";
-    };
-  }, [active]);
 
   if (!active || !rect) return null;
 
@@ -220,6 +231,7 @@ export function SpotlightTour({
         }}
       />
       <div
+        ref={tooltipRef}
         className="pointer-events-auto absolute rounded-lg border border-notion-hairline bg-white p-4 shadow-xl"
         style={{
           width: tooltipWidth,
@@ -248,7 +260,14 @@ export function SpotlightTour({
             )}
             <button
               type="button"
-              onClick={() => (isLast ? finish() : setStepIndex((i) => i + 1))}
+              onClick={() => {
+                if (!isLast) {
+                  setStepIndex((i) => i + 1);
+                  return;
+                }
+                finish();
+                if (step.href) router.push(step.href);
+              }}
               className="rounded bg-notion-text px-3 py-1.5 text-xs text-white hover:opacity-90"
             >
               {isLast ? "Done" : "Next"}

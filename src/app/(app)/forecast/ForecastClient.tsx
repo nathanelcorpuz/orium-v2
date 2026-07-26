@@ -29,6 +29,9 @@ const FORECAST_TOUR_STEPS: TourStep[] = [
     target: '[data-tour="forecast-content"]',
     title: "Welcome to Forecast",
     body: "Forecast lists every upcoming transaction and your running balance over time - it fills in as you add real accounts, bills, and income. Click Accounts to continue.",
+    // T110 bugfix (user report 2026-07-26): the whole-page target isn't a
+    // clickable nav link, so "Done" needs to navigate itself.
+    href: "/accounts",
   },
 ];
 

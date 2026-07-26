@@ -56,6 +56,16 @@ export async function completeRequiredOnboarding() {
 // on purpose. Clears the completion flag, any previously-skipped optional
 // steps, and any paused-dismissal, so it behaves exactly like a fresh
 // signup's wizard.
+//
+// Bugfix (user report 2026-07-26): with `onboarding_wizard_state` left
+// null, a user who already has real accounts/bills/income (true for
+// virtually anyone who'd click this - it's only reachable once already
+// using the app) saw the wizard compute "nothing left to do" and
+// self-complete instantly, before ever rendering - clicking the button
+// appeared to do nothing but bounce back to the Dashboard. Forcing
+// `prompt:accounts` guarantees the wizard actually shows something (the
+// Accounts step's review screen, previewing whatever already exists with
+// Edit/"Add another") on the very first render, regardless of existing data.
 export async function restartRequiredOnboarding() {
   const supabase = await createClient();
   const {
@@ -69,7 +79,7 @@ export async function restartRequiredOnboarding() {
       onboarding_required_completed: false,
       onboarding_skipped_steps: [],
       onboarding_dismissed_at: null,
-      onboarding_wizard_state: null,
+      onboarding_wizard_state: "prompt:accounts",
     })
     .eq("user_id", user.id);
   revalidatePath("/", "layout");

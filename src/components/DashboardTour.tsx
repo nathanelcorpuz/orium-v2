@@ -13,6 +13,9 @@ const DASHBOARD_STEPS: TourStep[] = [
     target: '[data-tour="dashboard-content"]',
     title: "Welcome to your Dashboard",
     body: "This is your Dashboard - it shows your total balance, bills, and income at a glance. These fill in as you add accounts, bills, and income. Click Forecast to continue.",
+    // T110 bugfix (user report 2026-07-26): the whole-page target isn't a
+    // clickable nav link, so "Done" needs to navigate itself.
+    href: "/forecast",
   },
 ];
 
