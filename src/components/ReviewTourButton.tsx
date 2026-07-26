@@ -1,26 +1,20 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { replayTour } from "@/lib/onboardingActions";
 
-// T117: replaced the old T110/T116 per-page tour chain with a single
-// "guided-tour" flag (GuidedTour.tsx) - clearing it and sending the user to
-// Dashboard replays the whole tour from the top exactly as it would for a
-// brand-new account.
+// T119: replaced the localStorage-flag clearing this used (T117) with the
+// server-persisted `replayTour` action, so replaying the tour is driven by
+// the same `onboarding_choice`/`onboarding_tour_step` state GuidedTour.tsx
+// now reads, consistent with how the rest of onboarding resumes.
 export function ReviewTourButton() {
-  const router = useRouter();
-
-  function handleClick() {
-    localStorage.removeItem("orium.tour.guided-tour.done");
-    router.push("/");
-  }
-
   return (
-    <button
-      type="button"
-      onClick={handleClick}
-      className="rounded border border-notion-hairline px-4 py-2 text-notion-text hover:bg-notion-hover"
-    >
-      Review the tour
-    </button>
+    <form action={replayTour}>
+      <button
+        type="submit"
+        className="rounded border border-notion-hairline px-4 py-2 text-notion-text hover:bg-notion-hover"
+      >
+        Review the tour
+      </button>
+    </form>
   );
 }

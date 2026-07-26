@@ -15,7 +15,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const { data: prefs } = await supabase
     .from("preferences")
     .select(
-      "onboarding_required_completed, onboarding_skipped_steps, onboarding_dismissed_at, onboarding_wizard_state, sample_data_seeded_at",
+      "onboarding_required_completed, onboarding_skipped_steps, onboarding_dismissed_at, onboarding_wizard_state, sample_data_seeded_at, onboarding_choice, onboarding_tour_step, onboarding_tour_completed_at",
     )
     .single();
 
@@ -86,7 +86,19 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   }
 
   return (
-    <AppShell greetingName={greetingName} sampleDataSeededAt={prefs?.sample_data_seeded_at ?? null}>
+    <AppShell
+      greetingName={greetingName}
+      sampleDataSeededAt={prefs?.sample_data_seeded_at ?? null}
+      // Bugfix: `prefs?.onboarding_choice ?? "skipped"` would have coerced a
+      // legitimate `null` (meaning "not decided yet, show the welcome
+      // modal") into "skipped" too, since `??` can't tell "prefs is
+      // missing" apart from "the field itself is null" - only fall back to
+      // "skipped" when the whole row is missing (the same transient-race
+      // case handled above), not when it's genuinely unset.
+      onboardingChoice={prefs ? prefs.onboarding_choice : "skipped"}
+      onboardingTourStep={prefs?.onboarding_tour_step ?? null}
+      onboardingTourCompletedAt={prefs?.onboarding_tour_completed_at ?? null}
+    >
       {children}
     </AppShell>
   );

@@ -80,7 +80,98 @@ export async function restartRequiredOnboarding() {
       onboarding_skipped_steps: [],
       onboarding_dismissed_at: null,
       onboarding_wizard_state: "prompt:accounts",
+      // T119: stamps the welcome-choice too, whichever of the three entry
+      // points (Settings, the welcome modal, the tour's own "prefer
+      // step-by-step setup" link) called this - so the welcome modal never
+      // reappears later and the tour (which only auto-shows when the choice
+      // is "tour") stops competing with guided setup.
+      onboarding_choice: "guided_setup",
     })
+    .eq("user_id", user.id);
+  revalidatePath("/", "layout");
+  redirect("/");
+}
+
+// T119: the first-login "welcome" modal's three choices, plus the tour's
+// own resumable step tracking - separate from T115's required-onboarding
+// state above, but following the same pattern (server-persisted, so it
+// survives logout/closing the browser rather than living only in
+// localStorage the way the tour used to).
+
+export async function chooseTour() {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return;
+
+  await supabase
+    .from("preferences")
+    .update({ onboarding_choice: "tour", onboarding_tour_step: 0 })
+    .eq("user_id", user.id);
+  revalidatePath("/", "layout");
+}
+
+export async function skipWelcome() {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return;
+
+  await supabase.from("preferences").update({ onboarding_choice: "skipped" }).eq("user_id", user.id);
+  revalidatePath("/", "layout");
+}
+
+// Fired on every tour Next/Back click - deliberately no `revalidatePath`
+// here (unlike the actions above), since this fires far more often than a
+// page navigation actually needs a fresh server render for; the tour's own
+// client state already reflects the new step immediately.
+export async function saveTourStep(step: number) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return;
+
+  await supabase.from("preferences").update({ onboarding_tour_step: step }).eq("user_id", user.id);
+}
+
+// Called once the tour's last step finishes (Skip or Done) - clears the
+// in-progress step (so a future login doesn't try to resume a finished
+// tour) and, only the very first time, stamps `onboarding_tour_completed_at`
+// so a later replay (`replayTour` below) doesn't re-trigger the same
+// once-only end-of-tour prompts.
+export async function finishTour(wasFirstCompletion: boolean) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return;
+
+  await supabase
+    .from("preferences")
+    .update({
+      onboarding_tour_step: null,
+      ...(wasFirstCompletion ? { onboarding_tour_completed_at: new Date().toISOString() } : {}),
+    })
+    .eq("user_id", user.id);
+  revalidatePath("/", "layout");
+}
+
+// Settings' "Review the tour" - resets the choice/step so the tour replays
+// from the top; deliberately leaves `onboarding_tour_completed_at` alone so
+// this replay doesn't re-show the once-only end-of-tour prompts.
+export async function replayTour() {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return;
+
+  await supabase
+    .from("preferences")
+    .update({ onboarding_choice: "tour", onboarding_tour_step: 0 })
     .eq("user_id", user.id);
   revalidatePath("/", "layout");
   redirect("/");

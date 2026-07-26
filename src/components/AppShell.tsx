@@ -135,10 +135,16 @@ function SidebarContent({
 export function AppShell({
   greetingName,
   sampleDataSeededAt,
+  onboardingChoice,
+  onboardingTourStep,
+  onboardingTourCompletedAt,
   children,
 }: {
   greetingName: string;
   sampleDataSeededAt: string | null;
+  onboardingChoice: string | null;
+  onboardingTourStep: number | null;
+  onboardingTourCompletedAt: string | null;
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
@@ -175,7 +181,12 @@ export function AppShell({
 
   return (
     <div className="flex min-h-screen flex-col bg-slate-50 lg:flex-row">
-      <GuidedTour sampleDataSeededAt={sampleDataSeededAt} />
+      <GuidedTour
+        sampleDataSeededAt={sampleDataSeededAt}
+        onboardingChoice={onboardingChoice}
+        onboardingTourStep={onboardingTourStep}
+        onboardingTourCompletedAt={onboardingTourCompletedAt}
+      />
       <div className="flex items-center gap-2 border-b border-notion-hairline bg-white p-3 lg:hidden">
         <button
           type="button"

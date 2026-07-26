@@ -84,39 +84,40 @@ const TOOLTIP_MARGIN = 16;
 // instead of skipping ahead or ending the tour, and re-checks every time the
 // route changes, so the tour quietly resumes wherever/whenever the user
 // navigates there themselves.
+//
+// T119 (user request 2026-07-26): progress is now the caller's
+// responsibility to persist (server-side, so it survives logout/closing the
+// browser) - this component is simply "active" for as long as it's mounted,
+// starting at `initialStepIndex` and reporting every step change via
+// `onStepChange`, rather than managing its own done/not-done flag in
+// localStorage the way it used to.
 export function SpotlightTour({
-  tourId,
   steps,
+  initialStepIndex = 0,
+  onStepChange,
   onFinish,
 }: {
-  tourId: string;
   steps: TourStep[];
+  initialStepIndex?: number;
+  onStepChange?: (index: number) => void;
   // Called every time the tour ends (Skip, Escape, or Done on the last
-  // step) - `wasFirstCompletion` tells the caller whether this was the
-  // tour's very first-ever completion (the localStorage flag hadn't been
-  // set yet) versus a later replay, so a caller can react just once (e.g.
-  // the end-of-tour sample-data / guided-setup prompts).
-  // Returning `true` suppresses the last step's automatic `href`
+  // step). Returning `true` suppresses the last step's automatic `href`
   // navigation - needed when the caller is about to show its own modal
   // that should navigate on its own close instead of racing the tour's own
   // redirect.
-  onFinish?: (wasFirstCompletion: boolean) => boolean | void;
+  onFinish?: () => boolean | void;
 }) {
   const router = useRouter();
   const pathname = usePathname();
-  const storageKey = `orium.tour.${tourId}.done`;
-  const [active, setActive] = useState(false);
-  const [stepIndex, setStepIndex] = useState(0);
+  const [stepIndex, setStepIndexState] = useState(initialStepIndex);
   const [rect, setRect] = useState<Rect | null>(null);
+  const [active, setActive] = useState(true);
   const tooltipRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    if (localStorage.getItem(storageKey) !== "1") {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setActive(true);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  function setStepIndex(index: number) {
+    setStepIndexState(index);
+    onStepChange?.(index);
+  }
 
   // Read via a ref rather than a `useCallback` dependency so `finish`'s own
   // identity stays stable across parent re-renders (it feeds several other
@@ -128,11 +129,9 @@ export function SpotlightTour({
   });
 
   const finish = useCallback(() => {
-    const wasFirstCompletion = localStorage.getItem(storageKey) !== "1";
-    localStorage.setItem(storageKey, "1");
     setActive(false);
-    return onFinishRef.current?.(wasFirstCompletion);
-  }, [storageKey]);
+    return onFinishRef.current?.();
+  }, []);
 
   useEffect(() => {
     if (!active) return;
@@ -316,7 +315,7 @@ export function SpotlightTour({
             {stepIndex > 0 && (
               <button
                 type="button"
-                onClick={() => setStepIndex((i) => i - 1)}
+                onClick={() => setStepIndex(stepIndex - 1)}
                 className="rounded border border-notion-hairline px-3 py-1.5 text-xs text-notion-text hover:bg-notion-hover"
               >
                 Back
@@ -326,7 +325,7 @@ export function SpotlightTour({
               type="button"
               onClick={() => {
                 if (!isLast) {
-                  setStepIndex((i) => i + 1);
+                  setStepIndex(stepIndex + 1);
                   if (step.href) router.push(step.href);
                   return;
                 }
