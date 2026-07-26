@@ -3,7 +3,6 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { wipeFinancialData } from "@/lib/wipeFinancialData";
 import { createBalance } from "@/app/(app)/accounts/actions";
 import { createBill } from "@/app/(app)/bills/actions";
 import { createIncome } from "@/app/(app)/income/actions";
@@ -38,36 +37,20 @@ export async function skipOnboardingStep(stepKey: string) {
   revalidatePath("/", "layout");
 }
 
-export async function completeRequiredOnboarding() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return;
-
-  await supabase
-    .from("preferences")
-    .update({ onboarding_required_completed: true, onboarding_wizard_state: null })
-    .eq("user_id", user.id);
-  revalidatePath("/", "layout");
-}
-
-// T115: "Start guided setup" in Settings - lets a user who already
-// completed (or was grandfathered past) the required wizard run it again
-// on purpose. Clears the completion flag, any previously-skipped optional
-// steps, and any paused-dismissal, so it behaves exactly like a fresh
-// signup's wizard.
+// T115: "Start guided setup" - lets a user run the setup walkthrough on
+// purpose, clearing any previously-skipped optional steps so it behaves
+// like a fresh signup's.
 //
-// Bugfix (user report 2026-07-26): with `onboarding_wizard_state` left
-// null, a user who already has real accounts/bills/income (true for
-// virtually anyone who'd click this - it's only reachable once already
-// using the app) saw the wizard compute "nothing left to do" and
-// self-complete instantly, before ever rendering - clicking the button
-// appeared to do nothing but bounce back to the Dashboard. Forcing
-// `prompt:accounts` guarantees the wizard actually shows something (the
-// Accounts step's review screen, previewing whatever already exists with
-// Edit/"Add another") on the very first render, regardless of existing data.
-export async function restartRequiredOnboarding() {
+// T123: was `restartRequiredOnboarding`. It used to flip the hard-gate flags
+// and force `onboarding_wizard_state = "prompt:accounts"` - the direct cause
+// of Bug #5, since that state renders as "Account added. Add another?" even
+// on an account containing nothing. That force existed to stop the wizard
+// self-completing for a user who already had data (T116), a problem that
+// only existed because the wizard was a gate that had to decide whether to
+// let you through. Now that guided setup is an ordinary page, there's no
+// gate to flip and nothing to force: the wizard shows whatever the account
+// actually contains.
+export async function startGuidedSetup() {
   const supabase = await createClient();
   const {
     data: { user },
@@ -77,10 +60,8 @@ export async function restartRequiredOnboarding() {
   await supabase
     .from("preferences")
     .update({
-      onboarding_required_completed: false,
       onboarding_skipped_steps: [],
-      onboarding_dismissed_at: null,
-      onboarding_wizard_state: "prompt:accounts",
+      onboarding_wizard_state: null,
       // T119: stamps the welcome-choice too, whichever of the three entry
       // points (Settings, the welcome modal, the tour's own "prefer
       // step-by-step setup" link) called this - so the welcome modal never
@@ -90,7 +71,7 @@ export async function restartRequiredOnboarding() {
     })
     .eq("user_id", user.id);
   revalidatePath("/", "layout");
-  redirect("/");
+  redirect("/setup");
 }
 
 // T119: the first-login "welcome" modal's three choices, plus the tour's
@@ -178,90 +159,6 @@ export async function replayTour() {
   redirect("/?preview=1");
 }
 
-// T120 (user request 2026-07-26): the persistent post-tour prompt's three
-// choices, plus its small dismiss. Server-persisted (migration 0024) rather
-// than client state because the prompt has to follow the user across every
-// page AND survive a reload until they actually pick something.
-
-async function setPostTourChoice(choice: string) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return null;
-
-  await supabase
-    .from("preferences")
-    .update({ onboarding_post_tour_choice: choice })
-    .eq("user_id", user.id);
-  return { supabase, user };
-}
-
-// "Explore with test data" - seeds the real sample dataset into the account
-// (wipe-then-seed, the same way Settings' "Restore sample data" does) so
-// they can click around live rows instead of the tour's read-only fixture.
-// No typed confirmation here, unlike Settings' version: this is only ever
-// reachable straight off a brand-new account's first tour, where there's
-// nothing of the user's own to lose.
-export async function choosePostTourTestData() {
-  const result = await setPostTourChoice("test_data");
-  if (!result) return;
-  const { supabase, user } = result;
-
-  const wipeError = await wipeFinancialData(supabase, user.id);
-  if (wipeError) return;
-
-  const { error: seedError } = await supabase.rpc("seed_sample_data", { target_user: user.id });
-  if (seedError) return;
-
-  await supabase
-    .from("preferences")
-    .update({ sample_data_seeded_at: new Date().toISOString() })
-    .eq("user_id", user.id);
-
-  revalidatePath("/", "layout");
-  redirect("/");
-}
-
-// "I'll enter my own data" - nothing to set up, just records the choice and
-// drops back to a plain (non-preview) Dashboard.
-export async function choosePostTourOwnData() {
-  await setPostTourChoice("own_data");
-  revalidatePath("/", "layout");
-  redirect("/");
-}
-
-// "Walk me through it" - records the choice, then hands off to the same
-// guided-setup wizard Settings and the welcome modal already use.
-export async function choosePostTourGuidedSetup() {
-  await setPostTourChoice("guided_setup");
-  await restartRequiredOnboarding();
-}
-
-// The small close button - stops the prompt showing without committing to
-// any of the three; Settings > Help brings the same options back.
-export async function dismissPostTourPrompt() {
-  await setPostTourChoice("dismissed");
-  revalidatePath("/", "layout");
-}
-
-// Settings > Help: "Show setup options again" - puts the prompt back, which
-// is what the prompt's own closing line promises.
-export async function reopenPostTourPrompt() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return;
-
-  await supabase
-    .from("preferences")
-    .update({ onboarding_post_tour_choice: null })
-    .eq("user_id", user.id);
-  revalidatePath("/", "layout");
-  redirect("/");
-}
-
 // T115 follow-up (user request 2026-07-26): "add another?" after each save
 // instead of auto-advancing. Server-persisted rather than client state or a
 // URL param - see migration 0021's header for why those didn't work.
@@ -307,47 +204,6 @@ export async function clearWizardState() {
   revalidatePath("/", "layout");
 }
 
-// T115 follow-up (user request 2026-07-26): "Exit setup for now" inside the
-// wizard itself - a completely new user might want to explore the app
-// before committing to guided setup, and a true no-escape hard block could
-// steer them away entirely. Setting `onboarding_dismissed_at` stops the
-// `(app)/layout.tsx` guard from blocking, without touching
-// `onboarding_required_completed` or `onboarding_skipped_steps` - so
-// whatever progress already exists (real rows added, steps explicitly
-// skipped) is exactly what "Continue guided setup" in Settings resumes
-// into later, at the same step they left off on.
-export async function dismissOnboardingSetup() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return;
-
-  await supabase
-    .from("preferences")
-    .update({ onboarding_dismissed_at: new Date().toISOString() })
-    .eq("user_id", user.id);
-  revalidatePath("/", "layout");
-}
-
-// T115 follow-up: "Continue guided setup" in Settings - the resumable
-// counterpart to `dismissOnboardingSetup`. Only clears the dismissal, so
-// the wizard picks back up at the first still-incomplete step rather than
-// restarting (that's `restartRequiredOnboarding`'s job instead).
-export async function resumeOnboardingSetup() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return;
-
-  await supabase
-    .from("preferences")
-    .update({ onboarding_dismissed_at: null })
-    .eq("user_id", user.id);
-  revalidatePath("/", "layout");
-  redirect("/");
-}
 
 async function markWizardStepSaved(stepKey: string) {
   const supabase = await createClient();

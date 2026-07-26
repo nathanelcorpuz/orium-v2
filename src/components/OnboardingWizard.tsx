@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { formatCentavos } from "@/lib/money";
 import { BalanceModal, type BalanceRow } from "@/app/(app)/accounts/BalanceModal";
@@ -12,11 +13,8 @@ import { BudgetModal, type BudgetRow } from "@/app/(app)/budgets/BudgetModal";
 import { ExtraModal, type ExtraRow } from "@/app/(app)/misc/ExtraModal";
 import { createDebt, updateDebt } from "@/app/(app)/debt/actions";
 import { createSavings, updateSavings } from "@/app/(app)/savings/actions";
-import { logout } from "@/app/auth/actions";
 import {
   skipOnboardingStep,
-  completeRequiredOnboarding,
-  dismissOnboardingSetup,
   setWizardReopen,
   clearWizardState,
   createBalanceForWizard,
@@ -31,23 +29,29 @@ import {
 type BalanceOption = { id: string; name: string };
 type StepKey = (typeof STEPS)[number]["key"];
 
-// T115: the required onboarding wizard - distinct from the skippable
-// SpotlightTour chain (T110). Accounts/Bills/Income are required (no way
-// to skip: each step's Cancel/X does nothing); Debt/Savings/Budgets/Misc
-// are offered the same way but can be explicitly skipped. Natural step
-// position is derived from props passed down by `(app)/layout.tsx` (does a
-// real row already exist for this step, or was it explicitly skipped) -
-// no separate step-index state to keep in sync, so refreshing mid-wizard
-// naturally resumes at the right place. The "add another?" interstitial's
+// T115: the guided-setup walkthrough, distinct from the skippable
+// SpotlightTour. Accounts/Bills/Income are what "set up" means; Debt,
+// Savings, Budgets and Misc are offered afterwards and can be skipped.
+// Which step shows is derived from what the account actually contains (does
+// a real row exist for this step, or was it explicitly skipped), so a
+// refresh mid-setup naturally resumes in the right place with no separate
+// step-index state to keep in sync. The "add another?" interstitial's
 // trigger (`wizardState`) is likewise server-persisted rather than client
 // state - see `createXForWizard` in onboardingActions.ts for why (a save's
 // own revalidatePath can remount this component before any client-side
 // success callback would fire).
+//
+// T123: this used to render *instead of* the whole app from
+// `(app)/layout.tsx`, with each step's add-form as a modal whose Cancel did
+// nothing - a genuine no-escape block. It's now the content of the ordinary
+// `/setup` page: each step shows a panel describing itself, and the real
+// add-form opens as a modal *from* that panel and closes back to it. The
+// nav is always present, so nothing here can trap anyone.
+//
 // T120: each step carries a one-line `hint` explaining why it comes where
-// it does - the modals themselves now explain what each entity *is* (their
-// own intro paragraphs, which render here too since the wizard embeds the
-// real add-forms), so this is purely the "why am I being asked this now"
-// thread that ties the sequence together.
+// it does - the modals themselves explain what each entity *is* (their own
+// intro paragraphs, which render here too since this embeds the real
+// add-forms), so this is purely the "why am I being asked this now" thread.
 const STEPS = [
   {
     key: "accounts",
@@ -108,10 +112,10 @@ function parseWizardState(raw: string | null): { type: "prompt" | "reopen"; key:
   return { type, key: key as StepKey };
 }
 
-// T115 follow-up (user request 2026-07-26): each preview row's amount is
-// signed differently per type (bills/debt/savings/misc store an outflow as
-// negative; income and account balances are positive) - this normalizes to
-// "what a user reads as the size of the entry" for the interstitial list.
+// T115 follow-up: each preview row's amount is signed differently per type
+// (bills/debt/savings/misc store an outflow as negative; income and account
+// balances are positive) - this normalizes to "what a user reads as the size
+// of the entry".
 function previewAmount(stepKey: StepKey, item: { amount?: number; allocation?: number }): number {
   if (stepKey === "budgets") return item.allocation ?? 0;
   return Math.abs(item.amount ?? 0);
@@ -156,12 +160,10 @@ export function OnboardingWizard({
 }) {
   const router = useRouter();
   const [pendingKey, setPendingKey] = useState<string | null>(null);
-  // T115 follow-up: "edit" from the "add another?" preview list. Plain
-  // client state is fine here (unlike wizardState) - editing doesn't need
-  // to survive a save-triggered remount, since a remount resetting this to
-  // null (closing the edit view) is exactly the wanted post-save outcome,
-  // the same coincidence every other page's plain "modalState" already
-  // relies on.
+  const [adding, setAdding] = useState(false);
+  // T115 follow-up: "edit" from the preview list. Plain client state is fine
+  // here (unlike wizardState) - a save-triggered remount resetting this to
+  // null closes the edit view, which is exactly the wanted outcome.
   const [editing, setEditing] = useState<{ step: StepKey; id: string } | null>(null);
 
   const parsed = parseWizardState(wizardState);
@@ -191,274 +193,277 @@ export function OnboardingWizard({
     (step) => !hasByKey[step.key] && !skippedSteps.includes(step.key),
   );
 
-  // All steps resolved (every required step has data; every optional step
-  // has data or was skipped) - finalize and hand off to the real app. A
-  // brief loading state covers the gap between this effect firing and
-  // `(app)/layout.tsx` re-rendering without the wizard.
-  useEffect(() => {
-    if (stepIndex === -1 && justSaved === null && reopenKey === null) {
-      completeRequiredOnboarding().then(() => router.refresh());
-    }
-  }, [stepIndex, justSaved, reopenKey, router]);
-
-  if (stepIndex === -1 && justSaved === null && reopenKey === null) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-50">
-        <p className="text-sm text-slate-500">Setting things up…</p>
-      </div>
-    );
-  }
-
-  // Priority: the interstitial for whatever was just saved, then a forced
-  // reopen ("Add another"), then wherever natural progress says to go.
-  const displayKey: StepKey | null = justSaved ?? reopenKey ?? (stepIndex === -1 ? null : STEPS[stepIndex].key);
+  const displayKey: StepKey | null =
+    justSaved ?? reopenKey ?? (stepIndex === -1 ? null : STEPS[stepIndex].key);
   const step = STEPS.find((s) => s.key === displayKey);
-  const isLastStep = step ? STEPS.findIndex((s) => s.key === step.key) === STEPS.length - 1 : false;
-
-  function noop() {}
 
   async function handleAddAnother() {
     if (!justSaved) return;
     await setWizardReopen(justSaved);
+    setAdding(true);
     router.refresh();
   }
 
   async function handleContinue() {
     await clearWizardState();
+    setAdding(false);
     router.refresh();
   }
 
   async function handleSkip(key: string) {
     setPendingKey(key);
     await skipOnboardingStep(key);
+    setAdding(false);
     router.refresh();
   }
 
-  async function handleExit() {
-    setPendingKey("__exit");
-    await dismissOnboardingSetup();
-    router.refresh();
+  // T123: replaces the old auto-complete effect, which fired
+  // `completeRequiredOnboarding()` and redirected the moment every step
+  // resolved. That existed only because the wizard was a gate that had to
+  // decide when to let you through; a page can simply say so and let you
+  // choose where to go.
+  if (!step) {
+    return (
+      <div className="p-4 md:p-8">
+        <div className="mx-auto max-w-xl rounded-lg border border-notion-hairline bg-white p-6 text-center">
+          <h1 className="text-lg font-semibold text-notion-text">You&rsquo;re all set</h1>
+          <p className="mt-2 text-sm text-slate-600">
+            Your accounts, bills and income are in, so your forecast is working. Everything else can
+            be added any time from its own page.
+          </p>
+          <div className="mt-4 flex flex-wrap justify-center gap-2">
+            <Link
+              href="/forecast"
+              className="rounded bg-notion-text px-4 py-2 text-sm text-white hover:opacity-90"
+            >
+              See your forecast
+            </Link>
+            <Link
+              href="/"
+              className="rounded border border-notion-hairline px-4 py-2 text-sm text-notion-text hover:bg-notion-hover"
+            >
+              Go to Dashboard
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
   }
 
-  if (!step) return null;
-
+  const stepNumber = STEPS.findIndex((s) => s.key === step.key) + 1;
   const previewItems = itemsByKey[step.key];
   const editingItem =
     editing && editing.step === step.key ? previewItems.find((i) => i.id === editing.id) : undefined;
+  // The add-form shows when explicitly opened, or when "Add another" set the
+  // reopen state. Never forced open otherwise - the panel comes first, so
+  // this page always has a visible way out.
+  const addFormOpen = adding || reopenKey !== null;
+
+  const createModal = (
+    <>
+      {step.key === "accounts" && (
+        <BalanceModal
+          balance={null}
+          onClose={() => setAdding(false)}
+          createActionOverride={createBalanceForWizard}
+        />
+      )}
+      {step.key === "bills" && (
+        <BillModal
+          bill={null}
+          balances={balances}
+          onClose={() => setAdding(false)}
+          createActionOverride={createBillForWizard}
+        />
+      )}
+      {step.key === "income" && (
+        <IncomeModal
+          income={null}
+          balances={balances}
+          onClose={() => setAdding(false)}
+          createActionOverride={createIncomeForWizard}
+        />
+      )}
+      {step.key === "debt" && (
+        <MonthlyGoalModal
+          item={null}
+          noun="debt"
+          amountLabel="Amount (₱)"
+          balances={balances}
+          createAction={createDebtForWizard}
+          updateAction={updateDebt}
+          onClose={() => setAdding(false)}
+        />
+      )}
+      {step.key === "savings" && (
+        <MonthlyGoalModal
+          item={null}
+          noun="savings goal"
+          amountLabel="Amount (₱)"
+          balances={balances}
+          createAction={createSavingsForWizard}
+          updateAction={updateSavings}
+          onClose={() => setAdding(false)}
+        />
+      )}
+      {step.key === "budgets" && (
+        <BudgetModal
+          budget={null}
+          incomes={incomeOptions}
+          onClose={() => setAdding(false)}
+          createActionOverride={createBudgetForWizard}
+        />
+      )}
+      {step.key === "misc" && (
+        <ExtraModal
+          extra={null}
+          balances={balances}
+          onClose={() => setAdding(false)}
+          createActionOverride={createExtraForWizard}
+        />
+      )}
+    </>
+  );
+
+  const editModal = editingItem ? (
+    <>
+      {step.key === "accounts" && (
+        <BalanceModal balance={editingItem as BalanceRow} onClose={() => setEditing(null)} />
+      )}
+      {step.key === "bills" && (
+        <BillModal bill={editingItem as BillRow} balances={balances} onClose={() => setEditing(null)} />
+      )}
+      {step.key === "income" && (
+        <IncomeModal
+          income={editingItem as IncomeRow}
+          balances={balances}
+          onClose={() => setEditing(null)}
+        />
+      )}
+      {step.key === "debt" && (
+        <MonthlyGoalModal
+          item={editingItem as MonthlyGoalRow}
+          noun="debt"
+          amountLabel="Amount (₱)"
+          balances={balances}
+          createAction={createDebt}
+          updateAction={updateDebt}
+          onClose={() => setEditing(null)}
+        />
+      )}
+      {step.key === "savings" && (
+        <MonthlyGoalModal
+          item={editingItem as MonthlyGoalRow}
+          noun="savings goal"
+          amountLabel="Amount (₱)"
+          balances={balances}
+          createAction={createSavings}
+          updateAction={updateSavings}
+          onClose={() => setEditing(null)}
+        />
+      )}
+      {step.key === "budgets" && (
+        <BudgetModal
+          budget={editingItem as BudgetRow}
+          incomes={incomeOptions}
+          onClose={() => setEditing(null)}
+        />
+      )}
+      {step.key === "misc" && (
+        <ExtraModal
+          extra={editingItem as ExtraRow}
+          balances={balances}
+          onClose={() => setEditing(null)}
+        />
+      )}
+    </>
+  ) : null;
 
   return (
-    <div className="min-h-screen bg-slate-50">
-      <div className="fixed inset-x-0 top-0 z-[70] flex flex-wrap items-center justify-between gap-2 bg-notion-text px-4 py-2 text-sm text-white">
-        <div>
-          <span className="font-medium">
-            Step {STEPS.findIndex((s) => s.key === step.key) + 1} of {STEPS.length}: {step.label}
-          </span>
-          <span className="ml-2 text-slate-300">
-            {step.required
-              ? "Required - add one to continue."
-              : "Optional - add one, or skip for now."}
-          </span>
-          <span className="block text-slate-300">{step.hint}</span>
+    <div className="p-4 md:p-8">
+      <div className="mx-auto max-w-xl">
+        <div className="mb-4 flex items-start justify-between gap-4">
+          <div>
+            <h1 className="text-xl font-semibold text-notion-text">Guided setup</h1>
+            <p className="text-sm text-slate-500">
+              Step {stepNumber} of {STEPS.length}
+            </p>
+          </div>
+          {/* T123: the old "Exit setup for now" flipped a dismissal flag to
+              unblock the app. Nothing blocks any more, so leaving is just a
+              link - and the nav beside it works too. */}
+          <Link href="/" className="text-sm text-slate-500 underline hover:text-notion-text">
+            Done for now
+          </Link>
         </div>
-        <div className="flex items-center gap-3">
-          {justSaved === null && reopenKey === null && !step.required && (
+
+        <div className="rounded-lg border border-notion-hairline bg-white p-6">
+          <h2 className="text-base font-semibold text-notion-text">{step.label}</h2>
+          <p className="mt-1 text-sm text-slate-600">{step.hint}</p>
+
+          {justSaved !== null && (
+            <p className="mt-3 rounded bg-notion-hover px-3 py-2 text-sm text-notion-text">
+              {step.noun} added. Add another, or continue.
+            </p>
+          )}
+
+          {previewItems.length > 0 && (
+            <ul className="mt-4 max-h-56 space-y-1 overflow-y-auto rounded border border-notion-hairline p-2">
+              {previewItems.map((item) => (
+                <li
+                  key={item.id}
+                  className="flex items-center justify-between gap-2 rounded px-2 py-1 text-sm hover:bg-notion-hover"
+                >
+                  <span className="truncate text-notion-text">{item.name}</span>
+                  <span className="flex shrink-0 items-center gap-2">
+                    <span className="text-slate-500">
+                      {formatCentavos(previewAmount(step.key, item))}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setEditing({ step: step.key, id: item.id })}
+                      className="text-xs text-notion-accent underline hover:opacity-80"
+                    >
+                      Edit
+                    </button>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+
+          <div className="mt-4 flex flex-wrap items-center gap-2">
             <button
               type="button"
-              onClick={() => handleSkip(step.key)}
-              disabled={pendingKey === step.key}
-              className="rounded border border-white/40 px-3 py-1 hover:bg-white/10 disabled:opacity-50"
+              onClick={() => (justSaved !== null ? handleAddAnother() : setAdding(true))}
+              className="rounded bg-notion-text px-4 py-2 text-sm text-white hover:opacity-90"
             >
-              {pendingKey === step.key ? "Skipping…" : "Skip this step"}
+              {previewItems.length > 0 ? `Add another ${step.noun.toLowerCase()}` : step.label.replace(" (optional)", "")}
             </button>
-          )}
-          <button
-            type="button"
-            onClick={handleExit}
-            disabled={pendingKey === "__exit"}
-            className="text-slate-300 underline hover:text-white disabled:opacity-50"
-          >
-            Exit setup for now
-          </button>
-          <form action={logout}>
-            <button type="submit" className="text-slate-300 underline hover:text-white">
-              Log out
-            </button>
-          </form>
-        </div>
-      </div>
-
-      {editingItem ? (
-        <>
-          {step.key === "accounts" && (
-            <BalanceModal
-              balance={editingItem as BalanceRow}
-              onClose={() => setEditing(null)}
-            />
-          )}
-          {step.key === "bills" && (
-            <BillModal
-              bill={editingItem as BillRow}
-              balances={balances}
-              onClose={() => setEditing(null)}
-            />
-          )}
-          {step.key === "income" && (
-            <IncomeModal
-              income={editingItem as IncomeRow}
-              balances={balances}
-              onClose={() => setEditing(null)}
-            />
-          )}
-          {step.key === "debt" && (
-            <MonthlyGoalModal
-              item={editingItem as MonthlyGoalRow}
-              noun="debt"
-              amountLabel="Amount (₱)"
-              balances={balances}
-              createAction={createDebt}
-              updateAction={updateDebt}
-              onClose={() => setEditing(null)}
-            />
-          )}
-          {step.key === "savings" && (
-            <MonthlyGoalModal
-              item={editingItem as MonthlyGoalRow}
-              noun="savings goal"
-              amountLabel="Amount (₱)"
-              balances={balances}
-              createAction={createSavings}
-              updateAction={updateSavings}
-              onClose={() => setEditing(null)}
-            />
-          )}
-          {step.key === "budgets" && (
-            <BudgetModal
-              budget={editingItem as BudgetRow}
-              incomes={incomeOptions}
-              onClose={() => setEditing(null)}
-            />
-          )}
-          {step.key === "misc" && (
-            <ExtraModal
-              extra={editingItem as ExtraRow}
-              balances={balances}
-              onClose={() => setEditing(null)}
-            />
-          )}
-        </>
-      ) : justSaved !== null ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-md rounded-lg border border-notion-hairline bg-white p-6 shadow-lg">
-            <p className="mb-3 text-center text-notion-text">
-              {step.noun} added. Add another, or continue{isLastStep ? "" : ` to the next step`}?
-            </p>
-            {previewItems.length > 0 && (
-              <ul className="mb-4 max-h-48 space-y-1 overflow-y-auto rounded border border-notion-hairline p-2">
-                {previewItems.map((item) => (
-                  <li
-                    key={item.id}
-                    className="flex items-center justify-between gap-2 rounded px-2 py-1 text-sm hover:bg-notion-hover"
-                  >
-                    <span className="truncate text-notion-text">{item.name}</span>
-                    <span className="flex shrink-0 items-center gap-2">
-                      <span className="text-slate-500">
-                        {formatCentavos(previewAmount(step.key, item))}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => setEditing({ step: step.key, id: item.id })}
-                        className="text-xs text-notion-accent underline hover:opacity-80"
-                      >
-                        Edit
-                      </button>
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            )}
-            <div className="flex justify-center gap-2">
-              <button
-                type="button"
-                onClick={handleAddAnother}
-                className="rounded border border-notion-hairline px-4 py-2 text-notion-text hover:bg-notion-hover"
-              >
-                Add another
-              </button>
+            {justSaved !== null && (
               <button
                 type="button"
                 onClick={handleContinue}
-                className="rounded bg-notion-text px-4 py-2 text-white hover:opacity-90"
+                className="rounded border border-notion-hairline px-4 py-2 text-sm text-notion-text hover:bg-notion-hover"
               >
-                {isLastStep ? "Finish setup" : "Continue"}
+                Continue
               </button>
-            </div>
+            )}
+            {justSaved === null && !step.required && (
+              <button
+                type="button"
+                onClick={() => handleSkip(step.key)}
+                disabled={pendingKey === step.key}
+                className="rounded border border-notion-hairline px-4 py-2 text-sm text-notion-text hover:bg-notion-hover disabled:opacity-50"
+              >
+                {pendingKey === step.key ? "Skipping…" : "Skip this step"}
+              </button>
+            )}
           </div>
         </div>
-      ) : (
-        <>
-          {step.key === "accounts" && (
-            <BalanceModal
-              balance={null}
-              onClose={noop}
-              createActionOverride={createBalanceForWizard}
-            />
-          )}
-          {step.key === "bills" && (
-            <BillModal
-              bill={null}
-              balances={balances}
-              onClose={noop}
-              createActionOverride={createBillForWizard}
-            />
-          )}
-          {step.key === "income" && (
-            <IncomeModal
-              income={null}
-              balances={balances}
-              onClose={noop}
-              createActionOverride={createIncomeForWizard}
-            />
-          )}
-          {step.key === "debt" && (
-            <MonthlyGoalModal
-              item={null}
-              noun="debt"
-              amountLabel="Amount (₱)"
-              balances={balances}
-              createAction={createDebtForWizard}
-              updateAction={updateDebt}
-              onClose={() => handleSkip("debt")}
-            />
-          )}
-          {step.key === "savings" && (
-            <MonthlyGoalModal
-              item={null}
-              noun="savings goal"
-              amountLabel="Amount (₱)"
-              balances={balances}
-              createAction={createSavingsForWizard}
-              updateAction={updateSavings}
-              onClose={() => handleSkip("savings")}
-            />
-          )}
-          {step.key === "budgets" && (
-            <BudgetModal
-              budget={null}
-              incomes={incomeOptions}
-              onClose={() => handleSkip("budgets")}
-              createActionOverride={createBudgetForWizard}
-            />
-          )}
-          {step.key === "misc" && (
-            <ExtraModal
-              extra={null}
-              balances={balances}
-              onClose={() => handleSkip("misc")}
-              createActionOverride={createExtraForWizard}
-            />
-          )}
-        </>
-      )}
+      </div>
+
+      {editModal ?? (addFormOpen ? createModal : null)}
     </div>
   );
 }

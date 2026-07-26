@@ -4,22 +4,26 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { SpotlightTour, type TourStep } from "./SpotlightTour";
 import { OnboardingWelcomeModal } from "./OnboardingWelcomeModal";
-import { OnboardingNextStepPrompt } from "./OnboardingNextStepPrompt";
-import { chooseTour, finishTour, restartRequiredOnboarding, saveTourStep, skipWelcome } from "@/lib/onboardingActions";
+import { chooseTour, finishTour, saveTourStep, skipWelcome } from "@/lib/onboardingActions";
 
-// T120 (user request 2026-07-26, replacing T116/T119's 4-step version): a
-// 6-step tour that actually walks the app - Dashboard -> Accounts -> Bills
-// -> Forecast -> Settings -> back to Dashboard - rather than pointing at nav
-// links from one page. Every step's Next both advances *and* navigates, so
-// the user is always looking at the page being described.
+// T120 (user request 2026-07-26): a 6-step tour that actually walks the app
+// - Dashboard -> Accounts -> Bills -> Forecast -> Settings -> Dashboard -
+// rather than pointing at nav links from one page. Every step's Next both
+// advances *and* navigates, so the user is always looking at the page being
+// described.
 //
 // Each data page is visited with `?preview=1`, which renders the read-only
 // sample fixture (T103, extended to Accounts/Bills in T120): a brand-new
 // account is empty, so without placeholders there'd be nothing to point at.
-// Nothing shown during the tour is ever written - see PreviewModeBar's copy
-// and each page's `previewMode` prop. Settings is deliberately visited
-// *without* preview: the preferences shown there are the account's real
-// ones, so flagging them as "sample data" would be a lie.
+// Nothing shown during the tour is ever written. Settings is deliberately
+// visited *without* preview: the preferences shown there are the account's
+// real ones, so flagging them as sample data would be a lie.
+//
+// T123: the first step used to carry a "Prefer step-by-step setup?"
+// secondary action, and the tour used to end by showing a three-option
+// prompt. Both are gone - the welcome modal already asked which path the
+// user wanted, and re-asking mid-tour and again at the end was the single
+// biggest source of the "all over the place" feeling (SPEC.md Phase 18).
 const GUIDED_TOUR_STEPS: TourStep[] = [
   {
     title: "Welcome to Orium",
@@ -28,12 +32,6 @@ const GUIDED_TOUR_STEPS: TourStep[] = [
     // Orium introduces itself.
     body: "Orium shows you how much money you'll have at any point in the future. Here's a quick look around.",
     href: "/accounts?preview=1",
-    secondaryAction: {
-      label: "Prefer step-by-step setup?",
-      onClick: () => {
-        void restartRequiredOnboarding();
-      },
-    },
   },
   {
     target: '[data-tour="accounts-header"]',
@@ -68,33 +66,26 @@ const GUIDED_TOUR_STEPS: TourStep[] = [
   },
 ];
 
-// T119: a first-time login opens with a welcome choice (this tour vs. the
-// guided-setup wizard) instead of the tour auto-starting, and progress is
+// T119: a first-time login opens with a welcome choice (this tour, guided
+// setup, or neither) instead of the tour auto-starting, and progress is
 // persisted server-side (`preferences.onboarding_choice`/
 // `onboarding_tour_step`) so it survives logging out or closing the browser.
-// T120 adds the post-tour "what next?" prompt, likewise server-persisted so
-// it follows the user across pages until they pick something.
 export function GuidedTour({
   onboardingChoice,
   onboardingTourStep,
   onboardingTourCompletedAt,
-  onboardingPostTourChoice,
 }: {
   // null = brand-new account, hasn't been asked yet (show the welcome
   // modal); 'tour' | 'guided_setup' | 'skipped' once they've picked.
   onboardingChoice: string | null;
   onboardingTourStep: number | null;
   onboardingTourCompletedAt: string | null;
-  // null = show the post-tour prompt; any value = already decided/dismissed.
-  onboardingPostTourChoice: string | null;
 }) {
   const router = useRouter();
   const [choice, setChoice] = useState(onboardingChoice);
   const [tourStep, setTourStep] = useState(onboardingTourStep ?? 0);
-  // Local accelerator so the prompt appears the instant "Complete" is
-  // clicked, rather than waiting on `finishTour`'s revalidation round-trip.
-  // Gated on the server's own choice still being null below, so a *replay*
-  // of an already-decided tour can never resurrect a prompt they've answered.
+  // Local, so the tour disappears the instant "Complete" is clicked rather
+  // than waiting on `finishTour`'s revalidation round-trip.
   const [justFinished, setJustFinished] = useState(false);
 
   if (choice === null) {
@@ -116,27 +107,20 @@ export function GuidedTour({
     );
   }
 
-  // Guided setup (choice === "guided_setup") is handled entirely by
-  // (app)/layout.tsx's separate required-onboarding gate, which renders
-  // OnboardingWizard *instead of* AppShell/this component while it's active.
+  // Guided setup (choice === "guided_setup") is just the /setup page now, so
+  // there's nothing for this component to render for it.
   const tourActive = choice === "tour" && onboardingTourStep !== null && !justFinished;
-  const promptVisible =
-    onboardingPostTourChoice === null && (justFinished || onboardingTourCompletedAt !== null);
+  if (!tourActive) return null;
 
   return (
-    <>
-      {tourActive && (
-        <SpotlightTour
-          steps={GUIDED_TOUR_STEPS}
-          initialStepIndex={tourStep}
-          onStepChange={(index) => void saveTourStep(index)}
-          onFinish={() => {
-            void finishTour(onboardingTourCompletedAt === null);
-            setJustFinished(true);
-          }}
-        />
-      )}
-      {promptVisible && <OnboardingNextStepPrompt />}
-    </>
+    <SpotlightTour
+      steps={GUIDED_TOUR_STEPS}
+      initialStepIndex={tourStep}
+      onStepChange={(index) => void saveTourStep(index)}
+      onFinish={() => {
+        void finishTour(onboardingTourCompletedAt === null);
+        setJustFinished(true);
+      }}
+    />
   );
 }

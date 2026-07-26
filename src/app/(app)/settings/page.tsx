@@ -6,11 +6,6 @@ import { PreferencesForm } from "./PreferencesForm";
 import { DeleteAccountButton } from "./DeleteAccountModal";
 import { SampleDataActions } from "./SampleDataActions";
 import { ReviewTourButton } from "@/components/ReviewTourButton";
-import {
-  reopenPostTourPrompt,
-  restartRequiredOnboarding,
-  resumeOnboardingSetup,
-} from "@/lib/onboardingActions";
 import { restoreFormTips } from "@/lib/formTipActions";
 import { DEFAULT_TIER_LABELS } from "@/lib/balanceColor";
 
@@ -22,7 +17,7 @@ export default async function SettingsPage() {
     supabase.auth.getUser(),
     supabase
       .from("preferences")
-      .select("currency, balance_ranges, balance_tier_labels, onboarding_required_completed")
+      .select("currency, balance_ranges, balance_tier_labels")
       .single(),
   ]);
 
@@ -31,11 +26,6 @@ export default async function SettingsPage() {
   const currency = preferencesRes.data?.currency ?? "₱";
   const balanceRanges = preferencesRes.data?.balance_ranges ?? DEFAULT_BALANCE_RANGES;
   const tierLabels = preferencesRes.data?.balance_tier_labels ?? DEFAULT_TIER_LABELS;
-  // T115: Settings is only reachable with required onboarding still
-  // incomplete via an explicit "Exit setup for now" dismissal - so
-  // "incomplete" here specifically means "paused, safe to resume" rather
-  // than "currently blocked" (a genuinely blocked user never sees this page).
-  const onboardingPaused = preferencesRes.data?.onboarding_required_completed === false;
 
   return (
     <div className="p-4 md:p-8">
@@ -63,35 +53,18 @@ export default async function SettingsPage() {
             </p>
             <div className="flex flex-wrap items-center gap-3">
               <ReviewTourButton />
-              {onboardingPaused && (
-                <form action={resumeOnboardingSetup}>
-                  <button
-                    type="submit"
-                    className="rounded bg-notion-text px-4 py-2 text-white hover:opacity-90"
-                  >
-                    Continue guided setup
-                  </button>
-                </form>
-              )}
-              <form action={restartRequiredOnboarding}>
-                <button
-                  type="submit"
-                  className="rounded border border-notion-hairline px-4 py-2 text-notion-text hover:bg-notion-hover"
-                >
-                  {onboardingPaused ? "Start over" : "Start guided setup"}
-                </button>
-              </form>
-              {/* T120: makes good on the post-tour prompt's own closing line
-                  ("Find these again in Settings > Help") - clearing the
-                  stored choice is exactly what brings that prompt back. */}
-              <form action={reopenPostTourPrompt}>
-                <button
-                  type="submit"
-                  className="rounded border border-notion-hairline px-4 py-2 text-notion-text hover:bg-notion-hover"
-                >
-                  Show setup options
-                </button>
-              </form>
+              {/* T123: was two buttons ("Continue guided setup" / "Start
+                  over") whose labels depended on a paused-gate flag that no
+                  longer exists, plus a third ("Show setup options") that
+                  reopened the deleted post-tour prompt. Guided setup is just
+                  a page now, so one link covers every case: it resumes at
+                  whatever step is still unresolved. */}
+              <Link
+                href="/setup"
+                className="rounded border border-notion-hairline px-4 py-2 text-notion-text hover:bg-notion-hover"
+              >
+                Guided setup
+              </Link>
               {/* T120 follow-up: "don't show this tip next time" is per-tip
                   and permanent, so there has to be one way back. */}
               <form action={restoreFormTips}>

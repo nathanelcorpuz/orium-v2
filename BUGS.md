@@ -4,16 +4,18 @@ Format per bug: steps to reproduce → what happened → what was expected. Clau
 
 ## Open
 
+(none currently)
+
+## Fixed
+
 ### Bug #5 - Guided setup opens claiming "Account added" on a brand-new account that has nothing
 - **Reproduce**: create a genuinely new account (`/api/dev-new-account`, T121) and pick "Start guided setup" from the welcome modal. Reported by the user 2026-07-26 with a screenshot.
 - **What happened**: the wizard opens on "Step 1 of 7: Add an account" but immediately shows the post-add interstitial - "Account added. Add another, or continue to the next step?" - with no add form and an empty item list. Nothing had been added.
 - **Expected**: a brand-new account should open on the actual "add your first account" form.
 - **Root cause**: `restartRequiredOnboarding` (`src/lib/onboardingActions.ts`) hardcodes `onboarding_wizard_state: "prompt:accounts"`, and `OnboardingWizard.tsx` renders that state as `{step.noun} added. Add another, or continue...`. That hardcoded state is T116's fix for the opposite situation: an *existing* user with data clicking "Start guided setup" used to have the wizard find nothing unresolved and silently self-complete, so it was forced to show the accounts review screen at least once. T119 then made the same action the primary entry point for brand-new accounts, where the forced state is simply false. One forced value is being asked to serve two opposite starting conditions.
-- **Fix**: deliberately **not** patched in isolation - folded into T122's onboarding design pass (Phase 18), since "what does the wizard do on an empty account vs. one that already has data" is exactly the kind of question that pass exists to answer, and a spot fix here would likely be thrown away by it.
+- **Fixed by**: **T123**, and by deletion rather than a patch. The forced state existed only because the wizard was a *gate* that had to decide whether to let you through, so it needed something to show when the natural derivation said "nothing left to do". T123 made guided setup an ordinary `/setup` page, at which point there is nothing to force: each step renders what the account actually contains, and "everything's done" is simply an "You're all set" panel instead of a self-completing redirect. `restartRequiredOnboarding` (with its hardcoded `prompt:accounts`) is gone, replaced by `startGuidedSetup`, which sets no wizard state at all. Verified against a genuinely fresh account from `/api/dev-new-account`: setup now opens on "Step 1 of 7 / Add an account" with an Add button and no items, and the "Account added" line appears only after an account is really added, with that account listed beneath it.
 
-## Fixed
-
-### Bug #4 — Logging a spend on a carryover budget doesn't reduce the next boundary's reserved amount
+### Bug #4 - Logging a spend on a carryover budget doesn't reduce the next boundary's reserved amount
 - **Reproduce**: on a carryover-enabled budget linked to an income (e.g. "Groceries" tied to "Freelance — Aya"), log a spend dated today, then check the Forecast table's next future boundary row for that same budget. Reported by the user 2026-07-23, reproduced with the seeded "Groceries"/"Freelance — Aya" budget (allocation ₱6,000, ₱2,000 already spent this cycle): logging a ₱500 spend correctly reduced today's "Budgets reserved" row by ₱500, but the next boundary's "Groceries" row stayed frozen at -₱6,000.00.
 - **What happened**: `expandBudgetCycleOccurrences` in `src/lib/engine/budgetCycles.ts` computed every future boundary row as a flat `allocation − knownFutureSpend`, never factoring in carryover from the current (still-open) cycle — even though that cycle's spend-to-date is fully known, not speculative.
 - **Expected**: the very next boundary should reserve `allocation + currentCycleLeftover − knownFutureSpend` when carryover is enabled, so a spend logged today visibly reduces it.

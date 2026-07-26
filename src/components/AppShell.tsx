@@ -164,14 +164,12 @@ export function AppShell({
   onboardingChoice,
   onboardingTourStep,
   onboardingTourCompletedAt,
-  onboardingPostTourChoice,
   children,
 }: {
   greetingName: string;
   onboardingChoice: string | null;
   onboardingTourStep: number | null;
   onboardingTourCompletedAt: string | null;
-  onboardingPostTourChoice: string | null;
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
@@ -212,7 +210,6 @@ export function AppShell({
         onboardingChoice={onboardingChoice}
         onboardingTourStep={onboardingTourStep}
         onboardingTourCompletedAt={onboardingTourCompletedAt}
-        onboardingPostTourChoice={onboardingPostTourChoice}
       />
       <div className="flex items-center gap-2 border-b border-notion-hairline bg-white p-3 lg:hidden">
         <button

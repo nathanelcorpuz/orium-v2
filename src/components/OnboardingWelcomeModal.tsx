@@ -1,7 +1,7 @@
 "use client";
 
 import { Modal } from "./Modal";
-import { restartRequiredOnboarding } from "@/lib/onboardingActions";
+import { startGuidedSetup } from "@/lib/onboardingActions";
 
 // T119 (user request 2026-07-26): the very first thing a brand-new signup
 // sees - offers a choice between the short tour and the step-by-step
@@ -32,7 +32,7 @@ export function OnboardingWelcomeModal({
         >
           Take the short tour
         </button>
-        <form action={restartRequiredOnboarding}>
+        <form action={startGuidedSetup}>
           <button
             type="submit"
             className="w-full rounded border border-notion-hairline px-4 py-2 text-notion-text hover:bg-notion-hover"
