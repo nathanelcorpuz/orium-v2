@@ -6,7 +6,12 @@ import { PreferencesForm } from "./PreferencesForm";
 import { DeleteAccountButton } from "./DeleteAccountModal";
 import { SampleDataActions } from "./SampleDataActions";
 import { ReviewTourButton } from "@/components/ReviewTourButton";
-import { restartRequiredOnboarding, resumeOnboardingSetup } from "@/lib/onboardingActions";
+import {
+  reopenPostTourPrompt,
+  restartRequiredOnboarding,
+  resumeOnboardingSetup,
+} from "@/lib/onboardingActions";
+import { restoreFormTips } from "@/lib/formTipActions";
 import { DEFAULT_TIER_LABELS } from "@/lib/balanceColor";
 
 const DEFAULT_BALANCE_RANGES = [0, 500000, 2000000, 5000000, 10000000];
@@ -53,8 +58,8 @@ export default async function SettingsPage() {
           <div data-tour="settings-help" className="rounded-lg border border-notion-hairline bg-white p-4">
             <h2 className="mb-1 text-sm font-semibold text-notion-text">Help</h2>
             <p className="mb-3 text-sm text-slate-600">
-              Replay the full guided walkthrough, from your Dashboard all the way through every
-              page - or step back through guided setup to add accounts, bills, and income.
+              Replay the tour, step back through guided setup, or bring back the &ldquo;what next?&rdquo;
+              options you saw after the tour.
             </p>
             <div className="flex flex-wrap items-center gap-3">
               <ReviewTourButton />
@@ -74,6 +79,27 @@ export default async function SettingsPage() {
                   className="rounded border border-notion-hairline px-4 py-2 text-notion-text hover:bg-notion-hover"
                 >
                   {onboardingPaused ? "Start over" : "Start guided setup"}
+                </button>
+              </form>
+              {/* T120: makes good on the post-tour prompt's own closing line
+                  ("Find these again in Settings > Help") - clearing the
+                  stored choice is exactly what brings that prompt back. */}
+              <form action={reopenPostTourPrompt}>
+                <button
+                  type="submit"
+                  className="rounded border border-notion-hairline px-4 py-2 text-notion-text hover:bg-notion-hover"
+                >
+                  Show setup options
+                </button>
+              </form>
+              {/* T120 follow-up: "don't show this tip next time" is per-tip
+                  and permanent, so there has to be one way back. */}
+              <form action={restoreFormTips}>
+                <button
+                  type="submit"
+                  className="rounded border border-notion-hairline px-4 py-2 text-notion-text hover:bg-notion-hover"
+                >
+                  Bring back form tips
                 </button>
               </form>
             </div>

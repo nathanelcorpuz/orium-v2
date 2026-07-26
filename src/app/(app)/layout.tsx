@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { displayName } from "@/lib/displayName";
 import { AppShell } from "@/components/AppShell";
+import { FormTipsProvider } from "@/components/FormTip";
 import { OnboardingWizard } from "@/components/OnboardingWizard";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
@@ -15,7 +16,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const { data: prefs } = await supabase
     .from("preferences")
     .select(
-      "onboarding_required_completed, onboarding_skipped_steps, onboarding_dismissed_at, onboarding_wizard_state, sample_data_seeded_at, onboarding_choice, onboarding_tour_step, onboarding_tour_completed_at",
+      "onboarding_required_completed, onboarding_skipped_steps, onboarding_dismissed_at, onboarding_wizard_state, onboarding_choice, onboarding_tour_step, onboarding_tour_completed_at, onboarding_post_tour_choice, dismissed_form_tips",
     )
     .single();
 
@@ -63,6 +64,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     const extras = extrasRes.data ?? [];
 
     return (
+      <FormTipsProvider dismissed={prefs.dismissed_form_tips ?? []}>
       <OnboardingWizard
         hasAccounts={balances.length > 0}
         hasBills={bills.length > 0}
@@ -82,24 +84,29 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         extras={extras}
         incomeOptions={income.map((i) => ({ id: i.id, name: i.name }))}
       />
+      </FormTipsProvider>
     );
   }
 
   return (
+    <FormTipsProvider dismissed={prefs?.dismissed_form_tips ?? []}>
     <AppShell
       greetingName={greetingName}
-      sampleDataSeededAt={prefs?.sample_data_seeded_at ?? null}
       // Bugfix: `prefs?.onboarding_choice ?? "skipped"` would have coerced a
       // legitimate `null` (meaning "not decided yet, show the welcome
       // modal") into "skipped" too, since `??` can't tell "prefs is
       // missing" apart from "the field itself is null" - only fall back to
       // "skipped" when the whole row is missing (the same transient-race
-      // case handled above), not when it's genuinely unset.
+      // case handled above), not when it's genuinely unset. The same
+      // reasoning applies to `onboarding_post_tour_choice` below, whose
+      // null likewise means "still needs deciding," not "missing."
       onboardingChoice={prefs ? prefs.onboarding_choice : "skipped"}
       onboardingTourStep={prefs?.onboarding_tour_step ?? null}
       onboardingTourCompletedAt={prefs?.onboarding_tour_completed_at ?? null}
+      onboardingPostTourChoice={prefs ? prefs.onboarding_post_tour_choice : "own_data"}
     >
       {children}
     </AppShell>
+    </FormTipsProvider>
   );
 }

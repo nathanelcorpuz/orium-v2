@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { parseCentavos } from "@/lib/money";
+import { wipeFinancialData } from "@/lib/wipeFinancialData";
 
 export type SettingsActionState = { error: string | null; message?: string };
 
@@ -69,42 +70,6 @@ export async function updatePreferences(
   revalidatePath("/forecast");
   revalidatePath("/");
   return { error: null, message: "Preferences saved." };
-}
-
-// T97: every financial/transactional table, in FK-safe (child-before-
-// parent) order - shared between `deleteAccount` and `resetData` below.
-// Matches `supabase/wipe_test_data.sql`'s exact table list and order.
-// Deliberately excludes `preferences` - a currency symbol or custom balance
-// thresholds are a display preference, not "data" in the sense either of
-// these actions mean to wipe, and `wipe_test_data.sql` already established
-// that same precedent.
-//
-// NOTE: this used to be a shorter, out-of-date list on `deleteAccount`
-// alone (missing `budgets`, `budget_entries`, and
-// `budget_replenish_overrides` entirely) - a real bug, since account
-// deletion silently left every budget behind. Fixed here as this list
-// became shared.
-const FINANCIAL_DATA_TABLES = [
-  "budget_entries",
-  "budget_replenish_overrides",
-  "occurrence_overrides",
-  "settlements",
-  "reminders",
-  "budgets",
-  "one_off_items",
-  "recurring_items",
-  "balances",
-] as const;
-
-async function wipeFinancialData(
-  supabase: Awaited<ReturnType<typeof createClient>>,
-  userId: string,
-): Promise<string | null> {
-  for (const table of FINANCIAL_DATA_TABLES) {
-    const { error } = await supabase.from(table).delete().eq("user_id", userId);
-    if (error) return error.message;
-  }
-  return null;
 }
 
 export async function deleteAccount(

@@ -43,14 +43,61 @@ type StepKey = (typeof STEPS)[number]["key"];
 // state - see `createXForWizard` in onboardingActions.ts for why (a save's
 // own revalidatePath can remount this component before any client-side
 // success callback would fire).
+// T120: each step carries a one-line `hint` explaining why it comes where
+// it does - the modals themselves now explain what each entity *is* (their
+// own intro paragraphs, which render here too since the wizard embeds the
+// real add-forms), so this is purely the "why am I being asked this now"
+// thread that ties the sequence together.
 const STEPS = [
-  { key: "accounts", label: "Add an account", noun: "Account", required: true },
-  { key: "bills", label: "Add a bill", noun: "Bill", required: true },
-  { key: "income", label: "Add income", noun: "Income", required: true },
-  { key: "debt", label: "Add debt (optional)", noun: "Debt", required: false },
-  { key: "savings", label: "Add a savings goal (optional)", noun: "Savings goal", required: false },
-  { key: "budgets", label: "Set up a budget (optional)", noun: "Budget", required: false },
-  { key: "misc", label: "Add a misc item (optional)", noun: "Misc item", required: false },
+  {
+    key: "accounts",
+    label: "Add an account",
+    noun: "Account",
+    required: true,
+    hint: "Start here - everything else connects back to an account.",
+  },
+  {
+    key: "bills",
+    label: "Add a bill",
+    noun: "Bill",
+    required: true,
+    hint: "What goes out regularly. This is most of what pulls your balance down.",
+  },
+  {
+    key: "income",
+    label: "Add income",
+    noun: "Income",
+    required: true,
+    hint: "What comes in. With bills and income, your forecast starts working.",
+  },
+  {
+    key: "debt",
+    label: "Add debt (optional)",
+    noun: "Debt",
+    required: false,
+    hint: "Anything you're paying down, so Orium can show you the payoff date.",
+  },
+  {
+    key: "savings",
+    label: "Add a savings goal (optional)",
+    noun: "Savings goal",
+    required: false,
+    hint: "Money you set aside, reserved in the forecast rather than counted as spare.",
+  },
+  {
+    key: "budgets",
+    label: "Set up a budget (optional)",
+    noun: "Budget",
+    required: false,
+    hint: "For spending that varies month to month, like groceries or fuel.",
+  },
+  {
+    key: "misc",
+    label: "Add a misc item (optional)",
+    noun: "Misc item",
+    required: false,
+    hint: "One-off amounts that don't repeat - a big purchase, a bonus.",
+  },
 ] as const;
 
 function parseWizardState(raw: string | null): { type: "prompt" | "reopen"; key: StepKey } | null {
@@ -211,6 +258,7 @@ export function OnboardingWizard({
               ? "Required - add one to continue."
               : "Optional - add one, or skip for now."}
           </span>
+          <span className="block text-slate-300">{step.hint}</span>
         </div>
         <div className="flex items-center gap-3">
           {justSaved === null && reopenKey === null && !step.required && (

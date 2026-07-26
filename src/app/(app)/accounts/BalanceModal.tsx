@@ -2,6 +2,7 @@
 
 import { useActionState, useEffect, useRef } from "react";
 import { Modal } from "@/components/Modal";
+import { FormTip } from "@/components/FormTip";
 import { centavosToPesosString, formatCentavos } from "@/lib/money";
 import { createBalance, updateBalance, disconnectItem, type BalanceActionState } from "./actions";
 import type { ConnectedItem } from "./BalancesClient";
@@ -68,6 +69,12 @@ export function BalanceModal({
         className="space-y-4"
       >
         {isEdit && <input type="hidden" name="id" value={balance.id} />}
+        {!isEdit && (
+          <FormTip tipKey="account-intro" variant="panel">
+            An account is anywhere you actually keep money - a bank account, an e-wallet, or cash
+            on hand. Their combined total is the starting point your whole forecast builds from.
+          </FormTip>
+        )}
         <div>
           <label className="block text-sm text-slate-600" htmlFor="name">
             Name
@@ -94,6 +101,10 @@ export function BalanceModal({
             defaultValue={balance ? centavosToPesosString(balance.amount) : undefined}
             className="mt-1 w-full rounded border border-notion-hairline p-2 text-notion-text focus:border-notion-accent focus:outline-none"
           />
+          <FormTip tipKey="account-amount">
+            What&rsquo;s in it right now. From here on Orium keeps it up to date for you each time
+            you settle a bill or income connected to this account.
+          </FormTip>
         </div>
         <div>
           <label className="block text-sm text-slate-600" htmlFor="comments">

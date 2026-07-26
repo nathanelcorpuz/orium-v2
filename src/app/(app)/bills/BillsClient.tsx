@@ -6,6 +6,7 @@ import { monthlyEquivalent } from "@/lib/engine/monthlyTotals";
 import { summarizeRecurrence } from "@/lib/recurrenceSummary";
 import { AmountRangeFilter, matchesAmountFilter, type ComparisonOp } from "@/components/AmountRangeFilter";
 import { MultiSelectChips } from "@/components/MultiSelectChips";
+import { PreviewModeBar } from "@/components/PreviewModeBar";
 import type { RecurrenceUnit } from "@/lib/engine/types";
 import { deleteBill } from "./actions";
 import { BillModal, type BalanceOption, type BillRow } from "./BillModal";
@@ -36,10 +37,15 @@ export function BillsClient({
   bills,
   editedIds,
   balances,
+  // T120: `?preview=1` renders a read-only sample fixture (see page.tsx) -
+  // every mutating control is hidden so a tour/preview session can never
+  // write to (or 404 against) the real account behind it.
+  previewMode = false,
 }: {
   bills: BillRow[];
   editedIds: Set<string>;
   balances: BalanceOption[];
+  previewMode?: boolean;
 }) {
   const [modalState, setModalState] = useState<null | "new" | BillRow>(null);
   const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null);
@@ -100,20 +106,24 @@ export function BillsClient({
   );
 
   return (
-    <div className="p-4 md:p-8">
+    <>
+      {previewMode && <PreviewModeBar />}
+      <div className="p-4 md:p-8">
       <div className="mx-auto max-w-2xl">
         <div data-tour="bills-header" className="mb-6 flex items-center justify-between">
           <div>
             <h1 className="text-xl font-semibold text-notion-text">Bills</h1>
             <p className="text-slate-500">Total monthly: {formatCentavos(totalMonthly)}</p>
           </div>
-          <button
-            type="button"
-            onClick={() => setModalState("new")}
-            className="rounded bg-notion-text px-4 py-2 text-white hover:opacity-90"
-          >
-            Add bill
-          </button>
+          {!previewMode && (
+            <button
+              type="button"
+              onClick={() => setModalState("new")}
+              className="rounded bg-notion-text px-4 py-2 text-white hover:opacity-90"
+            >
+              Add bill
+            </button>
+          )}
         </div>
 
         {bills.length > 0 && (
@@ -200,7 +210,7 @@ export function BillsClient({
                   )}
                 </div>
                 <div className="flex items-center gap-2">
-                  {confirmingDeleteId === bill.id ? (
+                  {previewMode ? null : confirmingDeleteId === bill.id ? (
                     <>
                       <span className="text-sm text-slate-600">Delete?</span>
                       <form action={deleteBill}>
@@ -253,6 +263,7 @@ export function BillsClient({
           />
         )}
       </div>
-    </div>
+      </div>
+    </>
   );
 }

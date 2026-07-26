@@ -134,17 +134,17 @@ function SidebarContent({
 // button; tapping it opens the same nav as a left-edge MobileDrawer.
 export function AppShell({
   greetingName,
-  sampleDataSeededAt,
   onboardingChoice,
   onboardingTourStep,
   onboardingTourCompletedAt,
+  onboardingPostTourChoice,
   children,
 }: {
   greetingName: string;
-  sampleDataSeededAt: string | null;
   onboardingChoice: string | null;
   onboardingTourStep: number | null;
   onboardingTourCompletedAt: string | null;
+  onboardingPostTourChoice: string | null;
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
@@ -182,10 +182,10 @@ export function AppShell({
   return (
     <div className="flex min-h-screen flex-col bg-slate-50 lg:flex-row">
       <GuidedTour
-        sampleDataSeededAt={sampleDataSeededAt}
         onboardingChoice={onboardingChoice}
         onboardingTourStep={onboardingTourStep}
         onboardingTourCompletedAt={onboardingTourCompletedAt}
+        onboardingPostTourChoice={onboardingPostTourChoice}
       />
       <div className="flex items-center gap-2 border-b border-notion-hairline bg-white p-3 lg:hidden">
         <button

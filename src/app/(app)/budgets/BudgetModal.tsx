@@ -2,6 +2,7 @@
 
 import { useActionState, useEffect, useRef, useState } from "react";
 import { Modal } from "@/components/Modal";
+import { FormTip } from "@/components/FormTip";
 import { DatePicker } from "@/components/DatePicker";
 import { SegmentedControl } from "@/components/SegmentedControl";
 import { centavosToPesosString } from "@/lib/money";
@@ -88,6 +89,14 @@ export function BudgetModal({
       >
         {isEdit && <input type="hidden" name="id" value={budget.id} />}
         <input type="hidden" name="replenishSource" value={source} />
+        {!isEdit && (
+          <FormTip tipKey="budget-intro" variant="panel">
+            A budget is a running pot for spending that varies - groceries, fuel, eating out. It
+            isn&rsquo;t a fixed bill: you top it up, log spends against it, and Orium sets the
+            whole pot aside in your forecast so the balance you see is what&rsquo;s genuinely
+            spare.
+          </FormTip>
+        )}
         <div>
           <label className="block text-sm text-slate-600" htmlFor="name">
             Name
@@ -123,6 +132,10 @@ export function BudgetModal({
         <div>
           <p className="mb-1 block text-sm text-slate-600">Replenishes</p>
           <SegmentedControl options={REPLENISH_OPTIONS} value={source} onChange={setSource} />
+          <FormTip tipKey="budget-replenish">
+            How this pot gets topped up: automatically when an income arrives, automatically on
+            its own schedule, or only when you add funds yourself.
+          </FormTip>
         </div>
 
         {source === "income" &&
@@ -171,6 +184,9 @@ export function BudgetModal({
               />
             </div>
             <RecurrencePicker startDate={startDate} initialValue={initialRecurrenceValue} />
+            <FormTip tipKey="budget-schedule">
+              The replenish amount is added back to this pot every time the schedule comes round.
+            </FormTip>
           </div>
         )}
 

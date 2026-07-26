@@ -1,83 +1,101 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { SpotlightTour, type TourStep } from "./SpotlightTour";
-import { SampleDataDecisionModal } from "./SampleDataDecisionModal";
-import { GuidedSetupOfferModal } from "./GuidedSetupOfferModal";
 import { OnboardingWelcomeModal } from "./OnboardingWelcomeModal";
+import { OnboardingNextStepPrompt } from "./OnboardingNextStepPrompt";
 import { chooseTour, finishTour, restartRequiredOnboarding, saveTourStep, skipWelcome } from "@/lib/onboardingActions";
 
-// T117 (user request 2026-07-26, replacing the old T110/T116 per-page tour
-// chain): a single, short, four-moment tour instead of a walkthrough of
-// every page - Dashboard intro -> add accounts -> add the rest of your
-// finance info -> the forecast table. Mounted once in AppShell.tsx (not
-// per-page), so it persists across navigation - see SpotlightTour.tsx's own
-// notes on how a step whose target isn't on the current page goes dormant
-// rather than skipping or ending.
+// T120 (user request 2026-07-26, replacing T116/T119's 4-step version): a
+// 6-step tour that actually walks the app - Dashboard -> Accounts -> Bills
+// -> Forecast -> Settings -> back to Dashboard - rather than pointing at nav
+// links from one page. Every step's Next both advances *and* navigates, so
+// the user is always looking at the page being described.
+//
+// Each data page is visited with `?preview=1`, which renders the read-only
+// sample fixture (T103, extended to Accounts/Bills in T120): a brand-new
+// account is empty, so without placeholders there'd be nothing to point at.
+// Nothing shown during the tour is ever written - see PreviewModeBar's copy
+// and each page's `previewMode` prop. Settings is deliberately visited
+// *without* preview: the preferences shown there are the account's real
+// ones, so flagging them as "sample data" would be a lie.
 const GUIDED_TOUR_STEPS: TourStep[] = [
   {
     title: "Welcome to Orium",
-    body: "See the future of your cash flow at any point in time.",
+    // The one-line promise the whole product exists to keep: a balance at a
+    // future date you can actually point at. Keep this framing wherever
+    // Orium introduces itself.
+    body: "Orium shows you how much money you'll have at any point in the future. Here's a quick look around.",
+    href: "/accounts?preview=1",
     secondaryAction: {
-      label: "Prefer step-by-step setup instead?",
+      label: "Prefer step-by-step setup?",
       onClick: () => {
         void restartRequiredOnboarding();
       },
     },
   },
   {
-    target: '[data-tour="nav-accounts"], [data-tour="nav-menu"]',
-    title: "Add your accounts",
-    body: "Track where all your cash lives.",
-    href: "/accounts",
-    nextLabel: "Go to Accounts",
+    target: '[data-tour="accounts-header"]',
+    title: "Your accounts",
+    body: "Every bank account, wallet, and cash stash you keep money in. Their total is where your forecast starts.",
+    href: "/bills?preview=1",
   },
   {
-    target: '[data-tour-group="finance"], [data-tour="nav-menu"]',
-    multi: true,
-    title: "Add your finance info",
-    body: "Add bills, income, debt, savings, budgets, and misc to build your forecast.",
+    target: '[data-tour="bills-header"]',
+    title: "Your money in and out",
+    body: "Bills, income, debt, savings, budgets, and misc all live in their own tab and feed the same forecast.",
+    href: "/forecast?preview=1",
   },
   {
     target: '[data-tour="forecast-content"]',
-    title: "Your forecast table",
-    body: "Manage every upcoming payment and see how much you'll have at any point in time.",
+    title: "Your forecast",
+    body: "Every upcoming transaction, and what you'll have left on each date. Settle each one as it really happens to keep those numbers honest.",
+    href: "/settings",
+  },
+  {
+    target: "#balance-thresholds, #lowest-balance-labels",
+    multi: true,
+    title: "Make it yours",
+    body: "Set the balance amounts that count as healthy or risky, and the wording used for each.",
+    href: "/?preview=1",
+  },
+  {
+    target: '[data-tour="dashboard-peaks-drops"]',
+    title: "Peaks and drops",
+    body: "Your highest and lowest balance for every month ahead, so trouble is easy to spot early.",
+    nextLabel: "Complete",
   },
 ];
 
-// T119 (user request 2026-07-26): a first-time login now opens with a
-// welcome choice (this tour vs. the guided-setup wizard) instead of the
-// tour just auto-starting, and progress through whichever path is chosen is
+// T119: a first-time login opens with a welcome choice (this tour vs. the
+// guided-setup wizard) instead of the tour auto-starting, and progress is
 // persisted server-side (`preferences.onboarding_choice`/
-// `onboarding_tour_step`) so it survives logging out or closing the browser
-// - not just a localStorage flag on one device the way the tour used to
-// track itself.
+// `onboarding_tour_step`) so it survives logging out or closing the browser.
+// T120 adds the post-tour "what next?" prompt, likewise server-persisted so
+// it follows the user across pages until they pick something.
 export function GuidedTour({
-  sampleDataSeededAt,
   onboardingChoice,
   onboardingTourStep,
   onboardingTourCompletedAt,
+  onboardingPostTourChoice,
 }: {
-  sampleDataSeededAt: string | null;
   // null = brand-new account, hasn't been asked yet (show the welcome
   // modal); 'tour' | 'guided_setup' | 'skipped' once they've picked.
   onboardingChoice: string | null;
   onboardingTourStep: number | null;
   onboardingTourCompletedAt: string | null;
+  // null = show the post-tour prompt; any value = already decided/dismissed.
+  onboardingPostTourChoice: string | null;
 }) {
+  const router = useRouter();
   const [choice, setChoice] = useState(onboardingChoice);
   const [tourStep, setTourStep] = useState(onboardingTourStep ?? 0);
-  // Bugfix: `finishTour`'s own `revalidatePath` refetches the layout with a
-  // fresh `onboardingTourStep: null` prop shortly after Done is clicked -
-  // gating the whole return block (including the end-of-tour modals below)
-  // on that prop unmounted the modals the instant the revalidated prop
-  // arrived, before they'd had a chance to be seen. `tourFinished` is local
-  // state instead, flipped synchronously in `onFinish` alongside showing a
-  // modal, so the tour's own visibility and the modals' visibility are
-  // decoupled from server revalidation timing entirely.
-  const [tourFinished, setTourFinished] = useState(false);
-  const [showSampleDecision, setShowSampleDecision] = useState(false);
-  const [showSetupOffer, setShowSetupOffer] = useState(false);
+  // Local accelerator so the prompt appears the instant "Complete" is
+  // clicked, rather than waiting on `finishTour`'s revalidation round-trip.
+  // Gated on the server's own choice still being null below, so a *replay*
+  // of an already-decided tour can never resurrect a prompt they've answered.
+  const [justFinished, setJustFinished] = useState(false);
 
   if (choice === null) {
     return (
@@ -86,6 +104,9 @@ export function GuidedTour({
           void chooseTour();
           setTourStep(0);
           setChoice("tour");
+          // Straight into preview so step 1 already has placeholder numbers
+          // behind it, matching every later step.
+          router.push("/?preview=1");
         }}
         onSkip={() => {
           void skipWelcome();
@@ -97,10 +118,10 @@ export function GuidedTour({
 
   // Guided setup (choice === "guided_setup") is handled entirely by
   // (app)/layout.tsx's separate required-onboarding gate, which renders
-  // OnboardingWizard *instead of* AppShell/this component while it's
-  // active - so there's nothing for this component to render for that
-  // choice. "skipped" means nothing to show either.
-  const tourActive = choice === "tour" && onboardingTourStep !== null && !tourFinished;
+  // OnboardingWizard *instead of* AppShell/this component while it's active.
+  const tourActive = choice === "tour" && onboardingTourStep !== null && !justFinished;
+  const promptVisible =
+    onboardingPostTourChoice === null && (justFinished || onboardingTourCompletedAt !== null);
 
   return (
     <>
@@ -110,31 +131,12 @@ export function GuidedTour({
           initialStepIndex={tourStep}
           onStepChange={(index) => void saveTourStep(index)}
           onFinish={() => {
-            const wasFirstCompletion = onboardingTourCompletedAt === null;
-            void finishTour(wasFirstCompletion);
-            setTourFinished(true);
-            // T102-style end-of-tour prompts: sample-data keep/reset first
-            // (if there's sample data to decide about), then the opt-in
-            // guided-setup offer - each shown at most once, ever (a later
-            // replay via Settings' "Review the tour" won't re-trigger
-            // these, since `onboardingTourCompletedAt` is only set on first
-            // finish).
-            if (wasFirstCompletion) {
-              if (sampleDataSeededAt) setShowSampleDecision(true);
-              else setShowSetupOffer(true);
-            }
+            void finishTour(onboardingTourCompletedAt === null);
+            setJustFinished(true);
           }}
         />
       )}
-      {showSampleDecision && (
-        <SampleDataDecisionModal
-          onClose={() => {
-            setShowSampleDecision(false);
-            setShowSetupOffer(true);
-          }}
-        />
-      )}
-      {showSetupOffer && <GuidedSetupOfferModal onClose={() => setShowSetupOffer(false)} />}
+      {promptVisible && <OnboardingNextStepPrompt />}
     </>
   );
 }

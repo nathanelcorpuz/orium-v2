@@ -2,6 +2,7 @@
 
 import { useActionState, useEffect, useRef, useState } from "react";
 import { Modal } from "@/components/Modal";
+import { FormTip } from "@/components/FormTip";
 import { DatePicker } from "@/components/DatePicker";
 import { centavosToPesosString } from "@/lib/money";
 import { todayInManila } from "@/lib/date";
@@ -88,6 +89,12 @@ export function IncomeModal({
         className="space-y-4"
       >
         {isEdit && <input type="hidden" name="id" value={income.id} />}
+        {!isEdit && (
+          <FormTip tipKey="income-intro" variant="panel">
+            Income is money coming in on a repeating schedule - salary, freelance work, rent you
+            collect. Every future payday shows up in your forecast.
+          </FormTip>
+        )}
         <div>
           <label className="block text-sm text-slate-600" htmlFor="name">
             Name
@@ -149,6 +156,11 @@ export function IncomeModal({
               </option>
             ))}
           </select>
+          <FormTip tipKey="income-account">
+            Connect an account and settling this income automatically adds it to that
+            account&rsquo;s balance - you never have to update the balance by hand. Left blank, it
+            still counts toward your forecast, just not toward one specific account.
+          </FormTip>
         </div>
         <div>
           <label className="block text-sm text-slate-600" htmlFor="comments">

@@ -2,6 +2,7 @@
 
 import { useActionState, useEffect, useRef, useState } from "react";
 import { Modal } from "@/components/Modal";
+import { FormTip } from "@/components/FormTip";
 import { DatePicker } from "@/components/DatePicker";
 import { centavosToPesosString } from "@/lib/money";
 import { todayInManila } from "@/lib/date";
@@ -80,6 +81,16 @@ export function MonthlyGoalModal({
         className="space-y-4"
       >
         {isEdit && <input type="hidden" name="id" value={item.id} />}
+        {/* T120: Debt and Savings share this component, so the intro is
+            keyed off `noun` (the only thing that already distinguishes
+            them here) rather than adding a second prop just for copy. */}
+        {!isEdit && (
+          <FormTip tipKey={`${noun === "debt" ? "debt" : "savings"}-intro`} variant="panel">
+            {noun === "debt"
+              ? "A debt is something you're paying down on a schedule - a loan, a credit card plan. Orium tracks what's left and shows the date you'll be clear of it."
+              : "A savings goal is money you set aside on a schedule. Orium reserves each contribution in your forecast, so the balance you see is what's genuinely free to spend."}
+          </FormTip>
+        )}
         <div>
           <label className="block text-sm text-slate-600" htmlFor="name">
             Name
@@ -107,6 +118,10 @@ export function MonthlyGoalModal({
             defaultValue={item ? centavosToPesosString(Math.abs(item.amount)) : undefined}
             className="mt-1 w-full rounded border border-notion-hairline p-2 text-notion-text focus:border-notion-accent focus:outline-none"
           />
+          <FormTip tipKey={`${noun === "debt" ? "debt" : "savings"}-amount`}>
+            The amount of one {noun === "debt" ? "payment" : "contribution"}, not the total. Enter
+            it as a positive number.
+          </FormTip>
         </div>
         <div>
           <label className="block text-sm text-slate-600" htmlFor="startDate">
@@ -127,6 +142,11 @@ export function MonthlyGoalModal({
             occurrence count is computable for the progress bar - unlike
             other recurring types, which keep "Never" (T85). */}
         <RecurrencePicker startDate={startDate} initialValue={initialRecurrenceValue} allowNever={false} />
+        <FormTip tipKey={`${noun === "debt" ? "debt" : "savings"}-ends`}>
+          {noun === "debt" ? "Debt" : "Savings"} needs a definite end - a final payment count or
+          date - so Orium can show you real progress toward{" "}
+          {noun === "debt" ? "being debt-free" : "hitting the goal"}.
+        </FormTip>
         <div>
           <label className="block text-sm text-slate-600" htmlFor="balanceId">
             Deducted from (optional)
@@ -144,6 +164,11 @@ export function MonthlyGoalModal({
               </option>
             ))}
           </select>
+          <FormTip tipKey={`${noun === "debt" ? "debt" : "savings"}-account`}>
+            Connect an account and settling each {noun === "debt" ? "payment" : "contribution"}
+            {" "}automatically subtracts it from that account&rsquo;s balance, so you never have to
+            update it by hand.
+          </FormTip>
         </div>
         <div>
           <label className="block text-sm text-slate-600" htmlFor="comments">

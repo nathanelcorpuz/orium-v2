@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { wipeFinancialData } from "@/lib/wipeFinancialData";
 import { createBalance } from "@/app/(app)/accounts/actions";
 import { createBill } from "@/app/(app)/bills/actions";
 import { createIncome } from "@/app/(app)/income/actions";
@@ -172,6 +173,90 @@ export async function replayTour() {
   await supabase
     .from("preferences")
     .update({ onboarding_choice: "tour", onboarding_tour_step: 0 })
+    .eq("user_id", user.id);
+  revalidatePath("/", "layout");
+  redirect("/?preview=1");
+}
+
+// T120 (user request 2026-07-26): the persistent post-tour prompt's three
+// choices, plus its small dismiss. Server-persisted (migration 0024) rather
+// than client state because the prompt has to follow the user across every
+// page AND survive a reload until they actually pick something.
+
+async function setPostTourChoice(choice: string) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return null;
+
+  await supabase
+    .from("preferences")
+    .update({ onboarding_post_tour_choice: choice })
+    .eq("user_id", user.id);
+  return { supabase, user };
+}
+
+// "Explore with test data" - seeds the real sample dataset into the account
+// (wipe-then-seed, the same way Settings' "Restore sample data" does) so
+// they can click around live rows instead of the tour's read-only fixture.
+// No typed confirmation here, unlike Settings' version: this is only ever
+// reachable straight off a brand-new account's first tour, where there's
+// nothing of the user's own to lose.
+export async function choosePostTourTestData() {
+  const result = await setPostTourChoice("test_data");
+  if (!result) return;
+  const { supabase, user } = result;
+
+  const wipeError = await wipeFinancialData(supabase, user.id);
+  if (wipeError) return;
+
+  const { error: seedError } = await supabase.rpc("seed_sample_data", { target_user: user.id });
+  if (seedError) return;
+
+  await supabase
+    .from("preferences")
+    .update({ sample_data_seeded_at: new Date().toISOString() })
+    .eq("user_id", user.id);
+
+  revalidatePath("/", "layout");
+  redirect("/");
+}
+
+// "I'll enter my own data" - nothing to set up, just records the choice and
+// drops back to a plain (non-preview) Dashboard.
+export async function choosePostTourOwnData() {
+  await setPostTourChoice("own_data");
+  revalidatePath("/", "layout");
+  redirect("/");
+}
+
+// "Walk me through it" - records the choice, then hands off to the same
+// guided-setup wizard Settings and the welcome modal already use.
+export async function choosePostTourGuidedSetup() {
+  await setPostTourChoice("guided_setup");
+  await restartRequiredOnboarding();
+}
+
+// The small close button - stops the prompt showing without committing to
+// any of the three; Settings > Help brings the same options back.
+export async function dismissPostTourPrompt() {
+  await setPostTourChoice("dismissed");
+  revalidatePath("/", "layout");
+}
+
+// Settings > Help: "Show setup options again" - puts the prompt back, which
+// is what the prompt's own closing line promises.
+export async function reopenPostTourPrompt() {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return;
+
+  await supabase
+    .from("preferences")
+    .update({ onboarding_post_tour_choice: null })
     .eq("user_id", user.id);
   revalidatePath("/", "layout");
   redirect("/");

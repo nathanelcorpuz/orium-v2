@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { formatCentavos } from "@/lib/money";
+import { PreviewModeBar } from "@/components/PreviewModeBar";
 import { deleteBalance } from "./actions";
 import { BalanceModal, type BalanceRow } from "./BalanceModal";
 
@@ -20,9 +21,14 @@ export type ConnectedItem = {
 export function BalancesClient({
   balances,
   connectedItems,
+  // T120: `?preview=1` renders a read-only sample fixture (see page.tsx) -
+  // every mutating control is hidden so a tour/preview session can never
+  // write to (or 404 against) the real account behind it.
+  previewMode = false,
 }: {
   balances: BalanceRow[];
   connectedItems: ConnectedItem[];
+  previewMode?: boolean;
 }) {
   const [modalState, setModalState] = useState<null | "new" | BalanceRow>(null);
   const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null);
@@ -30,20 +36,24 @@ export function BalancesClient({
   const total = balances.reduce((sum, balance) => sum + balance.amount, 0);
 
   return (
-    <div className="p-8">
+    <>
+      {previewMode && <PreviewModeBar />}
+      <div className="p-8">
       <div className="mx-auto max-w-2xl">
         <div data-tour="accounts-header" className="mb-6 flex items-center justify-between">
           <div>
             <h1 className="text-xl font-semibold text-notion-text">Accounts</h1>
             <p className="text-slate-500">Total: {formatCentavos(total)}</p>
           </div>
-          <button
-            type="button"
-            onClick={() => setModalState("new")}
-            className="rounded bg-notion-text px-4 py-2 text-white hover:opacity-90"
-          >
-            Add account
-          </button>
+          {!previewMode && (
+            <button
+              type="button"
+              onClick={() => setModalState("new")}
+              className="rounded bg-notion-text px-4 py-2 text-white hover:opacity-90"
+            >
+              Add account
+            </button>
+          )}
         </div>
 
         {balances.length === 0 ? (
@@ -63,7 +73,7 @@ export function BalancesClient({
                   )}
                 </div>
                 <div className="flex items-center gap-2">
-                  {confirmingDeleteId === balance.id ? (
+                  {previewMode ? null : confirmingDeleteId === balance.id ? (
                     <>
                       <span className="text-sm text-slate-600">Delete?</span>
                       <form action={deleteBalance}>
@@ -117,6 +127,7 @@ export function BalancesClient({
           />
         )}
       </div>
-    </div>
+      </div>
+    </>
   );
 }

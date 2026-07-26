@@ -2,6 +2,7 @@
 
 import { useActionState, useEffect, useRef, useState } from "react";
 import { Modal } from "@/components/Modal";
+import { FormTip } from "@/components/FormTip";
 import { DatePicker } from "@/components/DatePicker";
 import { centavosToPesosString } from "@/lib/money";
 import { todayInManila } from "@/lib/date";
@@ -65,6 +66,12 @@ export function ExtraModal({
         className="space-y-4"
       >
         {isEdit && <input type="hidden" name="id" value={extra.id} />}
+        {!isEdit && (
+          <FormTip tipKey="misc-intro" variant="panel">
+            Misc is for one-off amounts that don&rsquo;t repeat - a big purchase, a bonus, a gift.
+            It lands on your forecast once, on the date you give it.
+          </FormTip>
+        )}
         <div>
           <label className="block text-sm text-slate-600" htmlFor="name">
             Name
@@ -153,6 +160,11 @@ export function ExtraModal({
               </option>
             ))}
           </select>
+          <FormTip tipKey="misc-account">
+            Connect an account and settling this automatically{" "}
+            {direction === "in" ? "adds it to" : "subtracts it from"} that account&rsquo;s balance,
+            so you never have to update it by hand.
+          </FormTip>
         </div>
         <div>
           <label className="block text-sm text-slate-600" htmlFor="comments">

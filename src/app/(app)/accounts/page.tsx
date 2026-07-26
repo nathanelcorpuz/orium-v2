@@ -1,7 +1,35 @@
 import { createClient } from "@/lib/supabase/server";
+import { getSampleFixtureData } from "@/lib/sampleFixture";
 import { BalancesClient, type ConnectedItem } from "./BalancesClient";
 
-export default async function BalancesPage() {
+export default async function BalancesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+}) {
+  // T120: the short tour (T116/T119) now walks through this page, and a
+  // brand-new account has nothing here to look at - so `?preview=1` renders
+  // the same read-only sample fixture Dashboard/Forecast already use (T103),
+  // purely as visual placeholders. Nothing is written, and every mutating
+  // control is disabled while it's on.
+  const preview = (await searchParams).preview === "1";
+  if (preview) {
+    const fixture = getSampleFixtureData();
+    const previewConnected: ConnectedItem[] = fixture.recurringItems
+      .filter((item) => item.balanceId !== null)
+      .map((item) => ({
+        id: item.id,
+        name: item.name,
+        amount: item.amount,
+        balanceId: item.balanceId as string,
+        sourceType: "recurring" as const,
+        type: item.type,
+      }));
+    return (
+      <BalancesClient balances={fixture.balances} connectedItems={previewConnected} previewMode />
+    );
+  }
+
   const supabase = await createClient();
   const [{ data: balances, error }, recurringRes, oneOffRes] = await Promise.all([
     supabase

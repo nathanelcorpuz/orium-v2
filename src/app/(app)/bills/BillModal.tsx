@@ -2,6 +2,7 @@
 
 import { useActionState, useEffect, useRef, useState } from "react";
 import { Modal } from "@/components/Modal";
+import { FormTip } from "@/components/FormTip";
 import { DatePicker } from "@/components/DatePicker";
 import { centavosToPesosString } from "@/lib/money";
 import { todayInManila } from "@/lib/date";
@@ -89,6 +90,16 @@ export function BillModal({
         className="space-y-4"
       >
         {isEdit && <input type="hidden" name="id" value={bill.id} />}
+        {/* T120: every add/edit form now explains what the entry does to the
+            forecast, not just what to type - a first-time user has no way to
+            know that (say) connecting an account is what automates their
+            balance updates. */}
+        {!isEdit && (
+          <FormTip tipKey="bill-intro" variant="panel">
+            A bill is money going out on a repeating schedule - rent, utilities, subscriptions.
+            Orium projects every future due date so you can see them coming.
+          </FormTip>
+        )}
         <div>
           <label className="block text-sm text-slate-600" htmlFor="name">
             Name
@@ -116,6 +127,9 @@ export function BillModal({
             defaultValue={bill ? centavosToPesosString(Math.abs(bill.amount)) : undefined}
             className="mt-1 w-full rounded border border-notion-hairline p-2 text-notion-text focus:border-notion-accent focus:outline-none"
           />
+          <FormTip tipKey="bill-amount">
+            Enter it as a positive number - Orium already counts a bill as money out.
+          </FormTip>
         </div>
         <div>
           <label className="block text-sm text-slate-600" htmlFor="startDate">
@@ -152,6 +166,11 @@ export function BillModal({
               </option>
             ))}
           </select>
+          <FormTip tipKey="bill-account">
+            Connect an account and settling this bill automatically subtracts it from that
+            account&rsquo;s balance - you never have to update the balance by hand. Left blank, it
+            still counts against your forecast, just not against one specific account.
+          </FormTip>
         </div>
         <div>
           <label className="block text-sm text-slate-600" htmlFor="comments">

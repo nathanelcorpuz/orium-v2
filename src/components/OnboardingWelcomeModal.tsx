@@ -17,6 +17,9 @@ export function OnboardingWelcomeModal({
 }) {
   return (
     <Modal title="Welcome to Orium" onClose={onSkip}>
+      <p className="mb-3 text-sm text-slate-600">
+        Orium shows you how much money you&rsquo;ll have at any point in the future.
+      </p>
       <p className="mb-4 text-sm text-slate-600">
         Would you like a short tour of the app, or a step-by-step guided setup to add your real
         accounts, bills, and income? You can always do the other one later from Settings.
