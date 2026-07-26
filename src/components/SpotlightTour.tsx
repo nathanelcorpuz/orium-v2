@@ -133,10 +133,24 @@ export function SpotlightTour({
     const raf = requestAnimationFrame(updateRect); // once more after scrollIntoView settles
     window.addEventListener("scroll", updateRect, true);
     window.addEventListener("resize", updateRect);
+    // T110: when a step's target is itself something the user is meant to
+    // click (e.g. a "click X to continue" step spotlighting a real nav
+    // link), the tooltip must get out of the way the instant they do -
+    // otherwise, on mobile, tapping the hamburger opens a drawer whose top
+    // links land directly under this still-visible tooltip (both render
+    // near the top-left corner), silently blocking the very tap the step
+    // just asked for. Hiding the overlay (not finishing the tour) on the
+    // target's own click, capture-phase so it fires before the target's own
+    // handler navigates away, fixes that without touching "done" state.
+    function hideOnTargetClick() {
+      setRect(null);
+    }
+    current.addEventListener("click", hideOnTargetClick, true);
     return () => {
       cancelAnimationFrame(raf);
       window.removeEventListener("scroll", updateRect, true);
       window.removeEventListener("resize", updateRect);
+      current.removeEventListener("click", hideOnTargetClick, true);
     };
   }, [active, stepIndex, steps, finish]);
 
@@ -188,7 +202,13 @@ export function SpotlightTour({
   );
 
   return (
-    <div className="fixed inset-0 z-[100]">
+    // T110: `pointer-events-none` on the full-screen wrapper (with
+    // `pointer-events-auto` restored just on the tooltip card below) lets
+    // clicks reach the real page underneath - needed so a "click the
+    // highlighted nav link to continue" step actually works, since that
+    // link lives under the spotlighted area, not inside the tour's own UI.
+    // Skip/Back/Next/Done still work because the tooltip card opts back in.
+    <div className="pointer-events-none fixed inset-0 z-[100]">
       <div
         className="pointer-events-none absolute rounded-lg ring-2 ring-white transition-all duration-200"
         style={{
@@ -200,7 +220,7 @@ export function SpotlightTour({
         }}
       />
       <div
-        className="absolute rounded-lg border border-notion-hairline bg-white p-4 shadow-xl"
+        className="pointer-events-auto absolute rounded-lg border border-notion-hairline bg-white p-4 shadow-xl"
         style={{
           width: tooltipWidth,
           left: tooltipLeft,

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { formatCentavos } from "@/lib/money";
+import { AccountsTour } from "@/components/AccountsTour";
 import { deleteBalance } from "./actions";
 import { BalanceModal, type BalanceRow } from "./BalanceModal";
 
@@ -31,8 +32,9 @@ export function BalancesClient({
 
   return (
     <div className="p-8">
+      <AccountsTour />
       <div className="mx-auto max-w-2xl">
-        <div className="mb-6 flex items-center justify-between">
+        <div data-tour="accounts-header" className="mb-6 flex items-center justify-between">
           <div>
             <h1 className="text-xl font-semibold text-notion-text">Accounts</h1>
             <p className="text-slate-500">Total: {formatCentavos(total)}</p>

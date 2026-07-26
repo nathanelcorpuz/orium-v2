@@ -6,6 +6,7 @@ import { PreferencesForm } from "./PreferencesForm";
 import { DeleteAccountButton } from "./DeleteAccountModal";
 import { SampleDataActions } from "./SampleDataActions";
 import { ReviewTourButton } from "@/components/ReviewTourButton";
+import { SettingsTour } from "@/components/SettingsTour";
 import { DEFAULT_TIER_LABELS } from "@/lib/balanceColor";
 
 const DEFAULT_BALANCE_RANGES = [0, 500000, 2000000, 5000000, 10000000];
@@ -25,8 +26,11 @@ export default async function SettingsPage() {
 
   return (
     <div className="p-4 md:p-8">
+      <SettingsTour />
       <div className="mx-auto max-w-xl">
-        <h1 className="mb-6 text-xl font-semibold text-notion-text">Settings</h1>
+        <h1 data-tour="settings-header" className="mb-6 text-xl font-semibold text-notion-text">
+          Settings
+        </h1>
 
         <div className="space-y-6">
           <ProfileForm email={user?.email ?? ""} name={name} />
@@ -41,10 +45,11 @@ export default async function SettingsPage() {
             <SampleDataActions showPreviewLink />
           </div>
 
-          <div className="rounded-lg border border-notion-hairline bg-white p-4">
+          <div data-tour="settings-help" className="rounded-lg border border-notion-hairline bg-white p-4">
             <h2 className="mb-1 text-sm font-semibold text-notion-text">Help</h2>
             <p className="mb-3 text-sm text-slate-600">
-              Replay the getting-started walkthrough for the Dashboard and Forecast pages.
+              Replay the full guided walkthrough, from your Dashboard all the way through every
+              page.
             </p>
             <ReviewTourButton />
           </div>

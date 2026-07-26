@@ -22,7 +22,7 @@ const FORECAST_TOUR_STEPS: TourStep[] = [
   {
     target: '[data-tour="forecast-insights"]',
     title: "Welcome to Forecast",
-    body: "This page lists every upcoming transaction. Forecast Insights repeats the lowest-balance warnings from your Dashboard, scoped to what you're viewing here.",
+    body: "Every upcoming transaction lists here, using sample data for now. Forecast Insights (above) repeats your Dashboard's lowest-balance warnings, scoped to this view.",
   },
   {
     target: '[data-tour="forecast-filter"]',
@@ -32,17 +32,24 @@ const FORECAST_TOUR_STEPS: TourStep[] = [
   {
     target: '[data-tour="forecast-table"]',
     title: "The forecast table",
-    body: "Every upcoming bill, income, debt, savings, budget, and misc item shows here in date order, with your running balance after each one. Click a row to edit or settle it.",
+    body: "Every upcoming bill, income, debt, savings, budget, and misc item shows here in date order, with your running balance. Click a row to edit or settle it.",
   },
   {
     target: '[data-tour="forecast-table"]',
     title: "Keep it accurate: settle your transactions",
-    body: "When a bill actually gets paid or income actually arrives, click it and choose Settle (not just Edit) - that's what locks in the real amount and date and updates your balances. A forecast that's never settled just shows guesses forever, not what really happened.",
+    body: "When a bill is paid or income arrives, click it and choose Settle (not Edit) - that locks in the real amount, date, and balance.",
   },
   {
     target: '[data-tour="forecast-reminders"]',
     title: "Reminders",
     body: "Keep quick notes here - Reminders stay pinned to the Forecast page for easy reference.",
+  },
+  {
+    // T110: chains into the Accounts intro tour, same nav-link-or-hamburger
+    // target pattern the Dashboard tour's own final step uses.
+    target: '[data-tour="nav-accounts"], [data-tour="nav-menu"]',
+    title: "Continue to Accounts",
+    body: "Next, let's set up your real accounts, bills, and income. Click Accounts in the sidebar (or the menu icon on mobile) to continue.",
   },
 ];
 

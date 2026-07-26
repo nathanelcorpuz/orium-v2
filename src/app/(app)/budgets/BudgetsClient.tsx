@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { AmountRangeFilter, matchesAmountFilter, type ComparisonOp } from "@/components/AmountRangeFilter";
 import { MultiSelectChips } from "@/components/MultiSelectChips";
+import { BudgetsTour } from "@/components/BudgetsTour";
 import { BudgetCard, type BudgetEntryRow, type IncomeItemRow } from "./BudgetCard";
 import { BudgetModal, type BudgetRow } from "./BudgetModal";
 
@@ -77,8 +78,9 @@ export function BudgetsClient({
 
   return (
     <div className="p-4 md:p-8">
+      <BudgetsTour />
       <div className="mx-auto max-w-2xl">
-        <div className="mb-6 flex items-center justify-between">
+        <div data-tour="budgets-header" className="mb-6 flex items-center justify-between">
           <div>
             <h1 className="text-xl font-semibold text-notion-text">Budgets</h1>
             <p className="text-slate-500">A running total for variable spending.</p>

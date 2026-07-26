@@ -7,18 +7,23 @@ import { logout } from "@/app/auth/actions";
 import { ChevronIcon, CloseIcon, LogoMark, LogoutIcon, MenuIcon, NAV_ICONS } from "./navIcons";
 import { MobileDrawer } from "./MobileDrawer";
 
+// `tourKey` (T110) marks the nav items the guided app walkthrough links
+// between pages - it's a distinct, stable identifier from `label` (which is
+// user-facing display text, T106 already renamed "extra" to "Misc" there)
+// so the walkthrough's step data doesn't depend on copy staying in sync.
+// History has no `tourKey`: the walkthrough chain doesn't cover it.
 const NAV_ITEMS = [
   { href: "/", label: "Dashboard" },
-  { href: "/forecast", label: "Forecast" },
-  { href: "/accounts", label: "Accounts" },
-  { href: "/bills", label: "Bills" },
-  { href: "/income", label: "Income" },
-  { href: "/debt", label: "Debt" },
-  { href: "/savings", label: "Savings" },
-  { href: "/budgets", label: "Budgets" },
-  { href: "/extra", label: "Misc" },
+  { href: "/forecast", label: "Forecast", tourKey: "forecast" },
+  { href: "/accounts", label: "Accounts", tourKey: "accounts" },
+  { href: "/bills", label: "Bills", tourKey: "bills" },
+  { href: "/income", label: "Income", tourKey: "income" },
+  { href: "/debt", label: "Debt", tourKey: "debt" },
+  { href: "/savings", label: "Savings", tourKey: "savings" },
+  { href: "/budgets", label: "Budgets", tourKey: "budgets" },
+  { href: "/extra", label: "Misc", tourKey: "misc" },
   { href: "/history", label: "History" },
-  { href: "/settings", label: "Settings" },
+  { href: "/settings", label: "Settings", tourKey: "settings" },
 ];
 
 const COLLAPSED_STORAGE_KEY = "orium.sidebarCollapsed";
@@ -78,6 +83,7 @@ function SidebarContent({
               href={item.href}
               onClick={onNavigate}
               title={collapsed ? item.label : undefined}
+              data-tour={item.tourKey ? `nav-${item.tourKey}` : undefined}
               className={`flex items-center gap-2 rounded py-1.5 text-sm ${collapsed ? "justify-center px-2" : "px-3"} ${
                 active
                   ? "bg-notion-hover font-medium text-notion-accent"
@@ -169,6 +175,7 @@ export function AppShell({
           type="button"
           onClick={() => setMobileOpen(true)}
           aria-label="Open menu"
+          data-tour="nav-menu"
           className="rounded p-1.5 text-slate-500 hover:bg-notion-hover hover:text-notion-text"
         >
           <MenuIcon className="h-5 w-5" />

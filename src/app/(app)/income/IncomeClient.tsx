@@ -6,6 +6,7 @@ import { monthlyEquivalent } from "@/lib/engine/monthlyTotals";
 import { summarizeRecurrence } from "@/lib/recurrenceSummary";
 import { AmountRangeFilter, matchesAmountFilter, type ComparisonOp } from "@/components/AmountRangeFilter";
 import { MultiSelectChips } from "@/components/MultiSelectChips";
+import { IncomeTour } from "@/components/IncomeTour";
 import type { RecurrenceUnit } from "@/lib/engine/types";
 import { deleteIncome } from "./actions";
 import { IncomeModal, type BalanceOption, type IncomeRow } from "./IncomeModal";
@@ -115,8 +116,9 @@ export function IncomeClient({
 
   return (
     <div className="p-4 md:p-8">
+      <IncomeTour />
       <div className="mx-auto max-w-2xl">
-        <div className="mb-6 flex items-center justify-between">
+        <div data-tour="income-header" className="mb-6 flex items-center justify-between">
           <div>
             <h1 className="text-xl font-semibold text-notion-text">Income</h1>
             <p className="text-slate-500">

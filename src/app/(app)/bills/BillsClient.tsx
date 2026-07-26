@@ -6,6 +6,7 @@ import { monthlyEquivalent } from "@/lib/engine/monthlyTotals";
 import { summarizeRecurrence } from "@/lib/recurrenceSummary";
 import { AmountRangeFilter, matchesAmountFilter, type ComparisonOp } from "@/components/AmountRangeFilter";
 import { MultiSelectChips } from "@/components/MultiSelectChips";
+import { BillsTour } from "@/components/BillsTour";
 import type { RecurrenceUnit } from "@/lib/engine/types";
 import { deleteBill } from "./actions";
 import { BillModal, type BalanceOption, type BillRow } from "./BillModal";
@@ -101,8 +102,9 @@ export function BillsClient({
 
   return (
     <div className="p-4 md:p-8">
+      <BillsTour />
       <div className="mx-auto max-w-2xl">
-        <div className="mb-6 flex items-center justify-between">
+        <div data-tour="bills-header" className="mb-6 flex items-center justify-between">
           <div>
             <h1 className="text-xl font-semibold text-notion-text">Bills</h1>
             <p className="text-slate-500">Total monthly: {formatCentavos(totalMonthly)}</p>
