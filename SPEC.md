@@ -150,6 +150,20 @@ Notion palette (`#37352F` text, `#E9E9E7` hairlines, `#2383E2` accent, soft pill
 - **Sample data**: `supabase/seed.sql` fills every feature with a realistic family dataset (run after 0004; re-runnable; all seed rows share the id prefix `00000000-0000-4000-a000-` for easy wiping).
 - **Dev auto-login for browser verification** (added 2026-07-21): `GET /api/dev-login` signs in the dedicated test account so automated Browser-pane sessions reach a logged-in state without a password ever being typed. Dev-only twice over: it 404s unless `NODE_ENV` is development **and** `DEV_LOGIN_EMAIL`/`DEV_LOGIN_PASSWORD` exist in `.env.local` (gitignored; never set on Vercel). The route is listed in the middleware's `PUBLIC_PATHS` so a logged-out hit isn't bounced to `/login` first.
 
+### How to test the onboarding flow (recipe - hand this to the user verbatim whenever they ask)
+Added 2026-07-26 at the user's request, so the steps live here instead of in their head. Both routes are dev-only and send no email, so this can be repeated as often as needed (see T120/T121, and the "email rate limit exceeded" problem that made this necessary).
+
+1. **Become a brand-new user:** open `http://localhost:3000/api/dev-new-account`. This creates a real, already-confirmed account and signs into it. The **Welcome to Orium** box should appear, with a "0 of 6" Getting started checklist and zero balances behind it.
+2. **Pick a path to test.** Re-open the same link before each one so every run starts clean:
+   - *Take the short tour* - the 6-step walkthrough (Dashboard, Accounts, Bills, Forecast, Settings, Dashboard), ending in the post-tour prompt with its three choices.
+   - *Start guided setup* - T115's step-by-step wizard.
+   - *Maybe later* - skips onboarding; check it stays skipped while navigating.
+3. **To test that progress survives a logout:** start the tour, click Next once or twice, log out, then log back in with the account's own address (shown in the URL bar after step 1, and in the sidebar) plus `DEV_LOGIN_PASSWORD`. The tour must resume on the same step, not restart (T119).
+4. **Clean up afterwards:** open `http://localhost:3000/api/dev-new-account?cleanup=1`. It deletes only accounts this route created (matched on the `orium-dev+` prefix), so the real test account can never be caught by it.
+5. **Return to the normal seeded account:** open `http://localhost:3000/api/dev-login`.
+
+Quicker alternative when a full fresh account isn't needed: `http://localhost:3000/api/dev-reset-onboarding` resets the *current* account's onboarding columns only (add `?wipe=1` to also clear its financial rows). Not a faithful new user - currency, balance thresholds, tier labels, dismissed form tips and the sample-data stamp all survive it - so prefer step 1 when testing the real first-run experience.
+
 ## Roadmap
 
 **Task order is non-negotiable: work strictly top to bottom through this section — always the topmost unchecked (`- [ ]`) item.** Never skip ahead or cherry-pick a later task without the user explicitly saying so. (Mirrored in CLAUDE.md's session workflow.)
