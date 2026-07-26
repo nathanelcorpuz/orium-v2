@@ -8,6 +8,11 @@ const PUBLIC_PATHS = [
   "/reset-password",
   "/auth/callback",
   "/api/dev-login", // the route itself 404s outside development
+  // T121 fix (found in T124's testing): creating a fresh account is
+  // inherently something you do while logged *out*, so without this the
+  // route was only reachable when a session already existed - the exact
+  // situation it exists to escape. Also 404s outside development.
+  "/api/dev-new-account",
   "/health",
   "/privacy",
   "/terms",

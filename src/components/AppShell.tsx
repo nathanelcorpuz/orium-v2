@@ -23,18 +23,21 @@ import { GuidedTour } from "./GuidedTour";
 // at once (rendered as `data-tour-group="finance"`, a separate attribute
 // since that step's target selector needs to match all six simultaneously,
 // unlike `tourKey`'s one-item-per-value pattern).
+// T124: every item now carries a `tourKey`, not just Accounts - a tour step
+// highlights the page's own nav item alongside its content, so any page the
+// tour visits needs to be addressable as `[data-tour="nav-<key>"]`.
 const NAV_ITEMS = [
-  { href: "/", label: "Dashboard" },
-  { href: "/forecast", label: "Forecast" },
+  { href: "/", label: "Dashboard", tourKey: "dashboard" },
+  { href: "/forecast", label: "Forecast", tourKey: "forecast" },
   { href: "/accounts", label: "Accounts", tourKey: "accounts" },
-  { href: "/bills", label: "Bills", financeGroup: true },
-  { href: "/income", label: "Income", financeGroup: true },
-  { href: "/debt", label: "Debt", financeGroup: true },
-  { href: "/savings", label: "Savings", financeGroup: true },
-  { href: "/budgets", label: "Budgets", financeGroup: true },
-  { href: "/misc", label: "Misc", financeGroup: true },
-  { href: "/history", label: "History" },
-  { href: "/settings", label: "Settings" },
+  { href: "/bills", label: "Bills", tourKey: "bills", financeGroup: true },
+  { href: "/income", label: "Income", tourKey: "income", financeGroup: true },
+  { href: "/debt", label: "Debt", tourKey: "debt", financeGroup: true },
+  { href: "/savings", label: "Savings", tourKey: "savings", financeGroup: true },
+  { href: "/budgets", label: "Budgets", tourKey: "budgets", financeGroup: true },
+  { href: "/misc", label: "Misc", tourKey: "misc", financeGroup: true },
+  { href: "/history", label: "History", tourKey: "history" },
+  { href: "/settings", label: "Settings", tourKey: "settings" },
 ];
 
 const COLLAPSED_STORAGE_KEY = "orium.sidebarCollapsed";

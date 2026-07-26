@@ -35,24 +35,28 @@ const GUIDED_TOUR_STEPS: TourStep[] = [
   },
   {
     target: '[data-tour="accounts-header"]',
+    navKey: 'accounts',
     title: "Your accounts",
     body: "Every bank account, wallet, and cash stash you keep money in. Their total is where your forecast starts.",
     href: "/bills?preview=1",
   },
   {
     target: '[data-tour="bills-header"]',
+    navKey: 'bills',
     title: "Your money in and out",
     body: "Bills, income, debt, savings, budgets, and misc all live in their own tab and feed the same forecast.",
     href: "/forecast?preview=1",
   },
   {
     target: '[data-tour="forecast-content"]',
+    navKey: 'forecast',
     title: "Your forecast",
     body: "Every upcoming transaction, and what you'll have left on each date. Settle each one as it really happens to keep those numbers honest.",
     href: "/settings",
   },
   {
     target: "#balance-thresholds, #lowest-balance-labels",
+    navKey: "settings",
     multi: true,
     title: "Make it yours",
     body: "Set the balance amounts that count as healthy or risky, and the wording used for each.",
@@ -60,6 +64,7 @@ const GUIDED_TOUR_STEPS: TourStep[] = [
   },
   {
     target: '[data-tour="dashboard-peaks-drops"]',
+    navKey: 'dashboard',
     title: "Peaks and drops",
     body: "Your highest and lowest balance for every month ahead, so trouble is easy to spot early.",
     nextLabel: "Complete",
