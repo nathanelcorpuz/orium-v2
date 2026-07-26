@@ -29,7 +29,7 @@ export function LogSpendModal({
   }, [pending, state, onClose]);
 
   return (
-    <Modal title={`${budgetName} — Log spend`} onClose={onClose}>
+    <Modal title={`${budgetName} - Log spend`} onClose={onClose}>
       <form
         action={formAction}
         onSubmit={() => {

@@ -199,7 +199,7 @@ export function BillsClient({
                     </p>
                     {bill.balance_id && (
                       <span className="rounded-full bg-notion-hover px-2 py-0.5 text-xs font-medium text-slate-500">
-                        {balanceNameById.get(bill.balance_id) ?? "—"}
+                        {balanceNameById.get(bill.balance_id) ?? "-"}
                       </span>
                     )}
                   </div>

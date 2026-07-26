@@ -186,7 +186,7 @@ export function EditSettleModal({
             <input type="hidden" name="budgetName" value={row.budgetName} />
             <div>
               <label className="block text-sm text-slate-600" htmlFor="amountPesos">
-                Amount ({currency}) — {row.amount > 0 ? "incoming" : "outgoing"}
+                Amount ({currency}) - {row.amount > 0 ? "incoming" : "outgoing"}
               </label>
               <input
                 id="amountPesos"

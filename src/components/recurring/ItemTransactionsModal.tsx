@@ -34,7 +34,7 @@ export function ItemTransactionsModal({
   const [tab, setTab] = useState<"upcoming" | "paid">("upcoming");
 
   return (
-    <Modal title={`${name} — Transactions`} onClose={onClose}>
+    <Modal title={`${name} - Transactions`} onClose={onClose}>
       <div className="mb-4">
         <SegmentedControl
           options={[

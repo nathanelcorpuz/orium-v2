@@ -35,7 +35,7 @@ export function FundsModal({
   const title = mode === "add" ? "Add funds" : "Take funds";
 
   return (
-    <Modal title={`${budgetName} — ${title}`} onClose={onClose}>
+    <Modal title={`${budgetName} - ${title}`} onClose={onClose}>
       <form
         action={formAction}
         onSubmit={() => {

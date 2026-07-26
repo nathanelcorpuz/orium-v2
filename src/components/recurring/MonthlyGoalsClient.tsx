@@ -251,7 +251,7 @@ export function MonthlyGoalsClient({
                       </p>
                       {item.balance_id && (
                         <span className="rounded-full bg-notion-hover px-2 py-0.5 text-xs font-medium text-slate-500">
-                          {balanceNameById.get(item.balance_id) ?? "—"}
+                          {balanceNameById.get(item.balance_id) ?? "-"}
                         </span>
                       )}
                     </div>

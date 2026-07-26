@@ -73,7 +73,7 @@ export default async function HistoryPage() {
                   // occurrence (own-schedule or income-linked) writes a real,
                   // non-zero forecasted_amount/date - those get a genuine
                   // forecast-vs-actual comparison like any other type.
-                  // forecasted_balance stays "—" regardless (it's never a
+                  // forecasted_balance stays "-" regardless (it's never a
                   // real value for a budget row - see writeLedgerEntry/
                   // settleOccurrence/settleBudgetReplenish, all of which
                   // write 0 there).
@@ -92,13 +92,13 @@ export default async function HistoryPage() {
                         )}
                       </td>
                       <td className="p-3 text-right">
-                        {isBudget && !budgetHasRealForecast ? "—" : formatCentavos(row.forecasted_amount, currency)}
+                        {isBudget && !budgetHasRealForecast ? "-" : formatCentavos(row.forecasted_amount, currency)}
                       </td>
                       <td className="p-3 text-right">{formatCentavos(row.actual_amount, currency)}</td>
-                      <td className="p-3">{isBudget && !budgetHasRealForecast ? "—" : row.forecasted_date}</td>
+                      <td className="p-3">{isBudget && !budgetHasRealForecast ? "-" : row.forecasted_date}</td>
                       <td className="p-3">{row.actual_date}</td>
                       <td className="p-3 text-right font-medium">
-                        {isBudget ? "—" : formatCentavos(row.forecasted_balance, currency)}
+                        {isBudget ? "-" : formatCentavos(row.forecasted_balance, currency)}
                       </td>
                     </tr>
                   );

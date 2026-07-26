@@ -33,7 +33,7 @@ function occurrencesPerMonth(item: {
 
 // Summary-stat estimate for "Total Monthly X" cards: integer multipliers,
 // never 52/12-style fractional math. The forecast itself keeps using real
-// occurrence dates (a 5-Saturday month genuinely shows 5 incomes) — only
+// occurrence dates (a 5-Saturday month genuinely shows 5 incomes) - only
 // these summary totals use multipliers.
 export function monthlyEquivalent(item: {
   amount: number;

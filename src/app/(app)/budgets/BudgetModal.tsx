@@ -164,7 +164,7 @@ export function BudgetModal({
             </div>
           ) : (
             <p className="text-sm text-slate-400">
-              No income sources yet — add one on the Income page, or choose &ldquo;Manual&rdquo; instead.
+              No income sources yet - add one on the Income page, or choose &ldquo;Manual&rdquo; instead.
             </p>
           ))}
 

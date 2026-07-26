@@ -146,7 +146,7 @@ export function ExtraClient({ extras, balances }: { extras: ExtraRow[]; balances
                     <p className="font-medium text-notion-text">{extra.name}</p>
                     {extra.balance_id && (
                       <span className="rounded-full bg-notion-hover px-2 py-0.5 text-xs font-medium text-slate-500">
-                        {balanceNameById.get(extra.balance_id) ?? "—"}
+                        {balanceNameById.get(extra.balance_id) ?? "-"}
                       </span>
                     )}
                   </div>

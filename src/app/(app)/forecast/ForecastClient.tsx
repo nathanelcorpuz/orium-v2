@@ -537,7 +537,7 @@ export function ForecastClient({
                         </td>
                         <td className={`px-2 py-1.5 ${TYPE_COLOR[row.type]}`}>{TYPE_LABEL[row.type]}</td>
                         <td className="px-2 py-1.5 text-slate-500">
-                          {row.balanceId ? (balanceNameById.get(row.balanceId) ?? "—") : "—"}
+                          {row.balanceId ? (balanceNameById.get(row.balanceId) ?? "-") : "-"}
                         </td>
                         <td className="px-2 py-1.5 text-right">{formatCentavos(row.amount, currency)}</td>
                         <td className="px-2 py-1.5 text-right font-medium">
@@ -597,7 +597,7 @@ export function ForecastClient({
                               {TYPE_LABEL[row.type]}
                             </td>
                             <td className="hidden px-2 py-1.5 text-slate-500 md:table-cell">
-                              {row.balanceId ? (balanceNameById.get(row.balanceId) ?? "—") : "—"}
+                              {row.balanceId ? (balanceNameById.get(row.balanceId) ?? "-") : "-"}
                             </td>
                             <td className="px-2 py-1.5 text-right">{formatCentavos(row.amount, currency)}</td>
                             <td className="px-2 py-1.5 text-right font-medium">

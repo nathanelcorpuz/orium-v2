@@ -4,8 +4,8 @@ import { ensureUserPreferences } from "@/lib/supabase/preferences";
 
 // Dev-only auto-login for automated browser verification (see project
 // memory / SPEC.md Operations). Signs in the test account whose
-// credentials live in .env.local — never committed, never present on
-// Vercel — so local tooling can reach a logged-in state without a
+// credentials live in .env.local - never committed, never present on
+// Vercel - so local tooling can reach a logged-in state without a
 // password ever appearing in a form or transcript. Hard-refuses outside
 // `next dev`: in production NODE_ENV is "production" AND the env vars
 // don't exist, so this responds 404 no matter what.

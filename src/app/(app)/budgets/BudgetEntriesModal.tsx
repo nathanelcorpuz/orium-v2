@@ -225,7 +225,7 @@ export function BudgetEntriesModal({
   }, [filteredEntries.length]);
 
   return (
-    <Modal title={`${budgetName} — Entries`} onClose={onClose}>
+    <Modal title={`${budgetName} - Entries`} onClose={onClose}>
       <div className="mb-3 flex items-center justify-between gap-2">
         <p className="text-xs text-slate-500">Filter by month</p>
         <input

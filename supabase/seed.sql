@@ -1,4 +1,4 @@
--- Orium sample data seed (T88, SPEC.md Phase 13 — full rewrite; supersedes
+-- Orium sample data seed (T88, SPEC.md Phase 13 - full rewrite; supersedes
 -- the T41 original, which had drifted out of sync with the schema: it
 -- still wrote to `frequency`/`day_of_month`/`weekday`, dropped by migration
 -- 0005, and never covered budgets' three replenish modes, connected
@@ -12,7 +12,7 @@
 -- sense at a glance. Every recurring-item recurrence shape appears on a
 -- bill: simple monthly (Rent), semi-monthly/two-days-a-month (Health insurance), a
 -- weekly bill (Parking fee), and an nth-weekday bill ("3rd Friday of the
--- month" — House helper). Budgets cover all three replenish modes:
+-- month" - House helper). Budgets cover all three replenish modes:
 -- income-linked (Groceries, replenishes when Freelance - Sheena settles),
 -- "replenish every" own-schedule (Dining out, weekly), and manual (Gas &
 -- transport, Add/Take funds). Debt and Savings each have a few already-
@@ -26,19 +26,19 @@
 --
 -- HOW TO RUN:
 --   1. Run supabase/wipe_test_data.sql first (or start from an empty
---      account) — this seed's ids are fixed with `on conflict do nothing`,
+--      account) - this seed's ids are fixed with `on conflict do nothing`,
 --      so re-running it alone is safe, but running it ALONGSIDE old/drifted
 --      data would leave both mixed together.
 --   2. Make sure you've signed up / logged into the app at least once (an
 --      auth user must exist). The seed targets whichever account signed in
---      most recently — the one you actually use. To force a specific
+--      most recently - the one you actually use. To force a specific
 --      account instead, set v_email below.
 --   3. Paste this whole file into the Supabase SQL editor and run it.
 --
 -- All amounts are integer centavos (e.g. ₱18,000.00 = 1800000).
 -- "Today" when this dataset was designed and calibrated against the real
 -- engine (a throwaway Vitest script run against this exact dataset, per
--- the T47 precedent — deleted before finishing, not committed): 2026-07-25.
+-- the T47 precedent - deleted before finishing, not committed): 2026-07-25.
 -- The dates keep working after that; the forecast just starts from
 -- whatever today is, and the Sept 2027 dip is far enough out to stay
 -- demoable for a long while.
@@ -53,7 +53,7 @@ begin
     select id, email into v_user, v_seeded_email
     from auth.users where email = v_email;
     if v_user is null then
-      raise exception 'No user with email % — existing users: %',
+      raise exception 'No user with email % - existing users: %',
         v_email,
         (select string_agg(email, ', ' order by created_at) from auth.users);
     end if;
@@ -63,7 +63,7 @@ begin
     order by last_sign_in_at desc nulls last, created_at desc
     limit 1;
     if v_user is null then
-      raise exception 'auth.users is empty — sign up / log into the app once, then re-run this seed';
+      raise exception 'auth.users is empty - sign up / log into the app once, then re-run this seed';
     end if;
   end if;
 
@@ -73,7 +73,7 @@ begin
   -- Custom balance-color thresholds and lowest-balance tier labels, tuned to
   -- this family's own trajectory rather than the untouched defaults (their
   -- typical balance sits in the ₱15k-80k range early on, climbing past
-  -- ₱300k by 2029+) — so Peaks and Drops and the Forecast's balance pills
+  -- ₱300k by 2029+) - so Peaks and Drops and the Forecast's balance pills
   -- actually move through several tiers across the demo instead of sitting
   -- in one color the whole time.
   insert into public.preferences (user_id, currency, balance_ranges, balance_tier_labels)
@@ -113,7 +113,7 @@ begin
     ('00000000-0000-4000-a000-000000000012', v_user, 'Freelance - Sheena', 'income', 650000,
      '2026-01-02', '2028-12-31', 'design retainer, paid Fridays', '00000000-0000-4000-a000-000000000002',
      1, 'week', array[5], null, null, null, 'on_date'),
-    -- Bills — one of each recurrence shape
+    -- Bills - one of each recurrence shape
     ('00000000-0000-4000-a000-000000000021', v_user, 'Rent', 'bill', -1800000,
      '2026-01-01', '2030-12-31', null, '00000000-0000-4000-a000-000000000001',
      1, 'month', null, array[1], null, null, 'on_date'),
@@ -151,7 +151,7 @@ begin
      1, 'month', null, array[30], null, null, 'on_date')
   on conflict (id) do nothing;
 
-  -- ── Extras (one-off items) — both directions ─────────────────────────────
+  -- ── Extras (one-off items) - both directions ─────────────────────────────
   insert into public.one_off_items (id, user_id, name, amount, due_date, comments, balance_id) values
     ('00000000-0000-4000-a000-000000000051', v_user, 'Lolo''s birthday gift', -150000, '2026-08-02', null, null),
     ('00000000-0000-4000-a000-000000000052', v_user, 'School supplies',       -280000, '2026-08-10', 'enrollment season', null),
@@ -160,16 +160,16 @@ begin
     -- Calibrated against the real engine (see header): the running balance
     -- goes negative Sept 1 2027 (lowest point ~-₱29,973 on Sept 13),
     -- oscillates with each bill/payday cycle through mid-November as the
-    -- family absorbs the hit, then clears for good — zero negative rows
+    -- family absorbs the hit, then clears for good - zero negative rows
     -- for the remaining ~3.7 years of the horizon. Gives the Lowest
     -- Balance Ahead card and Peaks and Drops a real, bounded multi-month
     -- warning-then-recovery story to demo, not a permanent trench.
     ('00000000-0000-4000-a000-000000000055', v_user, 'Roof repair - typhoon damage', -26000000, '2027-09-01', 'storm damage to the roof and ceiling, not covered by insurance', null)
   on conflict (id) do nothing;
 
-  -- ── Budgets — one of each replenish mode ──────────────────────────────────
+  -- ── Budgets - one of each replenish mode ──────────────────────────────────
   -- monthly_allocation mirrors allocation (still NOT NULL until a deferred
-  -- migration drops it — see SPEC.md T73's note).
+  -- migration drops it - see SPEC.md T73's note).
   insert into public.budgets
     (id, user_id, name, allocation, monthly_allocation, linked_income_id,
      start_date, "interval", unit, weekdays, days_of_month, ordinal, ordinal_weekday, ends_type, end_date, occurrence_count)
@@ -191,7 +191,7 @@ begin
   -- Freelance - Sheena settling, with grocery runs logged against it.
   -- Dining out (replenish-every): three weekly replenishes plus two spends.
   -- Gas & transport (manual): a "Starting balance" bootstrap, two manual
-  -- top-ups (one still in the future, dated after "today" — demonstrates a
+  -- top-ups (one still in the future, dated after "today" - demonstrates a
   -- future-dated ledger entry rendering as its own Forecast row), and three
   -- spends.
   insert into public.budget_entries (id, user_id, budget_id, entry_date, amount, note, direction) values
@@ -227,7 +227,7 @@ begin
      '2026-08-05', null, -100000, null, false)
   on conflict (recurring_item_id, original_date) do nothing;
 
-  -- ── Reminders — two active, one already completed (T84) ──────────────────
+  -- ── Reminders - two active, one already completed (T84) ──────────────────
   insert into public.reminders (id, user_id, text, completed, completed_at) values
     ('00000000-0000-4000-a000-0000000000a1', v_user, 'Renew car insurance before Sept 30', false, null),
     ('00000000-0000-4000-a000-0000000000a2', v_user, 'Ask HR about SSS loan balance', false, null),

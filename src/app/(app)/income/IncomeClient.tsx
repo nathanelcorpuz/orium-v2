@@ -206,7 +206,7 @@ export function IncomeClient({
                     </p>
                     {income.balance_id && (
                       <span className="rounded-full bg-notion-hover px-2 py-0.5 text-xs font-medium text-slate-500">
-                        {balanceNameById.get(income.balance_id) ?? "—"}
+                        {balanceNameById.get(income.balance_id) ?? "-"}
                       </span>
                     )}
                     {funds && funds.length > 0 && (

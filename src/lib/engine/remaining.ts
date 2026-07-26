@@ -40,7 +40,7 @@ function toRecurrenceRule(item: RuleShapedItem): RecurrenceRule {
 // left to contribute toward a savings goal). Returns null for
 // ends_type="never" items, which have no finite total by definition
 // (SPEC.md: "ends_type=never items are excluded from finite remaining
-// total stats") — callers should exclude nulls when summing across items,
+// total stats") - callers should exclude nulls when summing across items,
 // and show something like "Ongoing" per item.
 export function remainingTotal(item: RuleShapedItem & { amount: number }, today: string): number | null {
   if (item.endsType === "never") return null;
@@ -48,7 +48,7 @@ export function remainingTotal(item: RuleShapedItem & { amount: number }, today:
   return occurrences.length * Math.abs(item.amount);
 }
 
-// The rule's own terminal date, independent of "today" — unlike
+// The rule's own terminal date, independent of "today" - unlike
 // remainingTotal, this isn't "what's left," it's "when does this rule
 // stop happening at all" (e.g. a Dashboard debt-free date). For
 // ends_type="on_date" that's just end_date; for "after_count" there's no
