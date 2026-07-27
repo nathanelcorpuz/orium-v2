@@ -197,6 +197,45 @@ function SidebarContent({
             )}
           </div>
         )}
+        {/* User request (2026-07-27): a dismissed shortcut used to disappear
+            outright, retrievable only via Settings > Help's "Bring back tips
+            & shortcuts". Each one still does that (full row, own x) until
+            dismissed - but once dismissed it collapses to a small icon
+            square here instead of vanishing, so the action itself (start
+            the tour / open guided setup) stays one click away. Same purple
+            treatment as the full rows, just without room for a label or its
+            own x - "bring back the full versions" still lives in Settings.
+            Both squares share one row so dismissing one, then the other,
+            visibly reads as "the same feature, shrinking" rather than two
+            unrelated things appearing in sequence. */}
+        {(!showQuickTour || !showGuidedSetup) && (
+          <div className={`flex gap-2 ${collapsed ? "justify-center px-2" : "px-3"}`}>
+            {!showQuickTour && (
+              <form action={replayTour}>
+                <button
+                  type="submit"
+                  onClick={onNavigate}
+                  title="Quick tour"
+                  aria-label="Quick tour"
+                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded bg-purple-50 text-purple-700 hover:bg-purple-100"
+                >
+                  <LightbulbIcon className="h-4 w-4" />
+                </button>
+              </form>
+            )}
+            {!showGuidedSetup && (
+              <Link
+                href="/setup"
+                onClick={onNavigate}
+                title="Guided setup"
+                aria-label="Guided setup"
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded bg-purple-50 text-purple-700 hover:bg-purple-100"
+              >
+                <ChecklistIcon className="h-4 w-4" />
+              </Link>
+            )}
+          </div>
+        )}
       </nav>
       <div className="border-t border-notion-hairline p-2">
         <form action={logout}>
