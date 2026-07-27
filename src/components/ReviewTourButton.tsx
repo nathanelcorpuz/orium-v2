@@ -1,6 +1,7 @@
 "use client";
 
 import { replayTour } from "@/lib/onboardingActions";
+import { SubmitButton } from "./SubmitButton";
 
 // T119: replaced the localStorage-flag clearing this used (T117) with the
 // server-persisted `replayTour` action, so replaying the tour is driven by
@@ -13,12 +14,9 @@ import { replayTour } from "@/lib/onboardingActions";
 export function ReviewTourButton() {
   return (
     <form action={replayTour}>
-      <button
-        type="submit"
-        className="rounded border border-notion-hairline px-4 py-2 text-notion-text hover:bg-notion-hover"
-      >
+      <SubmitButton className="rounded border border-notion-hairline px-4 py-2 text-notion-text hover:bg-notion-hover disabled:opacity-50">
         Quick tour
-      </button>
+      </SubmitButton>
     </form>
   );
 }

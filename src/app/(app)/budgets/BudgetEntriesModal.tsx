@@ -3,6 +3,7 @@
 import { useActionState, useEffect, useRef, useState } from "react";
 import { Modal } from "@/components/Modal";
 import { DatePicker } from "@/components/DatePicker";
+import { SubmitButton } from "@/components/SubmitButton";
 import { CheckIcon, CloseIcon, DeleteIcon, EditIcon } from "@/components/navIcons";
 import { blockNegativeKey, centavosToPesosString, formatCentavos } from "@/lib/money";
 import { formatFullDate, todayInManila } from "@/lib/date";
@@ -110,14 +111,14 @@ function BudgetEntryListItem({
         <span className="flex items-center gap-1">
           <form action={deleteBudgetEntry}>
             <input type="hidden" name="id" value={entry.id} />
-            <button
-              type="submit"
+            <SubmitButton
               title="Confirm delete"
               aria-label="Confirm delete"
-              className="rounded p-1 text-red-600 hover:bg-red-50"
+              className="rounded p-1 text-red-600 hover:bg-red-50 disabled:opacity-50"
+              spinnerClassName="h-3.5 w-3.5"
             >
               <CheckIcon className="h-3.5 w-3.5" />
-            </button>
+            </SubmitButton>
           </form>
           <button
             type="button"

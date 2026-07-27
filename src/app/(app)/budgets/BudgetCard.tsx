@@ -11,6 +11,7 @@ import {
 } from "@/lib/engine/budgetLedger";
 import { toEngineBudget } from "@/lib/budgetView";
 import { ProgressBar } from "@/components/ProgressBar";
+import { SubmitButton } from "@/components/SubmitButton";
 import { CheckIcon, CloseIcon, DeleteIcon, EditIcon } from "@/components/navIcons";
 import { summarizeRecurrence } from "@/lib/recurrenceSummary";
 import type { BudgetEntry, RecurrenceEndsType, RecurrenceUnit } from "@/lib/engine/types";
@@ -159,14 +160,14 @@ export function BudgetCard({
             <>
               <form action={deleteBudget}>
                 <input type="hidden" name="id" value={budget.id} />
-                <button
-                  type="submit"
+                <SubmitButton
                   title="Confirm delete"
                   aria-label="Confirm delete"
-                  className="rounded p-1 text-red-600 hover:bg-red-50"
+                  className="rounded p-1 text-red-600 hover:bg-red-50 disabled:opacity-50"
+                  spinnerClassName="h-3.5 w-3.5"
                 >
                   <CheckIcon className="h-3.5 w-3.5" />
-                </button>
+                </SubmitButton>
               </form>
               <button
                 type="button"

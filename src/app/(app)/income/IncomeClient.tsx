@@ -6,6 +6,7 @@ import { monthlyEquivalent } from "@/lib/engine/monthlyTotals";
 import { summarizeRecurrence } from "@/lib/recurrenceSummary";
 import { AmountRangeFilter, matchesAmountFilter, type ComparisonOp } from "@/components/AmountRangeFilter";
 import { MultiSelectChips } from "@/components/MultiSelectChips";
+import { SubmitButton } from "@/components/SubmitButton";
 import type { RecurrenceUnit } from "@/lib/engine/types";
 import { deleteIncome } from "./actions";
 import { IncomeModal, type BalanceOption, type IncomeRow } from "./IncomeModal";
@@ -230,12 +231,9 @@ export function IncomeClient({
                       <span className="text-sm text-slate-600">Delete?</span>
                       <form action={deleteIncome}>
                         <input type="hidden" name="id" value={income.id} />
-                        <button
-                          type="submit"
-                          className="rounded border border-red-300 px-3 py-1 text-sm text-red-600 hover:bg-red-50"
-                        >
+                        <SubmitButton className="rounded border border-red-300 px-3 py-1 text-sm text-red-600 hover:bg-red-50 disabled:opacity-50">
                           Yes
-                        </button>
+                        </SubmitButton>
                       </form>
                       <button
                         type="button"

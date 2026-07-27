@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { formatCentavos } from "@/lib/money";
 import { CheckIcon, CloseIcon, DeleteIcon, EditIcon } from "@/components/navIcons";
+import { SubmitButton } from "@/components/SubmitButton";
 import { BalanceModal, type BalanceRow } from "@/app/(app)/accounts/BalanceModal";
 import { deleteBalance } from "@/app/(app)/accounts/actions";
 import { BillModal, type BillRow } from "@/app/(app)/bills/BillModal";
@@ -487,14 +488,14 @@ export function OnboardingWizard({
                     <span className="flex shrink-0 items-center gap-1">
                       <form action={deleteActionByKey[step.key]}>
                         <input type="hidden" name="id" value={item.id} />
-                        <button
-                          type="submit"
+                        <SubmitButton
                           title="Confirm delete"
                           aria-label={`Confirm delete ${item.name}`}
-                          className="rounded p-1 text-red-600 hover:bg-red-50"
+                          className="rounded p-1 text-red-600 hover:bg-red-50 disabled:opacity-50"
+                          spinnerClassName="h-3.5 w-3.5"
                         >
                           <CheckIcon className="h-3.5 w-3.5" />
-                        </button>
+                        </SubmitButton>
                       </form>
                       <button
                         type="button"

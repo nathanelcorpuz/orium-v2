@@ -6,6 +6,7 @@ import { PreferencesForm } from "./PreferencesForm";
 import { DeleteAccountButton } from "./DeleteAccountModal";
 import { SampleDataActions } from "./SampleDataActions";
 import { ReviewTourButton } from "@/components/ReviewTourButton";
+import { SubmitButton } from "@/components/SubmitButton";
 import { restoreFormTips } from "@/lib/formTipActions";
 import { DEFAULT_TIER_LABELS } from "@/lib/balanceColor";
 
@@ -71,12 +72,9 @@ export default async function SettingsPage() {
                   sidebar's "Quick tour"/"Guided setup" shortcuts if hidden -
                   both reuse the same `dismissed_form_tips` store. */}
               <form action={restoreFormTips}>
-                <button
-                  type="submit"
-                  className="rounded border border-notion-hairline px-4 py-2 text-notion-text hover:bg-notion-hover"
-                >
+                <SubmitButton className="rounded border border-notion-hairline px-4 py-2 text-notion-text hover:bg-notion-hover disabled:opacity-50">
                   Bring back tips &amp; shortcuts
-                </button>
+                </SubmitButton>
               </form>
             </div>
           </div>
@@ -85,9 +83,9 @@ export default async function SettingsPage() {
             <h2 className="mb-3 text-sm font-semibold text-notion-text">Account</h2>
             <div className="flex flex-wrap items-center gap-3">
               <form action={logout}>
-                <button type="submit" className="rounded bg-notion-text px-4 py-2 text-white hover:opacity-90">
+                <SubmitButton className="rounded bg-notion-text px-4 py-2 text-white hover:opacity-90 disabled:opacity-50">
                   Log out
-                </button>
+                </SubmitButton>
               </form>
               <DeleteAccountButton />
             </div>

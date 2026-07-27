@@ -7,6 +7,7 @@ import { summarizeRecurrence } from "@/lib/recurrenceSummary";
 import { AmountRangeFilter, matchesAmountFilter, type ComparisonOp } from "@/components/AmountRangeFilter";
 import { MultiSelectChips } from "@/components/MultiSelectChips";
 import { PreviewModeBar } from "@/components/PreviewModeBar";
+import { SubmitButton } from "@/components/SubmitButton";
 import type { RecurrenceUnit } from "@/lib/engine/types";
 import { deleteBill } from "./actions";
 import { BillModal, type BalanceOption, type BillRow } from "./BillModal";
@@ -215,12 +216,9 @@ export function BillsClient({
                       <span className="text-sm text-slate-600">Delete?</span>
                       <form action={deleteBill}>
                         <input type="hidden" name="id" value={bill.id} />
-                        <button
-                          type="submit"
-                          className="rounded border border-red-300 px-3 py-1 text-sm text-red-600 hover:bg-red-50"
-                        >
+                        <SubmitButton className="rounded border border-red-300 px-3 py-1 text-sm text-red-600 hover:bg-red-50 disabled:opacity-50">
                           Yes
-                        </button>
+                        </SubmitButton>
                       </form>
                       <button
                         type="button"

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { formatCentavos } from "@/lib/money";
 import { PreviewModeBar } from "@/components/PreviewModeBar";
+import { SubmitButton } from "@/components/SubmitButton";
 import { deleteBalance } from "./actions";
 import { BalanceModal, type BalanceRow } from "./BalanceModal";
 
@@ -78,12 +79,9 @@ export function BalancesClient({
                       <span className="text-sm text-slate-600">Delete?</span>
                       <form action={deleteBalance}>
                         <input type="hidden" name="id" value={balance.id} />
-                        <button
-                          type="submit"
-                          className="rounded border border-red-300 px-3 py-1 text-sm text-red-600 hover:bg-red-50"
-                        >
+                        <SubmitButton className="rounded border border-red-300 px-3 py-1 text-sm text-red-600 hover:bg-red-50 disabled:opacity-50">
                           Yes
-                        </button>
+                        </SubmitButton>
                       </form>
                       <button
                         type="button"

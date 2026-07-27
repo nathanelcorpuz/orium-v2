@@ -1,6 +1,7 @@
 "use client";
 
 import { Modal } from "./Modal";
+import { SubmitButton } from "./SubmitButton";
 import { startGuidedSetup } from "@/lib/onboardingActions";
 
 // T119 (user request 2026-07-26): the very first thing a brand-new signup
@@ -33,12 +34,9 @@ export function OnboardingWelcomeModal({
           Take the short tour
         </button>
         <form action={startGuidedSetup}>
-          <button
-            type="submit"
-            className="w-full rounded border border-notion-hairline px-4 py-2 text-notion-text hover:bg-notion-hover"
-          >
+          <SubmitButton className="w-full rounded border border-notion-hairline px-4 py-2 text-notion-text hover:bg-notion-hover disabled:opacity-50">
             Start guided setup
-          </button>
+          </SubmitButton>
         </form>
         <button type="button" onClick={onSkip} className="text-xs text-slate-400 hover:text-notion-text">
           Maybe later

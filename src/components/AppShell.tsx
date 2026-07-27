@@ -18,6 +18,7 @@ import {
 } from "./navIcons";
 import { MobileDrawer } from "./MobileDrawer";
 import { GuidedTour } from "./GuidedTour";
+import { SubmitButton } from "./SubmitButton";
 import { useDismissedTips } from "./FormTip";
 
 // `tourKey` marks a nav item the guided tour (T117) points at individually -
@@ -146,17 +147,16 @@ function SidebarContent({
         {showQuickTour && (
           <div className="relative">
             <form action={replayTour}>
-              <button
-                type="submit"
+              <SubmitButton
                 onClick={onNavigate}
                 title={collapsed ? "Quick tour" : undefined}
-                className={`flex w-full items-center gap-2 rounded bg-purple-50 py-1.5 text-sm text-purple-700 hover:bg-purple-100 ${
+                className={`flex w-full items-center gap-2 rounded bg-purple-50 py-1.5 text-sm text-purple-700 hover:bg-purple-100 disabled:opacity-60 ${
                   collapsed ? "justify-center px-2" : "px-3 pr-7"
                 }`}
               >
                 <LightbulbIcon className="h-4 w-4 shrink-0" />
                 {!collapsed && <span className="truncate">Quick tour</span>}
-              </button>
+              </SubmitButton>
             </form>
             {!collapsed && (
               <button
@@ -212,15 +212,15 @@ function SidebarContent({
           <div className={`flex gap-2 ${collapsed ? "justify-center px-2" : "px-3"}`}>
             {!showQuickTour && (
               <form action={replayTour}>
-                <button
-                  type="submit"
+                <SubmitButton
                   onClick={onNavigate}
                   title="Quick tour"
                   aria-label="Quick tour"
-                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded bg-purple-50 text-purple-700 hover:bg-purple-100"
+                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded bg-purple-50 text-purple-700 hover:bg-purple-100 disabled:opacity-60"
+                  spinnerClassName="h-3.5 w-3.5"
                 >
                   <LightbulbIcon className="h-4 w-4" />
-                </button>
+                </SubmitButton>
               </form>
             )}
             {!showGuidedSetup && (
@@ -239,16 +239,15 @@ function SidebarContent({
       </nav>
       <div className="border-t border-notion-hairline p-2">
         <form action={logout}>
-          <button
-            type="submit"
+          <SubmitButton
             title={collapsed ? "Log out" : undefined}
-            className={`flex w-full items-center gap-2 rounded py-1.5 text-sm text-slate-500 hover:bg-notion-hover ${
+            className={`flex w-full items-center gap-2 rounded py-1.5 text-sm text-slate-500 hover:bg-notion-hover disabled:opacity-60 ${
               collapsed ? "justify-center px-2" : "px-3 text-left"
             }`}
           >
             <LogoutIcon className="h-4 w-4 shrink-0" />
             {!collapsed && <span>Log out</span>}
-          </button>
+          </SubmitButton>
         </form>
       </div>
     </>

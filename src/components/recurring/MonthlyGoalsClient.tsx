@@ -10,6 +10,7 @@ import { todayInManila } from "@/lib/date";
 import { AmountRangeFilter, matchesAmountFilter, type ComparisonOp } from "@/components/AmountRangeFilter";
 import { MultiSelectChips } from "@/components/MultiSelectChips";
 import { ProgressBar } from "@/components/ProgressBar";
+import { SubmitButton } from "@/components/SubmitButton";
 import type { ForecastRow, RecurrenceUnit } from "@/lib/engine/types";
 import type { RecurringItemActionState } from "@/lib/recurringItem";
 import { MonthlyGoalModal, type BalanceOption } from "./MonthlyGoalModal";
@@ -273,12 +274,9 @@ export function MonthlyGoalsClient({
                         <span className="text-sm text-slate-600">Delete?</span>
                         <form action={deleteAction}>
                           <input type="hidden" name="id" value={item.id} />
-                          <button
-                            type="submit"
-                            className="rounded border border-red-300 px-3 py-1 text-sm text-red-600 hover:bg-red-50"
-                          >
+                          <SubmitButton className="rounded border border-red-300 px-3 py-1 text-sm text-red-600 hover:bg-red-50 disabled:opacity-50">
                             Yes
-                          </button>
+                          </SubmitButton>
                         </form>
                         <button
                           type="button"

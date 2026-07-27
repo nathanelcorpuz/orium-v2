@@ -310,6 +310,19 @@ export function SlidersIcon({ className }: IconProps) {
   );
 }
 
+// T133: the spin animation itself is a plain Tailwind utility (`animate-spin`
+// on the caller's className) - this is just the ring shape. A partial-arc
+// stroke rather than a full circle so the rotation actually reads as motion
+// instead of a static ring.
+export function SpinnerIcon({ className }: IconProps) {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" className={className}>
+      <circle cx="10" cy="10" r="7.5" stroke="currentColor" strokeWidth="2.5" strokeOpacity="0.25" />
+      <path d="M17.5 10a7.5 7.5 0 0 0-7.5-7.5" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 // Keyed by nav href (see AppShell.tsx's NAV_ITEMS) so the sidebar can look
 // up each item's icon without a big switch statement.
 export const NAV_ICONS: Record<string, (props: IconProps) => React.JSX.Element> = {

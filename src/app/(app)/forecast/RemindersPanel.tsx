@@ -11,6 +11,7 @@ import {
   RestoreIcon,
 } from "@/components/navIcons";
 import { MobileDrawer } from "@/components/MobileDrawer";
+import { SubmitButton } from "@/components/SubmitButton";
 import {
   createReminder,
   deleteReminder,
@@ -137,14 +138,14 @@ function ReminderItem({ reminder, readOnly }: { reminder: ReminderRow; readOnly?
         <div className="flex shrink-0 items-center gap-1">
           <form action={deleteReminder}>
             <input type="hidden" name="id" value={reminder.id} />
-            <button
-              type="submit"
+            <SubmitButton
               title="Confirm delete"
               aria-label="Confirm delete"
-              className="rounded p-1 text-red-600 hover:bg-red-50"
+              className="rounded p-1 text-red-600 hover:bg-red-50 disabled:opacity-50"
+              spinnerClassName="h-3.5 w-3.5"
             >
               <CheckIcon className="h-3.5 w-3.5" />
-            </button>
+            </SubmitButton>
           </form>
           <button
             type="button"
@@ -168,14 +169,14 @@ function ReminderItem({ reminder, readOnly }: { reminder: ReminderRow; readOnly?
           <form action={setReminderCompleted}>
             <input type="hidden" name="id" value={reminder.id} />
             <input type="hidden" name="completed" value="false" />
-            <button
-              type="submit"
+            <SubmitButton
               title="Restore reminder"
               aria-label="Restore reminder"
-              className="rounded p-1 text-slate-400 hover:bg-notion-hover hover:text-notion-text"
+              className="rounded p-1 text-slate-400 hover:bg-notion-hover hover:text-notion-text disabled:opacity-50"
+              spinnerClassName="h-3.5 w-3.5"
             >
               <RestoreIcon className="h-3.5 w-3.5" />
-            </button>
+            </SubmitButton>
           </form>
           <button
             type="button"
@@ -198,14 +199,14 @@ function ReminderItem({ reminder, readOnly }: { reminder: ReminderRow; readOnly?
         <form action={setReminderCompleted}>
           <input type="hidden" name="id" value={reminder.id} />
           <input type="hidden" name="completed" value="true" />
-          <button
-            type="submit"
+          <SubmitButton
             title="Mark complete"
             aria-label="Mark complete"
-            className="rounded p-1 text-slate-400 hover:bg-notion-hover hover:text-notion-text"
+            className="rounded p-1 text-slate-400 hover:bg-notion-hover hover:text-notion-text disabled:opacity-50"
+            spinnerClassName="h-3.5 w-3.5"
           >
             <CheckIcon className="h-3.5 w-3.5" />
-          </button>
+          </SubmitButton>
         </form>
         <button
           type="button"

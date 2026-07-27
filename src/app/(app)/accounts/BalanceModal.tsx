@@ -2,6 +2,7 @@
 
 import { useActionState, useEffect, useRef } from "react";
 import { Modal } from "@/components/Modal";
+import { SubmitButton } from "@/components/SubmitButton";
 import { FormTip } from "@/components/FormTip";
 import { centavosToPesosString, formatCentavos } from "@/lib/money";
 import { createBalance, updateBalance, disconnectItem, type BalanceActionState } from "./actions";
@@ -157,9 +158,12 @@ export function BalanceModal({
                   <form action={disconnectItem}>
                     <input type="hidden" name="sourceType" value={item.sourceType} />
                     <input type="hidden" name="id" value={item.id} />
-                    <button type="submit" className="text-xs text-red-600 underline hover:text-red-700">
+                    <SubmitButton
+                      className="text-xs text-red-600 underline hover:text-red-700 disabled:opacity-50"
+                      spinnerClassName="h-3 w-3"
+                    >
                       Disconnect
-                    </button>
+                    </SubmitButton>
                   </form>
                 </li>
               ))}
