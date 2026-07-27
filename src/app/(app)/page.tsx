@@ -263,7 +263,12 @@ export default async function Home({
               <=0 check - matches the Forecast table (T62) and Peaks and
               Drops (T67). Danger shows the deficit magnitude ("Goes negative
               by"); every other tier shows the (positive) balance directly. */}
-          <p className="text-xl font-semibold text-notion-text">
+          {/* REMINDER (user request 2026-07-26): shrunk from `text-xl` -
+              this card can stack two of these (the worst point and, below,
+              first-goes-negative), which read as louder than the rest of
+              the Dashboard's stats when both were the same size as a
+              single-stat card's headline number. */}
+          <p className="text-lg font-semibold text-notion-text">
             {lowestBalanceLabel(lowestBalance.balance, balanceRanges, tierLabels)}{" "}
             <span
               className={`inline-block rounded px-1.5 py-0.5 ${balanceRangeColorClass(lowestBalance.balance, balanceRanges)}`}
@@ -287,7 +292,7 @@ export default async function Home({
               stat by definition is always the negative case. */}
           {firstDanger && firstDanger.date !== lowestBalance.date && (
             <div className="mt-4">
-              <p className="text-xl font-semibold text-notion-text">
+              <p className="text-lg font-semibold text-notion-text">
                 First goes negative:{" "}
                 <span className="inline-block rounded bg-slate-900 px-1.5 py-0.5 text-white">
                   {formatCentavos(Math.abs(firstDanger.balance), currency)}

@@ -42,7 +42,13 @@ const GUIDED_TOUR_STEPS: TourStep[] = [
   },
   {
     target: '[data-tour="bills-header"]',
-    navKey: 'bills',
+    // REMINDER (user request 2026-07-26): this step's body already says
+    // "bills, income, debt, savings, budgets, and misc" - the sidebar should
+    // back that up visually rather than only highlighting Bills' own nav
+    // item, so every finance tab lights up together (reusing the
+    // `data-tour-group="finance"` marker AppShell already puts on all six,
+    // Bills included, which is why plain `navKey: "bills"` is dropped here).
+    navGroup: "finance",
     path: "/bills?preview=1",
     title: "Your money in and out",
     body: "Bills, income, debt, savings, budgets, and misc all live in their own tab and feed the same forecast.",

@@ -17,6 +17,12 @@ export type TourStep = {
   // AppShell's `data-tour="nav-<key>"`) and it gets its own spotlight hole
   // next to the content's.
   navKey?: string;
+  // REMINDER (user request 2026-07-26): some steps want every nav item in a
+  // group highlighted, not just one - matches AppShell's
+  // `data-tour-group="<value>"` marker (e.g. "finance" on Bills/Income/Debt/
+  // Savings/Budgets/Misc). Resolves the same way `navKey` does, just to more
+  // than one element.
+  navGroup?: string;
   title: string;
   body: string;
   // The page this step is shown on. Both Next and Back navigate here
@@ -56,6 +62,22 @@ function findVisibleTargets(selector: string): HTMLElement[] {
 function toRect(el: HTMLElement): Rect {
   const b = el.getBoundingClientRect();
   return { top: b.top, left: b.left, width: b.width, height: b.height };
+}
+
+// REMINDER (user request 2026-07-26): a multi-target step's tooltip used to
+// position itself off just the *first* matched element - fine when that's
+// the only one, but on Settings' two-card step it placed the card directly
+// on top of the second card, since only the first card's height was ever
+// considered. This is the bounding box of every content element together, so
+// placement clears all of them. For a single-element step this returns
+// exactly that element's own rect, so non-multi steps are unaffected.
+function unionRect(elements: HTMLElement[]): Rect {
+  const rects = elements.map(toRect);
+  const top = Math.min(...rects.map((r) => r.top));
+  const left = Math.min(...rects.map((r) => r.left));
+  const right = Math.max(...rects.map((r) => r.left + r.width));
+  const bottom = Math.max(...rects.map((r) => r.top + r.height));
+  return { top, left, width: right - left, height: bottom - top };
 }
 
 const SPOTLIGHT_PADDING = 8;
@@ -174,6 +196,7 @@ export function SpotlightTour({
     }
     const target = step.target;
     const navKey = step.navKey;
+    const navGroup = step.navGroup;
 
     let cleanup: (() => void) | null = null;
     let pollId: ReturnType<typeof setInterval> | null = null;
@@ -188,14 +211,15 @@ export function SpotlightTour({
       if (contentEls.length === 0) return false;
 
       const navEls = navKey ? findVisibleTargets(`[data-tour="nav-${navKey}"]`) : [];
-      const all = [...contentEls, ...navEls];
+      const navGroupEls = navGroup ? findVisibleTargets(`[data-tour-group="${navGroup}"]`) : [];
+      const all = [...contentEls, ...navEls, ...navGroupEls];
 
       // Centre rather than top: `block: "start"` parks the target directly
       // under the sticky preview bar during a preview-mode tour.
       contentEls[0].scrollIntoView({ behavior: "smooth", block: "center" });
 
       function updateRect() {
-        setSpotlight({ holes: all.map(toRect), anchor: toRect(contentEls[0]) });
+        setSpotlight({ holes: all.map(toRect), anchor: unionRect(contentEls) });
       }
       updateRect();
       setDisplayIndex(stepIndex);

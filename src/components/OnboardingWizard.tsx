@@ -4,15 +4,21 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { formatCentavos } from "@/lib/money";
+import { CheckIcon, CloseIcon, DeleteIcon, EditIcon } from "@/components/navIcons";
 import { BalanceModal, type BalanceRow } from "@/app/(app)/accounts/BalanceModal";
+import { deleteBalance } from "@/app/(app)/accounts/actions";
 import { BillModal, type BillRow } from "@/app/(app)/bills/BillModal";
+import { deleteBill } from "@/app/(app)/bills/actions";
 import { IncomeModal, type IncomeRow } from "@/app/(app)/income/IncomeModal";
+import { deleteIncome } from "@/app/(app)/income/actions";
 import { MonthlyGoalModal } from "@/components/recurring/MonthlyGoalModal";
 import type { MonthlyGoalRow } from "@/components/recurring/MonthlyGoalRow";
 import { BudgetModal, type BudgetRow } from "@/app/(app)/budgets/BudgetModal";
+import { deleteBudget } from "@/app/(app)/budgets/actions";
 import { ExtraModal, type ExtraRow } from "@/app/(app)/misc/ExtraModal";
-import { createDebt, updateDebt } from "@/app/(app)/debt/actions";
-import { createSavings, updateSavings } from "@/app/(app)/savings/actions";
+import { deleteExtra } from "@/app/(app)/misc/actions";
+import { createDebt, updateDebt, deleteDebt } from "@/app/(app)/debt/actions";
+import { createSavings, updateSavings, deleteSavings } from "@/app/(app)/savings/actions";
 import {
   skipOnboardingStep,
   setWizardReopen,
@@ -165,6 +171,14 @@ export function OnboardingWizard({
   // here (unlike wizardState) - a save-triggered remount resetting this to
   // null closes the edit view, which is exactly the wanted outcome.
   const [editing, setEditing] = useState<{ step: StepKey; id: string } | null>(null);
+  // Which preview-list item (if any) is showing its inline "delete this?"
+  // confirm, same treatment as BudgetEntriesModal's own entry rows.
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  // REMINDER (user request 2026-07-26): step derivation is normally
+  // "whatever's next unresolved" (below), with no way to look at a step
+  // already passed. `viewIndex` overrides that derivation while set, driven
+  // by the Back/Forward buttons - null means "follow the natural flow."
+  const [viewIndex, setViewIndex] = useState<number | null>(null);
 
   const parsed = parseWizardState(wizardState);
   const justSaved = parsed?.type === "prompt" ? parsed.key : null;
@@ -188,14 +202,30 @@ export function OnboardingWizard({
     budgets,
     misc: extras,
   };
+  const deleteActionByKey: Record<StepKey, (formData: FormData) => Promise<void>> = {
+    accounts: deleteBalance,
+    bills: deleteBill,
+    income: deleteIncome,
+    debt: deleteDebt,
+    savings: deleteSavings,
+    budgets: deleteBudget,
+    misc: deleteExtra,
+  };
 
   const stepIndex = STEPS.findIndex(
     (step) => !hasByKey[step.key] && !skippedSteps.includes(step.key),
   );
 
   const displayKey: StepKey | null =
-    justSaved ?? reopenKey ?? (stepIndex === -1 ? null : STEPS[stepIndex].key);
+    justSaved ??
+    reopenKey ??
+    (viewIndex !== null ? STEPS[viewIndex].key : stepIndex === -1 ? null : STEPS[stepIndex].key);
   const step = STEPS.find((s) => s.key === displayKey);
+  const displayIndex = step ? STEPS.findIndex((s) => s.key === step.key) : -1;
+  // Back/Forward only make sense while looking at a step's ordinary panel -
+  // hidden during the post-save interstitial or an open add form, so they
+  // never fight `justSaved`/`reopenKey`'s own precedence above.
+  const showStepNav = justSaved === null && reopenKey === null && !adding && displayIndex !== -1;
 
   async function handleAddAnother() {
     if (!justSaved) return;
@@ -214,7 +244,17 @@ export function OnboardingWizard({
     setPendingKey(key);
     await skipOnboardingStep(key);
     setAdding(false);
+    // Skipping is a forward-moving action just like completing the step, so
+    // it returns to the natural flow rather than leaving the view pinned on
+    // the now-skipped step.
+    setViewIndex(null);
     router.refresh();
+  }
+
+  function goToStepIndex(index: number) {
+    setDeletingId(null);
+    setEditing(null);
+    setViewIndex(Math.max(0, Math.min(STEPS.length - 1, index)));
   }
 
   // T123: replaces the old auto-complete effect, which fired
@@ -250,7 +290,7 @@ export function OnboardingWizard({
     );
   }
 
-  const stepNumber = STEPS.findIndex((s) => s.key === step.key) + 1;
+  const stepNumber = displayIndex + 1;
   const previewItems = itemsByKey[step.key];
   const editingItem =
     editing && editing.step === step.key ? previewItems.find((i) => i.id === editing.id) : undefined;
@@ -397,6 +437,33 @@ export function OnboardingWizard({
           </Link>
         </div>
 
+        {/* REMINDER (user request 2026-07-26): the step shown used to be
+            purely derived from what's left to do, with no way to look back at
+            a step already passed. These free-browse any of the 7 steps via
+            `viewIndex`, independent of completion - hidden during the
+            post-save interstitial or an open add form, since neither is "a
+            step's ordinary panel" to navigate away from mid-flow. */}
+        {showStepNav && (
+          <div className="mb-2 flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => goToStepIndex(displayIndex - 1)}
+              disabled={displayIndex <= 0}
+              className="rounded border border-notion-hairline px-3 py-1 text-xs text-notion-text hover:bg-notion-hover disabled:opacity-40"
+            >
+              Back
+            </button>
+            <button
+              type="button"
+              onClick={() => goToStepIndex(displayIndex + 1)}
+              disabled={displayIndex >= STEPS.length - 1}
+              className="rounded border border-notion-hairline px-3 py-1 text-xs text-notion-text hover:bg-notion-hover disabled:opacity-40"
+            >
+              Forward
+            </button>
+          </div>
+        )}
+
         <div className="rounded-lg border border-notion-hairline bg-white p-6">
           <h2 className="text-base font-semibold text-notion-text">{step.label}</h2>
           <p className="mt-1 text-sm text-slate-600">{step.hint}</p>
@@ -409,26 +476,69 @@ export function OnboardingWizard({
 
           {previewItems.length > 0 && (
             <ul className="mt-4 max-h-56 space-y-1 overflow-y-auto rounded border border-notion-hairline p-2">
-              {previewItems.map((item) => (
-                <li
-                  key={item.id}
-                  className="flex items-center justify-between gap-2 rounded px-2 py-1 text-sm hover:bg-notion-hover"
-                >
-                  <span className="truncate text-notion-text">{item.name}</span>
-                  <span className="flex shrink-0 items-center gap-2">
-                    <span className="text-slate-500">
-                      {formatCentavos(previewAmount(step.key, item))}
+              {previewItems.map((item) =>
+                deletingId === item.id ? (
+                  // REMINDER (user request 2026-07-26): delete confirm, same
+                  // inline pattern as BudgetEntriesModal's own entry rows -
+                  // a destructive action gets one extra click, not a full
+                  // dialog.
+                  <li key={item.id} className="flex items-center justify-between gap-2 rounded px-2 py-1 text-sm">
+                    <span className="truncate text-slate-600">Delete {item.name}?</span>
+                    <span className="flex shrink-0 items-center gap-1">
+                      <form action={deleteActionByKey[step.key]}>
+                        <input type="hidden" name="id" value={item.id} />
+                        <button
+                          type="submit"
+                          title="Confirm delete"
+                          aria-label={`Confirm delete ${item.name}`}
+                          className="rounded p-1 text-red-600 hover:bg-red-50"
+                        >
+                          <CheckIcon className="h-3.5 w-3.5" />
+                        </button>
+                      </form>
+                      <button
+                        type="button"
+                        onClick={() => setDeletingId(null)}
+                        title="Cancel"
+                        aria-label="Cancel"
+                        className="rounded p-1 text-slate-400 hover:bg-notion-hover hover:text-notion-text"
+                      >
+                        <CloseIcon className="h-3.5 w-3.5" />
+                      </button>
                     </span>
-                    <button
-                      type="button"
-                      onClick={() => setEditing({ step: step.key, id: item.id })}
-                      className="text-xs text-notion-accent underline hover:opacity-80"
-                    >
-                      Edit
-                    </button>
-                  </span>
-                </li>
-              ))}
+                  </li>
+                ) : (
+                  <li
+                    key={item.id}
+                    className="flex items-center justify-between gap-2 rounded px-2 py-1 text-sm hover:bg-notion-hover"
+                  >
+                    <span className="truncate text-notion-text">{item.name}</span>
+                    <span className="flex shrink-0 items-center gap-2">
+                      <span className="text-slate-500">
+                        {formatCentavos(previewAmount(step.key, item))}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setEditing({ step: step.key, id: item.id })}
+                        title="Edit"
+                        aria-label={`Edit ${item.name}`}
+                        className="rounded p-1 text-slate-400 hover:bg-notion-hover hover:text-notion-text"
+                      >
+                        <EditIcon className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setDeletingId(item.id)}
+                        title="Delete"
+                        aria-label={`Delete ${item.name}`}
+                        className="rounded p-1 text-slate-400 hover:bg-red-50 hover:text-red-600"
+                      >
+                        <DeleteIcon className="h-3.5 w-3.5" />
+                      </button>
+                    </span>
+                  </li>
+                ),
+              )}
             </ul>
           )}
 
