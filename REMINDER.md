@@ -29,3 +29,5 @@ reminder for next session
 * \[x] guided setup: should allow the user to delete entries as well, and make the edit / delete buttons icon, not text — moved to SPEC.md as **T129** (2026-07-27)
 * \[x] guided setup: give them an option to go back and forward to the previous and next step from step 1 to step 7 — moved to SPEC.md as **T129** (2026-07-27)
 * \[x] dashboard lowest balance ahead section, make insights text  smaller — moved to SPEC.md as **T129** (2026-07-27)
+* \[x] step 3 in quick tour = the highlighted bills page has a horizontal white line cutting just below the icon and the text — moved to SPEC.md as **T131** (2026-07-27)
+* 

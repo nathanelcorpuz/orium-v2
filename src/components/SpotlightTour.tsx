@@ -36,6 +36,17 @@ export type TourStep = {
 };
 
 type Rect = { top: number; left: number; width: number; height: number };
+// REMINDER (user report 2026-07-27): a `navGroup` step (six tightly-packed
+// finance nav items, `space-y-0.5` apart) punches one padded rect per item -
+// the padded *fills* overlap invisibly (black merges into black), but each
+// hole also drew its own white stroke outline, and where two neighbors'
+// padded rects overlapped, that outline crossed through the interior of the
+// pair below it - "a horizontal white line cutting just below the icon and
+// text." `outline: false` on a hole skips its stroke while keeping its mask
+// cutout, so a dense cluster reads as one continuous glow instead of a stack
+// of individually-bordered boxes (which also looks better for a group of
+// adjacent items than six separate outlines would have anyway).
+type Hole = Rect & { outline: boolean };
 
 function isVisible(el: HTMLElement): boolean {
   const rect = el.getBoundingClientRect();
@@ -141,7 +152,7 @@ export function SpotlightTour({
   // it would never look covered mid-tour - reverted on the user's own
   // correction, so it's back to being greyed out like everything else the
   // tour isn't currently pointing at.
-  const [spotlight, setSpotlight] = useState<{ holes: Rect[]; anchor: Rect | null } | null>(null);
+  const [spotlight, setSpotlight] = useState<{ holes: Hole[]; anchor: Rect | null } | null>(null);
   const [active, setActive] = useState(true);
   // T124: a step whose Next both advances and navigates used to leave the
   // tour blank for the whole page transition - the card vanished, so a click
@@ -212,14 +223,18 @@ export function SpotlightTour({
 
       const navEls = navKey ? findVisibleTargets(`[data-tour="nav-${navKey}"]`) : [];
       const navGroupEls = navGroup ? findVisibleTargets(`[data-tour-group="${navGroup}"]`) : [];
-      const all = [...contentEls, ...navEls, ...navGroupEls];
+      const all = [...contentEls, ...navEls];
 
       // Centre rather than top: `block: "start"` parks the target directly
       // under the sticky preview bar during a preview-mode tour.
       contentEls[0].scrollIntoView({ behavior: "smooth", block: "center" });
 
       function updateRect() {
-        setSpotlight({ holes: all.map(toRect), anchor: unionRect(contentEls) });
+        const holes: Hole[] = [
+          ...all.map((el) => ({ ...toRect(el), outline: true })),
+          ...navGroupEls.map((el) => ({ ...toRect(el), outline: false })),
+        ];
+        setSpotlight({ holes, anchor: unionRect(contentEls) });
       }
       updateRect();
       setDisplayIndex(stepIndex);
@@ -347,7 +362,7 @@ export function SpotlightTour({
           fill="rgba(15, 23, 42, 0.65)"
           mask="url(#orium-tour-mask)"
         />
-        {holes.map((r, i) => (
+        {holes.filter((r) => r.outline).map((r, i) => (
           <rect
             key={i}
             x={r.left - SPOTLIGHT_PADDING}
