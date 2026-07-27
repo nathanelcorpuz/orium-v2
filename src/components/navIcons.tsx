@@ -247,6 +247,21 @@ export function LightbulbIcon({ className }: IconProps) {
   );
 }
 
+// T126 follow-up (user request 2026-07-26): the sidebar's "Guided setup"
+// entry, matching LightbulbIcon's "not in NAV_ICONS" note above - AppShell
+// references this one directly too, since it isn't keyed by a route.
+export function ChecklistIcon({ className }: IconProps) {
+  return (
+    <svg {...BASE} className={className}>
+      <rect x="3.5" y="3" width="13" height="14" rx="1.5" />
+      <polyline points="6 8 7.3 9.3 9.5 6.8" />
+      <line x1="11" y1="8" x2="13.5" y2="8" />
+      <polyline points="6 13 7.3 14.3 9.5 11.8" />
+      <line x1="11" y1="13" x2="13.5" y2="13" />
+    </svg>
+  );
+}
+
 // Keyed by nav href (see AppShell.tsx's NAV_ITEMS) so the sidebar can look
 // up each item's icon without a big switch statement.
 export const NAV_ICONS: Record<string, (props: IconProps) => React.JSX.Element> = {

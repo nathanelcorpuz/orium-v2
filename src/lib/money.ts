@@ -1,3 +1,12 @@
+import type { KeyboardEvent } from "react";
+
+// Blocks the minus key on amount inputs that must stay non-negative, so
+// invalid input is prevented at the keystroke rather than merely rejected by
+// the input's `min="0"` on submit.
+export function blockNegativeKey(e: KeyboardEvent<HTMLInputElement>) {
+  if (e.key === "-" || e.key === "Subtract") e.preventDefault();
+}
+
 export function formatCentavos(centavos: number, currency = "₱"): string {
   const sign = centavos < 0 ? "-" : "";
   const abs = Math.abs(centavos);

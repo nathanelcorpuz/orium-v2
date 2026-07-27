@@ -29,7 +29,10 @@ export async function dismissFormTip(tipKey: string) {
   revalidatePath("/", "layout");
 }
 
-// Settings > Help counterpart, so a dismissal is never a one-way door.
+// Settings > Help counterpart, so a dismissal is never a one-way door. Also
+// brings back the sidebar's "Quick tour"/"Guided setup" shortcuts if hidden
+// (see AppShell.tsx) - they reuse this same store, since a dismissed
+// identifier is a dismissed identifier regardless of what dismissed it.
 export async function restoreFormTips() {
   const supabase = await createClient();
   const {

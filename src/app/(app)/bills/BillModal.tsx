@@ -4,7 +4,7 @@ import { useActionState, useEffect, useRef, useState } from "react";
 import { Modal } from "@/components/Modal";
 import { FormTip } from "@/components/FormTip";
 import { DatePicker } from "@/components/DatePicker";
-import { centavosToPesosString } from "@/lib/money";
+import { blockNegativeKey, centavosToPesosString } from "@/lib/money";
 import { todayInManila } from "@/lib/date";
 import { RecurrencePicker, type RecurrenceValue } from "@/components/recurring/RecurrencePicker";
 import type { RecurrenceEndsType, RecurrenceUnit } from "@/lib/engine/types";
@@ -124,12 +124,10 @@ export function BillModal({
             step="0.01"
             min="0"
             required
+            onKeyDown={blockNegativeKey}
             defaultValue={bill ? centavosToPesosString(Math.abs(bill.amount)) : undefined}
             className="mt-1 w-full rounded border border-notion-hairline p-2 text-notion-text focus:border-notion-accent focus:outline-none"
           />
-          <FormTip tipKey="bill-amount">
-            Enter it as a positive number - Orium already counts a bill as money out.
-          </FormTip>
         </div>
         <div>
           <label className="block text-sm text-slate-600" htmlFor="startDate">

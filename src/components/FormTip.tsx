@@ -26,6 +26,15 @@ export function FormTipsProvider({
   return <DismissedTipsContext value={dismissed}>{children}</DismissedTipsContext>;
 }
 
+// User request (2026-07-26): AppShell's sidebar shortcuts ("Quick tour",
+// "Guided setup") reuse this same dismissed-tips store for their own "x" -
+// there's nothing tip-specific about `dismissed_form_tips`, it's just a set
+// of dismissed identifiers, so a nav item's key lives in it exactly like a
+// form field's does.
+export function useDismissedTips() {
+  return useContext(DismissedTipsContext);
+}
+
 export function FormTip({
   tipKey,
   variant = "hint",
@@ -48,10 +57,14 @@ export function FormTip({
 
   if (hidden || dismissed.includes(tipKey)) return null;
 
+  // User request (2026-07-26): the intro "panel" tip had a gray background
+  // while the single-field "hint" tip had none at all, so the two didn't
+  // read as the same feature. Both now share the tour card's purple tint -
+  // "hint" gains an actual box it never had, "panel" swaps gray for purple.
   const isPanel = variant === "panel";
   const wrapperClass = isPanel
-    ? "relative rounded border border-notion-hairline bg-notion-hover p-3 pr-8 text-sm text-slate-600"
-    : "relative mt-1 pr-8 text-sm text-slate-400";
+    ? "relative rounded border border-purple-200 bg-purple-50 p-3 pr-8 text-sm text-slate-600"
+    : "relative mt-1 rounded border border-purple-100 bg-purple-50 p-2 pr-8 text-sm text-slate-500";
 
   if (confirming) {
     return (
@@ -90,7 +103,7 @@ export function FormTip({
         onClick={() => setConfirming(true)}
         aria-label="Hide this tip"
         title="Hide this tip"
-        className="absolute right-1 top-1 rounded p-1 text-slate-400 hover:bg-white hover:text-notion-text"
+        className="absolute right-1 top-1 rounded p-1 text-slate-400 hover:bg-purple-100 hover:text-notion-text"
       >
         <CloseIcon className="h-3 w-3" />
       </button>

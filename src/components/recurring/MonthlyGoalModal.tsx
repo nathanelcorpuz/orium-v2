@@ -4,7 +4,7 @@ import { useActionState, useEffect, useRef, useState } from "react";
 import { Modal } from "@/components/Modal";
 import { FormTip } from "@/components/FormTip";
 import { DatePicker } from "@/components/DatePicker";
-import { centavosToPesosString } from "@/lib/money";
+import { blockNegativeKey, centavosToPesosString } from "@/lib/money";
 import { todayInManila } from "@/lib/date";
 import type { RecurringItemActionState } from "@/lib/recurringItem";
 import { RecurrencePicker, type RecurrenceValue } from "./RecurrencePicker";
@@ -115,12 +115,12 @@ export function MonthlyGoalModal({
             step="0.01"
             min="0"
             required
+            onKeyDown={blockNegativeKey}
             defaultValue={item ? centavosToPesosString(Math.abs(item.amount)) : undefined}
             className="mt-1 w-full rounded border border-notion-hairline p-2 text-notion-text focus:border-notion-accent focus:outline-none"
           />
           <FormTip tipKey={`${noun === "debt" ? "debt" : "savings"}-amount`}>
-            The amount of one {noun === "debt" ? "payment" : "contribution"}, not the total. Enter
-            it as a positive number.
+            The amount of one {noun === "debt" ? "payment" : "contribution"}, not the total.
           </FormTip>
         </div>
         <div>

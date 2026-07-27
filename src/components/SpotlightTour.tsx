@@ -19,9 +19,11 @@ export type TourStep = {
   navKey?: string;
   title: string;
   body: string;
-  // A step whose target is a real link the user should click can also
-  // navigate there itself when its button is clicked.
-  href?: string;
+  // The page this step is shown on. Both Next and Back navigate here
+  // whenever it differs from the current page - this is what lets Back
+  // actually return to the previous step's page instead of just decrementing
+  // the counter and finding nothing on the current one.
+  path?: string;
   // The generic "Next"/"Done" label doesn't say where a "continue to X" step
   // actually goes - set this to override the button text on that step.
   nextLabel?: string;
@@ -102,15 +104,21 @@ export function SpotlightTour({
   initialStepIndex?: number;
   onStepChange?: (index: number) => void;
   // Called every time the tour ends (Skip, Escape, or Done on the last
-  // step). Returning `true` suppresses the last step's automatic `href`
-  // navigation.
+  // step).
   onFinish?: () => boolean | void;
 }) {
   const router = useRouter();
   const pathname = usePathname();
   const [stepIndex, setStepIndexState] = useState(initialStepIndex);
+  // The step actually being shown - see the resolving effect below for why
+  // this lags `stepIndex` during a navigation instead of tracking it exactly.
+  const [displayIndex, setDisplayIndex] = useState(initialStepIndex);
   // Every hole to punch, plus which one the tooltip should anchor to (the
-  // content target, never the nav item).
+  // content target, never the nav item). User request (2026-07-26): the
+  // preview-mode bar was briefly given its own always-undimmed hole here, so
+  // it would never look covered mid-tour - reverted on the user's own
+  // correction, so it's back to being greyed out like everything else the
+  // tour isn't currently pointing at.
   const [spotlight, setSpotlight] = useState<{ holes: Rect[]; anchor: Rect | null } | null>(null);
   const [active, setActive] = useState(true);
   // T124: a step whose Next both advances and navigates used to leave the
@@ -118,7 +126,6 @@ export function SpotlightTour({
   // read as "nothing happened" (the user's report). This keeps the overlay up
   // with a pending button until the next step's target actually resolves.
   const [navigating, setNavigating] = useState(false);
-  const tooltipRef = useRef<HTMLDivElement>(null);
 
   function setStepIndex(index: number) {
     setStepIndexState(index);
@@ -138,6 +145,20 @@ export function SpotlightTour({
     return onFinishRef.current?.();
   }, []);
 
+  // Both Back and Next go through here: navigate to the target step's own
+  // page if it isn't the current one, then move the logical index. Comparing
+  // pathname only (not the query string) is enough because no two steps this
+  // component is ever asked to render adjacent to each other share a
+  // pathname - see GuidedTour.tsx.
+  function goToStep(newIndex: number) {
+    const target = steps[newIndex];
+    if (target?.path && target.path.split("?")[0] !== pathname) {
+      setNavigating(true);
+      router.push(target.path);
+    }
+    setStepIndex(newIndex);
+  }
+
   useEffect(() => {
     if (!active) return;
     const step = steps[stepIndex];
@@ -147,6 +168,7 @@ export function SpotlightTour({
     if (!step.target) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setSpotlight({ holes: [], anchor: null });
+      setDisplayIndex(stepIndex);
       setNavigating(false);
       return;
     }
@@ -176,33 +198,28 @@ export function SpotlightTour({
         setSpotlight({ holes: all.map(toRect), anchor: toRect(contentEls[0]) });
       }
       updateRect();
+      setDisplayIndex(stepIndex);
       setNavigating(false);
       const raf = requestAnimationFrame(updateRect); // once more after the scroll settles
       window.addEventListener("scroll", updateRect, true);
       window.addEventListener("resize", updateRect);
-      // When a step's target is itself something the user is meant to click,
-      // the tooltip must get out of the way the instant they do - otherwise
-      // on mobile it can sit directly over the very control just asked for.
-      // Capture-phase so it fires before the target's own handler navigates.
-      // Clicks originating inside the tooltip are ignored, so the tour's own
-      // Next button (which can render inside its own spotlit target) doesn't
-      // hide itself before its onClick runs.
-      function hideOnTargetClick(e: MouseEvent) {
-        if (tooltipRef.current?.contains(e.target as Node)) return;
-        setSpotlight(null);
-      }
-      for (const el of all) el.addEventListener("click", hideOnTargetClick, true);
       cleanup = () => {
         cancelAnimationFrame(raf);
         window.removeEventListener("scroll", updateRect, true);
         window.removeEventListener("resize", updateRect);
-        for (const el of all) el.removeEventListener("click", hideOnTargetClick, true);
       };
       return true;
     }
 
     if (!tryResolve()) {
-      setSpotlight(null);
+      // User request (2026-07-26): a pending navigation used to null the
+      // spotlight immediately, and a null spotlight renders the tooltip
+      // centred - so every Next/Back flashed to the middle of the screen
+      // before snapping to its real position once the new page loaded.
+      // Leaving `spotlight`/`displayIndex` untouched here means the card and
+      // highlight just stay exactly where they were - frozen, not centred -
+      // until the new target actually resolves and the block above updates
+      // both together in one step.
       pollId = setInterval(() => {
         if (tryResolve() && pollId) {
           clearInterval(pollId);
@@ -232,10 +249,14 @@ export function SpotlightTour({
   // click.
   if (!spotlight && !navigating) return null;
 
-  const step = steps[stepIndex];
+  // Rendered off `displayIndex`, not `stepIndex`: while `navigating` is true
+  // these two can differ (the click already advanced `stepIndex`, but the
+  // resolving effect hasn't found the new target yet), and the card should
+  // keep showing the step it's still visually parked on until it does.
+  const step = steps[displayIndex];
   const holes = spotlight?.holes ?? [];
   const anchor = spotlight?.anchor ?? null;
-  const isLast = stepIndex === steps.length - 1;
+  const isLast = displayIndex === steps.length - 1;
 
   const viewportW = window.innerWidth;
   const viewportH = window.innerHeight;
@@ -267,10 +288,16 @@ export function SpotlightTour({
   }
 
   return (
-    // `pointer-events-none` on the wrapper (with `pointer-events-auto`
-    // restored on the tooltip) lets clicks reach the real page underneath -
-    // needed so a "click the highlighted thing" step actually works.
-    <div className="pointer-events-none fixed inset-0 z-[100]">
+    // User request (2026-07-26): only the tour's own card should be
+    // clickable while it's active - `pointer-events-auto` here (instead of
+    // the old `pointer-events-none`) makes this full-viewport div itself
+    // swallow every click, so nothing behind it (nav links, page content,
+    // even the spotlit target) is reachable except by Skip tour or the
+    // card's own Back/Next. Page scroll still works: a wheel event over a
+    // non-scrollable hit target still scrolls the nearest scrollable
+    // ancestor (here, the real page), since `pointer-events` only changes
+    // hit-testing, not scroll-chaining.
+    <div className="pointer-events-auto fixed inset-0 z-[100]">
       <svg className="pointer-events-none absolute inset-0 h-full w-full">
         <defs>
           <mask id="orium-tour-mask">
@@ -315,7 +342,6 @@ export function SpotlightTour({
           tint plus a purple border makes it obviously the tour talking
           rather than part of the page. */}
       <div
-        ref={tooltipRef}
         className="pointer-events-auto absolute rounded-lg border border-purple-200 bg-purple-50 p-4 shadow-xl"
         style={{
           width: tooltipWidth,
@@ -324,7 +350,7 @@ export function SpotlightTour({
         }}
       >
         <p className="text-xs font-medium text-purple-400">
-          Step {stepIndex + 1} of {steps.length}
+          Step {displayIndex + 1} of {steps.length}
         </p>
         <h3 className="mt-1 text-sm font-semibold text-notion-text">{step.title}</h3>
         <p className="mt-1 text-sm text-slate-600">{step.body}</p>
@@ -337,10 +363,10 @@ export function SpotlightTour({
             Skip tour
           </button>
           <div className="flex items-center gap-2">
-            {stepIndex > 0 && !navigating && (
+            {displayIndex > 0 && !navigating && (
               <button
                 type="button"
-                onClick={() => setStepIndex(stepIndex - 1)}
+                onClick={() => goToStep(stepIndex - 1)}
                 className="rounded border border-purple-200 bg-white px-3 py-1.5 text-xs text-notion-text hover:bg-notion-hover"
               >
                 Back
@@ -351,13 +377,10 @@ export function SpotlightTour({
               disabled={navigating}
               onClick={() => {
                 if (!isLast) {
-                  if (step.href) setNavigating(true);
-                  setStepIndex(stepIndex + 1);
-                  if (step.href) router.push(step.href);
+                  goToStep(stepIndex + 1);
                   return;
                 }
-                const suppressNav = finish();
-                if (step.href && suppressNav !== true) router.push(step.href);
+                finish();
               }}
               className="rounded bg-notion-text px-3 py-1.5 text-xs text-white hover:opacity-90 disabled:opacity-60"
             >

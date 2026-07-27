@@ -4,7 +4,7 @@ import { useActionState, useEffect, useRef, useState } from "react";
 import { Modal } from "@/components/Modal";
 import { FormTip } from "@/components/FormTip";
 import { DatePicker } from "@/components/DatePicker";
-import { centavosToPesosString } from "@/lib/money";
+import { blockNegativeKey, centavosToPesosString } from "@/lib/money";
 import { todayInManila } from "@/lib/date";
 import { RecurrencePicker, type RecurrenceValue } from "@/components/recurring/RecurrencePicker";
 import type { RecurrenceEndsType, RecurrenceUnit } from "@/lib/engine/types";
@@ -119,6 +119,7 @@ export function IncomeModal({
             step="0.01"
             min="0"
             required
+            onKeyDown={blockNegativeKey}
             defaultValue={income ? centavosToPesosString(income.amount) : undefined}
             className="mt-1 w-full rounded border border-notion-hairline p-2 text-notion-text focus:border-notion-accent focus:outline-none"
           />

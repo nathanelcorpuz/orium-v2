@@ -4,7 +4,7 @@ import { useActionState, useEffect, useRef, useState } from "react";
 import { Modal } from "@/components/Modal";
 import { DatePicker } from "@/components/DatePicker";
 import { SegmentedControl } from "@/components/SegmentedControl";
-import { centavosToPesosString } from "@/lib/money";
+import { blockNegativeKey, centavosToPesosString } from "@/lib/money";
 import { formatFullDate, todayInManila } from "@/lib/date";
 import type { ForecastRow } from "@/lib/engine/types";
 import { deleteBudgetEntry, updateBudgetEntry, type BudgetActionState } from "@/app/(app)/budgets/actions";
@@ -136,6 +136,7 @@ export function EditSettleModal({
               step="0.01"
               min="0"
               required
+              onKeyDown={blockNegativeKey}
               defaultValue={centavosToPesosString(Math.abs(row.amount))}
               className="mt-1 w-full rounded border border-notion-hairline p-2 text-notion-text focus:border-notion-accent focus:outline-none"
             />
@@ -195,6 +196,7 @@ export function EditSettleModal({
                 step="0.01"
                 min="0"
                 required
+                onKeyDown={blockNegativeKey}
                 // budget_entries.amount is always a positive magnitude
                 // (direction carries the sign) - row.amount here already
                 // carries that sign (SPEC.md T57), so Math.abs undoes it for
@@ -288,6 +290,7 @@ export function EditSettleModal({
               step="0.01"
               min={isExtra ? undefined : "0"}
               required
+              onKeyDown={isExtra ? undefined : blockNegativeKey}
               defaultValue={centavosToPesosString(isExtra ? row.amount : Math.abs(row.amount))}
               className="mt-1 w-full rounded border border-notion-hairline p-2 text-notion-text focus:border-notion-accent focus:outline-none"
             />
@@ -355,6 +358,7 @@ export function EditSettleModal({
               step="0.01"
               min={isExtra ? undefined : "0"}
               required
+              onKeyDown={isExtra ? undefined : blockNegativeKey}
               defaultValue={centavosToPesosString(isExtra ? row.amount : Math.abs(row.amount))}
               className="mt-1 w-full rounded border border-notion-hairline p-2 text-notion-text focus:border-notion-accent focus:outline-none"
             />

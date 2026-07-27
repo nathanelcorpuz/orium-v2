@@ -5,7 +5,7 @@ import { Modal } from "@/components/Modal";
 import { FormTip } from "@/components/FormTip";
 import { DatePicker } from "@/components/DatePicker";
 import { SegmentedControl } from "@/components/SegmentedControl";
-import { centavosToPesosString } from "@/lib/money";
+import { blockNegativeKey, centavosToPesosString } from "@/lib/money";
 import { todayInManila } from "@/lib/date";
 import { RecurrencePicker, type RecurrenceValue } from "@/components/recurring/RecurrencePicker";
 import { type BudgetRow } from "@/lib/budgetView";
@@ -121,6 +121,7 @@ export function BudgetModal({
             step="0.01"
             min="0"
             required
+            onKeyDown={blockNegativeKey}
             defaultValue={budget ? centavosToPesosString(budget.allocation) : undefined}
             className="mt-1 w-full rounded border border-notion-hairline p-2 text-notion-text focus:border-notion-accent focus:outline-none"
           />

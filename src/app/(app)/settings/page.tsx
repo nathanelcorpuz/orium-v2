@@ -48,8 +48,8 @@ export default async function SettingsPage() {
           <div data-tour="settings-help" className="rounded-lg border border-notion-hairline bg-white p-4">
             <h2 className="mb-1 text-sm font-semibold text-notion-text">Help</h2>
             <p className="mb-3 text-sm text-slate-600">
-              Replay the tour, walk through guided setup again, or bring back the form tips
-              you&rsquo;ve dismissed.
+              Take the quick tour, walk through guided setup again, or bring back anything
+              you&rsquo;ve dismissed - form tips and sidebar shortcuts alike.
             </p>
             <div className="flex flex-wrap items-center gap-3">
               <ReviewTourButton />
@@ -66,13 +66,16 @@ export default async function SettingsPage() {
                 Guided setup
               </Link>
               {/* T120 follow-up: "don't show this tip next time" is per-tip
-                  and permanent, so there has to be one way back. */}
+                  and permanent, so there has to be one way back. Renamed
+                  (user request 2026-07-26) since this now also restores the
+                  sidebar's "Quick tour"/"Guided setup" shortcuts if hidden -
+                  both reuse the same `dismissed_form_tips` store. */}
               <form action={restoreFormTips}>
                 <button
                   type="submit"
                   className="rounded border border-notion-hairline px-4 py-2 text-notion-text hover:bg-notion-hover"
                 >
-                  Bring back form tips
+                  Bring back tips &amp; shortcuts
                 </button>
               </form>
             </div>

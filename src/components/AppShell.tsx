@@ -1,11 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useTransition } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { logout } from "@/app/auth/actions";
 import { replayTour } from "@/lib/onboardingActions";
+import { dismissFormTip } from "@/lib/formTipActions";
 import {
+  ChecklistIcon,
   ChevronIcon,
   CloseIcon,
   LightbulbIcon,
@@ -16,6 +18,7 @@ import {
 } from "./navIcons";
 import { MobileDrawer } from "./MobileDrawer";
 import { GuidedTour } from "./GuidedTour";
+import { useDismissedTips } from "./FormTip";
 
 // `tourKey` marks a nav item the guided tour (T117) points at individually -
 // currently just Accounts, its "add your accounts" step. `financeGroup`
@@ -60,6 +63,25 @@ function SidebarContent({
   onNavigate?: () => void;
   onClose?: () => void;
 }) {
+  const dismissedTips = useDismissedTips();
+  const [locallyHidden, setLocallyHidden] = useState<string[]>([]);
+  const [, startTransition] = useTransition();
+
+  // User request (2026-07-26): "Quick tour" and "Guided setup" can each be
+  // hidden from the sidebar with their own small x - reusing
+  // `dismissed_form_tips` (see FormTip.tsx's `useDismissedTips`) rather than
+  // a new column, since it's already a generic set of dismissed identifiers.
+  // `locallyHidden` hides the clicked one immediately, the same optimistic
+  // pattern FormTip itself uses, rather than waiting on the server round
+  // trip. Both stay reachable regardless from Settings > Help.
+  function hideShortcut(key: string) {
+    setLocallyHidden((prev) => [...prev, key]);
+    startTransition(() => dismissFormTip(key));
+  }
+  const showQuickTour = !dismissedTips.includes("nav-quick-tour") && !locallyHidden.includes("nav-quick-tour");
+  const showGuidedSetup =
+    !dismissedTips.includes("nav-guided-setup") && !locallyHidden.includes("nav-guided-setup");
+
   return (
     <>
       <div className={`flex items-center p-4 ${collapsed ? "justify-center" : "justify-between"}`}>
@@ -110,24 +132,71 @@ function SidebarContent({
             </Link>
           );
         })}
-        {/* T114: "How to use" sits directly below Settings, but unlike every
-            item above it, it doesn't go to a route - it restarts the guided
-            tour (the same `replayTour` action Settings' "Review the tour"
-            button uses). So it's a form-button styled to match the links
-            rather than a Link, and it never gets the active-route highlight. */}
-        <form action={replayTour}>
-          <button
-            type="submit"
-            onClick={onNavigate}
-            title={collapsed ? "How to use" : undefined}
-            className={`flex w-full items-center gap-2 rounded py-1.5 text-sm text-notion-text hover:bg-notion-hover ${
-              collapsed ? "justify-center px-2" : "px-3"
-            }`}
-          >
-            <LightbulbIcon className="h-4 w-4 shrink-0" />
-            {!collapsed && <span className="truncate">How to use</span>}
-          </button>
-        </form>
+        {/* T114, renamed "Quick tour" (user request 2026-07-26): sits
+            directly below Settings, but unlike every item above it, doesn't
+            go to a route - it restarts the guided tour (the same
+            `replayTour` action Settings' matching button uses). So it's a
+            form-button styled to match the links rather than a Link, and it
+            never gets the active-route highlight. Purple-tinted, like
+            "Guided setup" below it, so the two read as the app's help
+            family - matching FormTip's tint and the tour card's. The "x" is
+            a sibling of the submit button, not nested inside it (a button
+            can't validly contain another button), positioned on top via the
+            shared wrapper's `relative`. */}
+        {showQuickTour && (
+          <div className="relative">
+            <form action={replayTour}>
+              <button
+                type="submit"
+                onClick={onNavigate}
+                title={collapsed ? "Quick tour" : undefined}
+                className={`flex w-full items-center gap-2 rounded bg-purple-50 py-1.5 text-sm text-purple-700 hover:bg-purple-100 ${
+                  collapsed ? "justify-center px-2" : "px-3 pr-7"
+                }`}
+              >
+                <LightbulbIcon className="h-4 w-4 shrink-0" />
+                {!collapsed && <span className="truncate">Quick tour</span>}
+              </button>
+            </form>
+            {!collapsed && (
+              <button
+                type="button"
+                onClick={() => hideShortcut("nav-quick-tour")}
+                aria-label="Hide Quick tour - find it again in Settings > Help"
+                title="Hide - find it again in Settings > Help"
+                className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded p-1 text-purple-400 hover:bg-purple-200 hover:text-purple-700"
+              >
+                <CloseIcon className="h-3 w-3" />
+              </button>
+            )}
+          </div>
+        )}
+        {showGuidedSetup && (
+          <div className="relative">
+            <Link
+              href="/setup"
+              onClick={onNavigate}
+              title={collapsed ? "Guided setup" : undefined}
+              className={`flex items-center gap-2 rounded bg-purple-50 py-1.5 text-sm text-purple-700 hover:bg-purple-100 ${
+                collapsed ? "justify-center px-2" : "px-3 pr-7"
+              }`}
+            >
+              <ChecklistIcon className="h-4 w-4 shrink-0" />
+              {!collapsed && <span className="truncate">Guided setup</span>}
+            </Link>
+            {!collapsed && (
+              <button
+                type="button"
+                onClick={() => hideShortcut("nav-guided-setup")}
+                aria-label="Hide Guided setup - find it again in Settings > Help"
+                title="Hide - find it again in Settings > Help"
+                className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded p-1 text-purple-400 hover:bg-purple-200 hover:text-purple-700"
+              >
+                <CloseIcon className="h-3 w-3" />
+              </button>
+            )}
+          </div>
+        )}
       </nav>
       <div className="border-t border-notion-hairline p-2">
         <form action={logout}>

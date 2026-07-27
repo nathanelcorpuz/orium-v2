@@ -3,6 +3,7 @@
 import { useActionState, useEffect, useRef } from "react";
 import { Modal } from "@/components/Modal";
 import { DatePicker } from "@/components/DatePicker";
+import { blockNegativeKey } from "@/lib/money";
 import { todayInManila } from "@/lib/date";
 import { logSpend, type BudgetActionState } from "./actions";
 
@@ -50,6 +51,7 @@ export function LogSpendModal({
             step="0.01"
             min="0"
             required
+            onKeyDown={blockNegativeKey}
             className="mt-1 w-full rounded border border-notion-hairline p-2 text-notion-text focus:border-notion-accent focus:outline-none"
           />
         </div>

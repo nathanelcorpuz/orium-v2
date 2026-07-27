@@ -4,7 +4,7 @@ import { useActionState, useEffect, useRef, useState } from "react";
 import { Modal } from "@/components/Modal";
 import { DatePicker } from "@/components/DatePicker";
 import { CheckIcon, CloseIcon, DeleteIcon, EditIcon } from "@/components/navIcons";
-import { centavosToPesosString, formatCentavos } from "@/lib/money";
+import { blockNegativeKey, centavosToPesosString, formatCentavos } from "@/lib/money";
 import { formatFullDate, todayInManila } from "@/lib/date";
 import { deleteBudgetEntry, updateBudgetEntry, type BudgetActionState } from "./actions";
 import type { BudgetEntryRow } from "./BudgetCard";
@@ -60,6 +60,7 @@ function BudgetEntryListItem({
             step="0.01"
             min="0"
             required
+            onKeyDown={blockNegativeKey}
             defaultValue={centavosToPesosString(entry.amount)}
             aria-label="Amount"
             className="w-20 rounded border border-notion-hairline p-1 text-xs text-notion-text"

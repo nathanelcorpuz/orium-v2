@@ -24,3 +24,8 @@ reminder for next session
 * \[x] short tour rebuilt to the exact 6-step spec (placeholder-only sample data, per-step routing Dashboard -> Accounts -> Bills -> Forecast -> Settings -> Dashboard/Peaks and Drops, "Complete" button, then a persistent 3-option prompt with a small Close and a pointer to Settings > Help) — moved to SPEC.md as **T120** (2026-07-26)
 * \[x] i cant test the new onboarding flow anymore as I get an "email rate limit exceeded" error from supabase — fixed as part of **T120**: new dev-only `/api/dev-reset-onboarding` resets the logged-in account back to brand-new onboarding state, so the flow replays with no new signups and no confirmation emails. Add `?wipe=1` to also clear financial data for the empty-account case.
 * \[x] form helpers should each have an x that asks "don't show this tip next time?" — done as part of **T120**; dismissals are per-tip and saved to your account (survive logout/other devices), with "Bring back form tips" in Settings > Help to undo.
+* short tour: step 3: should have bills, income, debt, savings, budgets, misc highlighted as well not just bills
+* short tour: step 5: the message popup is blocking the lowest balance ahead part of the settings
+* guided setup: should allow the user to delete entries as well, and make the edit / delete buttons icon, not text
+* guided setup: give them an option to go back and forward to the previous and next step from step 1 to step 7
+* dashboard lowest balance ahead section, make insights text  smaller
