@@ -2,7 +2,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { loadForecast } from "@/lib/forecastData";
 import { formatCentavos } from "@/lib/money";
-import { formatFullDate, formatMonthYear } from "@/lib/date";
+import { formatFullDate } from "@/lib/date";
 import { balanceRangeColorClass, balanceRangeTier, lowestBalanceLabel } from "@/lib/balanceColor";
 import { displayName } from "@/lib/displayName";
 import { monthlyEquivalent } from "@/lib/engine/monthlyTotals";
@@ -21,6 +21,8 @@ import { ProgressBar } from "@/components/ProgressBar";
 import { SampleDataBanner } from "@/components/SampleDataBanner";
 import { PreviewModeBar } from "@/components/PreviewModeBar";
 import { GettingStartedChecklist } from "@/components/GettingStartedChecklist";
+import { DashboardWidgetsPanel, type DashboardWidget } from "@/components/DashboardWidgetsPanel";
+import { PeaksAndDropsCard } from "./PeaksAndDropsCard";
 import { getSampleFixtureData } from "@/lib/sampleFixture";
 import type { RecurringItem } from "@/lib/engine/types";
 
@@ -206,32 +208,16 @@ export default async function Home({
   const lowestBalance = findLowestBalancePoint(forecast, totalBalance, today);
   const firstDanger = findFirstDangerPoint(forecast, totalBalance, balanceRanges[0], today);
 
-  return (
-    <div>
-      {preview && <PreviewModeBar />}
-      <div className="p-4 md:p-8">
-        <div className="mx-auto max-w-5xl">
-          <div className="mb-6">
-            <h1 className="text-xl font-semibold text-notion-text">Dashboard</h1>
-            <p className="text-slate-500">Welcome, {greetingName}</p>
-          </div>
-
-          {sampleDataSeededAt && <SampleDataBanner />}
-
-          {/* T99: hidden in preview mode - it's not the account's real
-              progress, so nothing here should nudge someone previewing
-              sample data to go "finish" a checklist that isn't theirs. */}
-          {!preview && (
-            <GettingStartedChecklist
-              hasAccounts={hasAccounts}
-              hasBills={hasBills}
-              hasIncome={hasIncome}
-              hasDebtOrSavings={hasDebtOrSavings}
-              hasBudgets={hasBudgets}
-              hasExtras={hasExtras}
-            />
-          )}
-
+  // T117: every widget T117's spec lists (stat cards, Lowest Balance Ahead,
+  // Peaks and Drops, Accounts, Remaining Debt, Savings, Budgets), handed to
+  // `DashboardWidgetsPanel` as pre-rendered nodes rather than the page
+  // rendering them inline - the panel owns order/visibility, this component
+  // still owns every query and computation behind them, unchanged.
+  const widgets: DashboardWidget[] = [
+    {
+      key: "stats",
+      label: "Stat cards",
+      node: (
         <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3" data-tour="dashboard-stats">
           <DashboardCard title="Total Balance" value={formatCentavos(totalBalance, currency)} />
           <DashboardCard
@@ -244,11 +230,12 @@ export default async function Home({
             valueClassName="text-green-700"
           />
         </div>
-
-        {/* User request 2026-07-26: Lowest Balance Ahead and Peaks and Drops
-            moved up here, directly under the stats row - they're the
-            forward-looking "is my money okay" numbers, more important at a
-            glance than the per-category cards below. */}
+      ),
+    },
+    {
+      key: "lowestBalance",
+      label: "Lowest Balance Ahead",
+      node: (
         <div className="mb-6 rounded-lg border border-notion-hairline bg-white p-4" data-tour="dashboard-lowest-balance">
           <h2 className="mb-2 text-sm font-semibold text-notion-text">Lowest Balance Ahead</h2>
           {!hasAnyFinancialData ? (
@@ -257,99 +244,62 @@ export default async function Home({
               lowest your balance gets, and when.
             </p>
           ) : (
-          <>
-          {/* T76: color + wording now reflect the actual balance_ranges risk
-              tier (danger/low/medium/high/higher/highest), not a hardcoded
-              <=0 check - matches the Forecast table (T62) and Peaks and
-              Drops (T67). Danger shows the deficit magnitude ("Goes negative
-              by"); every other tier shows the (positive) balance directly. */}
-          {/* REMINDER (user request 2026-07-26): shrunk from `text-xl` -
-              this card can stack two of these (the worst point and, below,
-              first-goes-negative), which read as louder than the rest of
-              the Dashboard's stats when both were the same size as a
-              single-stat card's headline number. */}
-          <p className="text-lg font-semibold text-notion-text">
-            {lowestBalanceLabel(lowestBalance.balance, balanceRanges, tierLabels)}{" "}
-            <span
-              className={`inline-block rounded px-1.5 py-0.5 ${balanceRangeColorClass(lowestBalance.balance, balanceRanges)}`}
-            >
-              {formatCentavos(
-                balanceRangeTier(lowestBalance.balance, balanceRanges) === "danger"
-                  ? Math.abs(lowestBalance.balance)
-                  : lowestBalance.balance,
-                currency,
-              )}
-            </span>
-          </p>
-          <p className="mt-1 text-sm text-slate-500">On {formatFullDate(lowestBalance.date)}</p>
-          {/* User feedback 2026-07-25: the worst point (above) can land well
-              after the balance first crosses into trouble - a big hit
-              followed by an oscillating recovery reads as if the WORST
-              date is when things first go wrong, when they may have started
-              days or weeks earlier. Only shown when it adds new information
-              (a real earlier date), and always in fixed danger-only wording
-              rather than the customizable 6-tier labels above, since this
-              stat by definition is always the negative case. */}
-          {firstDanger && firstDanger.date !== lowestBalance.date && (
-            <div className="mt-4">
+            <>
+              {/* T76: color + wording now reflect the actual balance_ranges
+                  risk tier (danger/low/medium/high/higher/highest), not a
+                  hardcoded <=0 check - matches the Forecast table (T62) and
+                  Peaks and Drops (T67). Danger shows the deficit magnitude
+                  ("Goes negative by"); every other tier shows the (positive)
+                  balance directly. */}
               <p className="text-lg font-semibold text-notion-text">
-                First goes negative:{" "}
-                <span className="inline-block rounded bg-slate-900 px-1.5 py-0.5 text-white">
-                  {formatCentavos(Math.abs(firstDanger.balance), currency)}
+                {lowestBalanceLabel(lowestBalance.balance, balanceRanges, tierLabels)}{" "}
+                <span
+                  className={`inline-block rounded px-1.5 py-0.5 ${balanceRangeColorClass(lowestBalance.balance, balanceRanges)}`}
+                >
+                  {formatCentavos(
+                    balanceRangeTier(lowestBalance.balance, balanceRanges) === "danger"
+                      ? Math.abs(lowestBalance.balance)
+                      : lowestBalance.balance,
+                    currency,
+                  )}
                 </span>
               </p>
-              <p className="mt-1 text-sm text-slate-500">On {formatFullDate(firstDanger.date)}</p>
-            </div>
-          )}
-          </>
-          )}
-        </div>
-
-        <div className="mb-6 rounded-lg border border-notion-hairline bg-white" data-tour="dashboard-peaks-drops">
-          <h2 className="p-4 pb-2 text-sm font-semibold text-notion-text">Peaks and Drops</h2>
-          {!hasAnyFinancialData ? (
-            // The grid itself is hidden, not just captioned: every month
-            // would render a ₱0.00 peak and drop, and ₱0 is the danger tier,
-            // so an empty account produced a wall of black "danger" pills.
-            <p className="px-4 pb-4 text-sm text-slate-500">
-              Nothing to chart yet. Once you have money coming in and going out, this shows your
-              highest and lowest balance for every month ahead.
-            </p>
-          ) : (
-          <div className="max-h-64 space-y-4 overflow-y-auto p-4 pt-2 md:max-h-[420px]">
-            {peaksAndDropsByYear.map(({ year, months }) => (
-              <div key={year}>
-                <p className="mb-2 text-sm font-medium text-notion-text">{year}</p>
-                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
-                  {months.map((entry) => (
-                    <div
-                      key={entry.month}
-                      className="rounded border border-notion-hairline p-2 text-right text-xs"
-                    >
-                      <p className="mb-1 text-slate-400">{formatMonthYear(entry.month)}</p>
-                      <p>
-                        <span
-                          className={`inline-block rounded px-1.5 py-0.5 ${balanceRangeColorClass(entry.peak, balanceRanges)}`}
-                        >
-                          {formatCentavos(entry.peak, currency)}
-                        </span>
-                      </p>
-                      <p className="mt-1">
-                        <span
-                          className={`inline-block rounded px-1.5 py-0.5 ${balanceRangeColorClass(entry.drop, balanceRanges)}`}
-                        >
-                          {formatCentavos(entry.drop, currency)}
-                        </span>
-                      </p>
-                    </div>
-                  ))}
+              <p className="mt-1 text-sm text-slate-500">On {formatFullDate(lowestBalance.date)}</p>
+              {/* User feedback 2026-07-25: the worst point (above) can land
+                  well after the balance first crosses into trouble - only
+                  shown when it adds new information (a real earlier date). */}
+              {firstDanger && firstDanger.date !== lowestBalance.date && (
+                <div className="mt-4">
+                  <p className="text-lg font-semibold text-notion-text">
+                    First goes negative:{" "}
+                    <span className="inline-block rounded bg-slate-900 px-1.5 py-0.5 text-white">
+                      {formatCentavos(Math.abs(firstDanger.balance), currency)}
+                    </span>
+                  </p>
+                  <p className="mt-1 text-sm text-slate-500">On {formatFullDate(firstDanger.date)}</p>
                 </div>
-              </div>
-            ))}
-          </div>
+              )}
+            </>
           )}
         </div>
-
+      ),
+    },
+    {
+      key: "peaksDrops",
+      label: "Peaks and Drops",
+      node: (
+        <PeaksAndDropsCard
+          peaksAndDropsByYear={peaksAndDropsByYear}
+          balanceRanges={balanceRanges}
+          currency={currency}
+          hasAnyFinancialData={hasAnyFinancialData}
+        />
+      ),
+    },
+    {
+      key: "accounts",
+      label: "Accounts",
+      node: (
         <div className="mb-6 rounded-lg border border-notion-hairline bg-white p-4" data-tour="dashboard-accounts">
           <div className="mb-2 flex items-center justify-between">
             <h2 className="text-sm font-semibold text-notion-text">Accounts</h2>
@@ -373,7 +323,12 @@ export default async function Home({
             </ul>
           )}
         </div>
-
+      ),
+    },
+    {
+      key: "debt",
+      label: "Remaining Debt",
+      node: (
         <div className="mb-6 rounded-lg border border-notion-hairline bg-white p-4">
           <div className="mb-2 flex items-center justify-between">
             <h2 className="text-sm font-semibold text-notion-text">Remaining Debt</h2>
@@ -406,7 +361,12 @@ export default async function Home({
             </div>
           )}
         </div>
-
+      ),
+    },
+    {
+      key: "savings",
+      label: "Savings",
+      node: (
         <div className="mb-6 rounded-lg border border-notion-hairline bg-white p-4">
           <div className="mb-2 flex items-center justify-between">
             <h2 className="text-sm font-semibold text-notion-text">Savings</h2>
@@ -439,7 +399,12 @@ export default async function Home({
             </div>
           )}
         </div>
-
+      ),
+    },
+    {
+      key: "budgets",
+      label: "Budgets",
+      node: (
         <div className="mb-6 rounded-lg border border-notion-hairline bg-white p-4">
           <div className="mb-2 flex items-center justify-between">
             <h2 className="text-sm font-semibold text-notion-text">Budgets</h2>
@@ -504,8 +469,35 @@ export default async function Home({
             </ul>
           )}
         </div>
-      </div>
-    </div>
+      ),
+    },
+  ];
+
+  return (
+    <div className="flex min-h-full flex-col">
+      {preview && <PreviewModeBar />}
+      <DashboardWidgetsPanel widgets={widgets}>
+        <div className="mb-6">
+          <h1 className="text-xl font-semibold text-notion-text">Dashboard</h1>
+          <p className="text-slate-500">Welcome, {greetingName}</p>
+        </div>
+
+        {sampleDataSeededAt && <SampleDataBanner />}
+
+        {/* T99: hidden in preview mode - it's not the account's real
+            progress, so nothing here should nudge someone previewing sample
+            data to go "finish" a checklist that isn't theirs. */}
+        {!preview && (
+          <GettingStartedChecklist
+            hasAccounts={hasAccounts}
+            hasBills={hasBills}
+            hasIncome={hasIncome}
+            hasDebtOrSavings={hasDebtOrSavings}
+            hasBudgets={hasBudgets}
+            hasExtras={hasExtras}
+          />
+        )}
+      </DashboardWidgetsPanel>
     </div>
   );
 }

@@ -171,10 +171,20 @@ export function CloseIcon({ className }: IconProps) {
   );
 }
 
-export function ChevronIcon({ className, direction }: IconProps & { direction: "left" | "right" }) {
+const CHEVRON_POINTS: Record<"left" | "right" | "up" | "down", string> = {
+  left: "12 5 7 10 12 15",
+  right: "8 5 13 10 8 15",
+  up: "5 12 10 7 15 12",
+  down: "5 8 10 13 15 8",
+};
+
+export function ChevronIcon({
+  className,
+  direction,
+}: IconProps & { direction: "left" | "right" | "up" | "down" }) {
   return (
     <svg {...BASE} className={className}>
-      <polyline points={direction === "left" ? "12 5 7 10 12 15" : "8 5 13 10 8 15"} />
+      <polyline points={CHEVRON_POINTS[direction]} />
     </svg>
   );
 }
@@ -258,6 +268,44 @@ export function ChecklistIcon({ className }: IconProps) {
       <line x1="11" y1="8" x2="13.5" y2="8" />
       <polyline points="6 13 7.3 14.3 9.5 11.8" />
       <line x1="11" y1="13" x2="13.5" y2="13" />
+    </svg>
+  );
+}
+
+// T117: the Dashboard widget panel's per-row show/hide toggle.
+export function EyeIcon({ className }: IconProps) {
+  return (
+    <svg {...BASE} className={className}>
+      <path d="M2 10 C4.5 5.5 7 4 10 4 C13 4 15.5 5.5 18 10 C15.5 14.5 13 16 10 16 C7 16 4.5 14.5 2 10 Z" />
+      <circle cx="10" cy="10" r="2.5" />
+    </svg>
+  );
+}
+
+export function EyeOffIcon({ className }: IconProps) {
+  return (
+    <svg {...BASE} className={className}>
+      <path d="M2 10 C4.5 5.5 7 4 10 4 C13 4 15.5 5.5 18 10 C15.5 14.5 13 16 10 16 C7 16 4.5 14.5 2 10 Z" />
+      <circle cx="10" cy="10" r="2.5" />
+      <line x1="3" y1="17" x2="17" y2="3" />
+    </svg>
+  );
+}
+
+// T117: the Dashboard's "Customize" trigger, both the panel's own collapse
+// state and its mobile floating button - three adjustable sliders rather
+// than a generic gear, since this panel's whole job is toggling/reordering
+// rows, not settings in general (SettingsIcon already covers that meaning
+// elsewhere).
+export function SlidersIcon({ className }: IconProps) {
+  return (
+    <svg {...BASE} className={className}>
+      <line x1="3" y1="6" x2="17" y2="6" />
+      <circle cx="8" cy="6" r="2" fill="white" />
+      <line x1="3" y1="10" x2="17" y2="10" />
+      <circle cx="13" cy="10" r="2" fill="white" />
+      <line x1="3" y1="14" x2="17" y2="14" />
+      <circle cx="6.5" cy="14" r="2" fill="white" />
     </svg>
   );
 }
