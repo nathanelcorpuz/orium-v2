@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { formatCentavos } from "@/lib/money";
-import { todayInManila } from "@/lib/date";
+import { formatFullDate, todayInManila } from "@/lib/date";
 import { DatePicker } from "@/components/DatePicker";
 import { AmountRangeFilter, matchesAmountFilter, type ComparisonOp } from "@/components/AmountRangeFilter";
 import { SubmitButton } from "@/components/SubmitButton";
@@ -152,7 +152,7 @@ export function ExtraClient({ extras, balances }: { extras: ExtraRow[]; balances
                     )}
                   </div>
                   <p className="mt-1 text-sm text-purple-700">
-                    {formatCentavos(extra.amount)}, due {extra.due_date}
+                    {formatCentavos(extra.amount)}, due {formatFullDate(extra.due_date)}
                   </p>
                   {extra.comments && (
                     <p className="mt-1 text-sm italic text-slate-400">{extra.comments}</p>

@@ -150,7 +150,7 @@ function BudgetEntryListItem({
           type="button"
           onClick={() => setMode("edit")}
           title="Edit entry"
-          aria-label={`Edit entry ${entry.entry_date}`}
+          aria-label={`Edit entry ${formatFullDate(entry.entry_date)}`}
           className="rounded p-1 text-slate-400 hover:bg-notion-hover hover:text-notion-text"
         >
           <EditIcon className="h-3.5 w-3.5" />
@@ -159,7 +159,7 @@ function BudgetEntryListItem({
           type="button"
           onClick={() => setMode("delete")}
           title="Delete entry"
-          aria-label={`Delete entry ${entry.entry_date}`}
+          aria-label={`Delete entry ${formatFullDate(entry.entry_date)}`}
           className="rounded p-1 text-slate-400 hover:bg-red-50 hover:text-red-600"
         >
           <DeleteIcon className="h-3.5 w-3.5" />

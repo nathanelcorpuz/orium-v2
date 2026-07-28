@@ -8,6 +8,12 @@ Format per bug: steps to reproduce → what happened → what was expected. Clau
 
 ## Fixed
 
+### Bug #9 - Missing space in Misc's account-connect helper text ("adds it tothat account's")
+- **Reproduce**: open Add misc item, look at the helper text under the account dropdown. Reported by the user 2026-07-27/28 as "fromthat" (the "Money out"/subtracts-from branch); reproduced here as "tothat" (the default "Money in"/adds-to branch) - same bug, either direction.
+- **What happened**: the two words ran together with no space, even though the JSX source has one.
+- **Expected**: "adds it to that account's balance" / "subtracts it from that account's balance", properly spaced.
+- **Fixed by**: **T141** in SPEC.md - a genuine Next.js/SWC JSX whitespace-collapsing quirk in this specific structural context, not a typo. See T141's write-up for the full explanation.
+
 ### Bug #8 - Date picker calendar clipped on the right edge, horizontal scroll resets the picked date
 - **Reproduce**: on Add Debt (or any recurring form's "Ends: On date" field), open the date picker. Reported by the user 2026-07-27/28 on Add Debt specifically.
 - **What happened**: the calendar's right columns were cut off by the modal's edge, with a horizontal scrollbar that reset the picked date when scrolled.

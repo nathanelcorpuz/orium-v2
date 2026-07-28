@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { formatCentavos } from "@/lib/money";
+import { formatFullDate } from "@/lib/date";
 
 const TYPE_COLOR: Record<string, string> = {
   income: "text-green-700",
@@ -95,8 +96,10 @@ export default async function HistoryPage() {
                         {isBudget && !budgetHasRealForecast ? "-" : formatCentavos(row.forecasted_amount, currency)}
                       </td>
                       <td className="p-3 text-right">{formatCentavos(row.actual_amount, currency)}</td>
-                      <td className="p-3">{isBudget && !budgetHasRealForecast ? "-" : row.forecasted_date}</td>
-                      <td className="p-3">{row.actual_date}</td>
+                      <td className="p-3">
+                        {isBudget && !budgetHasRealForecast ? "-" : formatFullDate(row.forecasted_date)}
+                      </td>
+                      <td className="p-3">{formatFullDate(row.actual_date)}</td>
                       <td className="p-3 text-right font-medium">
                         {isBudget ? "-" : formatCentavos(row.forecasted_balance, currency)}
                       </td>

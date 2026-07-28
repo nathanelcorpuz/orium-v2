@@ -96,7 +96,7 @@ export function ExtraModal({
                 checked={direction === "in"}
                 onChange={() => setDirection("in")}
               />
-              Money in (e.g. refund, gift received)
+              Money in
             </label>
             <label className="flex items-center gap-1 text-sm text-notion-text">
               <input
@@ -106,7 +106,7 @@ export function ExtraModal({
                 checked={direction === "out"}
                 onChange={() => setDirection("out")}
               />
-              Money out (e.g. gift given, expense)
+              Money out
             </label>
           </div>
         </fieldset>
@@ -163,8 +163,8 @@ export function ExtraModal({
           </select>
           <FormTip tipKey="misc-account">
             Connect an account and settling this automatically{" "}
-            {direction === "in" ? "adds it to" : "subtracts it from"} that account&rsquo;s balance,
-            so you never have to update it by hand.
+            {direction === "in" ? "adds it to" : "subtracts it from"}
+            {" "}that account&rsquo;s balance, so you never have to update it by hand.
           </FormTip>
         </div>
         <div>
