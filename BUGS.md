@@ -8,6 +8,12 @@ Format per bug: steps to reproduce → what happened → what was expected. Clau
 
 ## Fixed
 
+### Bug #8 - Date picker calendar clipped on the right edge, horizontal scroll resets the picked date
+- **Reproduce**: on Add Debt (or any recurring form's "Ends: On date" field), open the date picker. Reported by the user 2026-07-27/28 on Add Debt specifically.
+- **What happened**: the calendar's right columns were cut off by the modal's edge, with a horizontal scrollbar that reset the picked date when scrolled.
+- **Expected**: the calendar is always fully visible within the modal, no scroll needed.
+- **Fixed by**: **T139** in SPEC.md - `DatePicker.tsx` now measures available space and right-aligns the popover when it wouldn't otherwise fit, fixing every recurring form that shares this component, not just Debt. See T139's write-up for the full root cause and fix.
+
 ### Bug #7 - Guided setup's add-item modal gets stuck open with no way to close it
 - **Reproduce**: in guided setup, on any step with at least one item already added, click "Add another X", then click Cancel or the X close button. Reported by the user 2026-07-27/28 on the Accounts step, said to apply to every step.
 - **What happened**: the modal stayed open regardless of Cancel/Close, and the wizard's Back/Forward buttons stayed hidden with no visible way to leave the step.

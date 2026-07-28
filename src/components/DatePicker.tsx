@@ -78,6 +78,19 @@ export function DatePicker({
   const current = isControlled ? value : internalValue;
 
   const [open, setOpen] = useState(false);
+  // T139 (user-reported bug): the popover used to always grow rightward
+  // from the trigger's left edge at a fixed w-64 (256px). Every recurring
+  // form's "Ends: On date" field (RecurrencePicker) sits inline near the
+  // right side of its row, inside a modal whose content wrapper has
+  // overflow-y-auto (Modal.tsx) - which the CSS overflow spec forces to
+  // also become overflow-x: auto, so instead of the calendar simply
+  // rendering wider than the modal, it got silently clipped and produced a
+  // horizontal scrollbar that (per the bug report) reset the picked date
+  // when used. Measuring against the nearest clipping ancestor (falling
+  // back to the viewport for a DatePicker not inside one) and flipping to
+  // right-aligned when there isn't enough room fixes every call site at
+  // once, with no per-instance prop for callers to remember to pass.
+  const [alignRight, setAlignRight] = useState(false);
   const today = new Date();
   const seed = parseDateStr(current) ?? { year: today.getFullYear(), month: today.getMonth(), day: today.getDate() };
   const [viewYear, setViewYear] = useState(seed.year);
@@ -105,10 +118,29 @@ export function DatePicker({
     };
   }, [open]);
 
+  const POPOVER_WIDTH = 256; // w-64
+
+  function nearestClippingRight(el: HTMLElement): number {
+    let node: HTMLElement | null = el.parentElement;
+    while (node) {
+      const style = window.getComputedStyle(node);
+      if (style.overflowX !== "visible" || style.overflowY !== "visible") {
+        return node.getBoundingClientRect().right;
+      }
+      node = node.parentElement;
+    }
+    return window.innerWidth;
+  }
+
   function openPicker() {
     const parsed = parseDateStr(current);
     setViewYear(parsed?.year ?? today.getFullYear());
     setViewMonth(parsed?.month ?? today.getMonth());
+    if (containerRef.current) {
+      const { left } = containerRef.current.getBoundingClientRect();
+      const clippingRight = nearestClippingRight(containerRef.current);
+      setAlignRight(left + POPOVER_WIDTH > clippingRight - 8);
+    }
     setOpen(true);
   }
 
@@ -168,7 +200,9 @@ export function DatePicker({
       {open && (
         <div
           role="dialog"
-          className="absolute z-20 mt-1 w-64 rounded border border-notion-hairline bg-white p-3 shadow-lg"
+          className={`absolute z-20 mt-1 w-64 rounded border border-notion-hairline bg-white p-3 shadow-lg ${
+            alignRight ? "right-0" : "left-0"
+          }`}
         >
           <div className="mb-2 flex items-center justify-between gap-1">
             <button
