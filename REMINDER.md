@@ -31,3 +31,26 @@ reminder for next session
 * \[x] dashboard lowest balance ahead section, make insights text  smaller — moved to SPEC.md as **T129** (2026-07-27)
 * \[x] step 3 in quick tour = the highlighted bills page has a horizontal white line cutting just below the icon and the text — moved to SPEC.md as **T131** (2026-07-27)
 * 
+* Continue stress test
+* Launch strategy (I have a landing page draft in .html in the orium-v2 folder) we need to talk about how to launch the free beta properly to test for 3 months before starting on paid features
+* I need to know how many free beta users I can have based on my actual Supabase free tier account 
+* We also need to figure out the sign up thing, where I want it to be code only and not confirmation link, and I want it to handle more than 2 email outbound an hour
+* so if we can do like up to 50 (depending on Supabase, the more the better) free beta sign ups that would be awesome, and how can we actually ensure that these beta sign ups are legit? I'm thinking about doing it just posting in my Facebook page for friends and families to see, but maybe I can do it via Reddit as well but I am wary there because it's hard to really advertise in Reddit freely, subreddits are strict, especially with Filipino subreddits.
+* My overall vision: beta test for 3 months > act on feedback and develop paid features for 1-2 months > launch publicly with paid features > think about getting a mobile app later, browser may work for now? what do you think? Not sure if launching a mobile app first before launching the paid version will be better. we need to have a discussion about this.
+* guided setup bug: after I added an account the add an account form automatically opened and the forward and back button disappeared behind the modal and I cannot close the auto opened add account modal, this applies to all the steps as well
+* guided setup bug: the buttons aren't closing as well when a modal is open sometimes
+* guided setup: got a network error after entering 10+ bills and moving to the next step
+* feature request: want a ascending/descending by amount filter in finance records (bills/income/etc.)
+* feature request: we need a every 15th and 30th kind of monthly that has variation, like 16th and 31st, 5th and 25th, etc, so like twice a month
+* bug: adding an income > set July 31st > monthly 31st > after saving it becomes monthly 27th (date today)
+* bug: adding on date select date in Add Debt: the calendar component gets cut off from around the right side, the whole thing doesn't become fully visible, it does give a horizontal scroll but clicking on the scroll will remove the date. The date needs to be fully visible as the modal is, and the horizontal scroll should not even exist
+* ends on date should automatically limit only up to 5 years from the start date
+* the finance lists should be adjustable in terms of which goes on top etc. like it should be draggable or something i.e. the items in debts page but across all
+* also, can you check to make sure the monthly estimation actually calculates right whichever repeats frequency selection the user chooses? like even if it's custom, it should calculate automatically in the monthly calculation even if its complicated like every 3 weeks custom frequency.
+* Misc forecast transactions when updated from the forecast table should automatically update in the Misc page as well as that is only one occurrence
+* Misc: Money in Money out should not have e.g. info, just money in / money out, there's a typo in the helper as well one without space like two words accidentally combined together "fromthat"
+* Misc: there's still 2026-09-26 format, I previously said many Tasks ago that there should be no more formatted date like this, only Jun 1, 2020
+* Forecast: like 90% of my future transactions are dated 27th monthly which is the date today as of writing this, when these varied substantially
+* Can you make sure all of the "repeats" options work with the forecast engine? Like this is a huge bug where everything I just set for the past 30 minutes were all 27th of the month even though I set them at different dates. And I only set the monthly date, not even weekly nor custom, so I need every single frequency option to work when adding or deleting them.
+* I want you to spec these future features that we will include before public launch: 1. Being told before it happens = notifications 2. Not doing the setup alone = import, templates, guided first-time build 3. Sharing with a partner 4. Scenarios = what if we buy the car
+* ASK me to send you the GTM playbook (you will not include this in the public GitHub source) and we will discuss the future of the app and the scope and everything that is discussed in that GTM playbook, this will be an ongoing discussion as we continue to knock tasks out before public launch - we will spec everything in the GTM as days go by - we will need to implement guardrails on the risks and open decisions and continually work on this to mitigate them - 

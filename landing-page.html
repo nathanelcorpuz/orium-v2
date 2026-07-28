@@ -1,0 +1,609 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Orium - Know when money gets tight, weeks before it does</title>
+<meta name="description" content="Orium reads your bills, income, debt and goals forward and tells you the exact day your money runs low. Built for Filipino families paid on the 15th and 30th." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --text: #37352f;
+    --muted: #6b6a65;
+    --faint: #93928d;
+    --hairline: #e9e9e7;
+    --accent: #2383e2;
+    --hover: #f1f1ef;
+    --teal: #0b6e99;
+    --paper: #ffffff;
+    --sand: #faf9f7;
+    --danger: #b3261e;
+    --danger-bg: #fdecea;
+    --ok: #1a7f4b;
+    --ok-bg: #e8f5ee;
+    --warn-bg: #fdf3e3;
+    --warn: #9a6612;
+    --radius: 10px;
+    --maxw: 1080px;
+  }
+
+  * { box-sizing: border-box; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    margin: 0;
+    font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    font-size: 16px;
+    line-height: 1.6;
+    color: var(--text);
+    background: var(--paper);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  a { color: inherit; text-decoration: none; }
+
+  .wrap { max-width: var(--maxw); margin: 0 auto; padding: 0 24px; }
+
+  /* ---------- nav ---------- */
+  header.nav {
+    position: sticky; top: 0; z-index: 50;
+    background: rgba(255,255,255,0.88);
+    backdrop-filter: saturate(180%) blur(12px);
+    border-bottom: 1px solid var(--hairline);
+  }
+  .nav-inner { display: flex; align-items: center; justify-content: space-between; height: 60px; }
+  .brand { display: flex; align-items: center; gap: 9px; font-weight: 600; font-size: 16px; }
+  .brand svg { width: 22px; height: 22px; }
+  .nav-links { display: flex; align-items: center; gap: 26px; font-size: 14px; color: var(--muted); }
+  .nav-links a:hover { color: var(--text); }
+  .btn {
+    display: inline-block; border-radius: 7px; font-size: 14px; font-weight: 500;
+    padding: 9px 16px; cursor: pointer; border: 1px solid transparent;
+    transition: opacity .15s ease, background .15s ease;
+  }
+  .btn-primary { background: var(--text); color: #fff; }
+  .btn-primary:hover { opacity: .88; }
+  .btn-ghost { border-color: var(--hairline); color: var(--text); background: #fff; }
+  .btn-ghost:hover { background: var(--hover); }
+  .btn-lg { padding: 13px 24px; font-size: 15px; }
+
+  @media (max-width: 760px) { .nav-links a.hide-sm { display: none; } }
+
+  /* ---------- hero ---------- */
+  .hero { padding: 84px 0 64px; background: linear-gradient(180deg, #fff 0%, var(--sand) 100%); }
+  .hero-grid { display: grid; grid-template-columns: 1.05fr 1fr; gap: 56px; align-items: center; }
+  @media (max-width: 900px) { .hero-grid { grid-template-columns: 1fr; gap: 44px; } .hero { padding: 56px 0 48px; } }
+
+  .eyebrow {
+    display: inline-block; font-size: 12px; font-weight: 600; letter-spacing: .06em;
+    text-transform: uppercase; color: var(--teal);
+    background: #e6f1f6; border-radius: 999px; padding: 5px 12px; margin-bottom: 20px;
+  }
+  h1 {
+    font-size: 50px; line-height: 1.1; letter-spacing: -0.025em;
+    font-weight: 700; margin: 0 0 20px;
+  }
+  @media (max-width: 900px) { h1 { font-size: 36px; } }
+  .lede { font-size: 18px; color: var(--muted); margin: 0 0 30px; max-width: 30em; }
+  .cta-row { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+  .cta-note { font-size: 13px; color: var(--faint); margin-top: 16px; }
+
+  /* ---------- forecast mock ---------- */
+  .mock {
+    background: #fff; border: 1px solid var(--hairline); border-radius: 12px;
+    box-shadow: 0 1px 2px rgba(15,15,15,.05), 0 8px 28px rgba(15,15,15,.07);
+    overflow: hidden;
+  }
+  .mock-head {
+    padding: 14px 16px; border-bottom: 1px solid var(--hairline);
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .mock-title { font-size: 13px; font-weight: 600; }
+  .mock-dot { width: 8px; height: 8px; border-radius: 999px; background: var(--hairline); display: inline-block; margin-left: 5px; }
+  .mock-alert { padding: 16px; background: var(--danger-bg); border-bottom: 1px solid #f5d9d6; }
+  .mock-alert-label { font-size: 11px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; color: var(--danger); }
+  .mock-alert-amt { font-size: 27px; font-weight: 700; margin: 4px 0 2px; letter-spacing: -0.02em; }
+  .mock-alert-sub { font-size: 13px; color: var(--muted); }
+  table.mock-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  table.mock-table th {
+    text-align: left; font-weight: 500; color: var(--faint); font-size: 11px;
+    text-transform: uppercase; letter-spacing: .04em; padding: 9px 16px; border-bottom: 1px solid var(--hairline);
+  }
+  table.mock-table td { padding: 8px 16px; border-bottom: 1px solid var(--hairline); }
+  table.mock-table tr:last-child td { border-bottom: none; }
+  .num { text-align: right; font-variant-numeric: tabular-nums; }
+  .pill { display: inline-block; border-radius: 4px; padding: 2px 7px; font-size: 12px; font-variant-numeric: tabular-nums; font-weight: 500; }
+  .pill-ok { background: var(--ok-bg); color: var(--ok); }
+  .pill-warn { background: var(--warn-bg); color: var(--warn); }
+  .pill-bad { background: #3b1512; color: #fff; }
+  .neg { color: var(--danger); }
+  .pos { color: var(--ok); }
+  .tag { font-size: 11px; color: var(--faint); }
+
+  /* ---------- sections ---------- */
+  section { padding: 76px 0; }
+  section.tint { background: var(--sand); border-top: 1px solid var(--hairline); border-bottom: 1px solid var(--hairline); }
+  .sec-head { max-width: 640px; margin-bottom: 44px; }
+  .sec-head.center { margin-left: auto; margin-right: auto; text-align: center; }
+  h2 { font-size: 34px; line-height: 1.2; letter-spacing: -0.02em; font-weight: 700; margin: 0 0 14px; }
+  @media (max-width: 900px) { h2 { font-size: 27px; } section { padding: 56px 0; } }
+  .sec-head p { font-size: 17px; color: var(--muted); margin: 0; }
+  h3 { font-size: 16px; font-weight: 600; margin: 0 0 7px; }
+
+  .cols-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
+  .cols-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 24px; }
+  @media (max-width: 860px) { .cols-3, .cols-2 { grid-template-columns: 1fr; } }
+
+  .card {
+    background: #fff; border: 1px solid var(--hairline); border-radius: var(--radius); padding: 24px;
+  }
+  .card p { font-size: 14.5px; color: var(--muted); margin: 0; }
+  .card .step {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 26px; height: 26px; border-radius: 999px; background: var(--text); color: #fff;
+    font-size: 12px; font-weight: 600; margin-bottom: 14px;
+  }
+
+  .quote {
+    font-size: 25px; line-height: 1.4; font-weight: 500; letter-spacing: -0.015em;
+    max-width: 22em; margin: 0 0 18px;
+  }
+  .quote-sub { font-size: 16px; color: var(--muted); max-width: 34em; margin: 0; }
+
+  /* ---------- stat pair ---------- */
+  .statcard { background: #fff; border: 1px solid var(--hairline); border-radius: var(--radius); padding: 26px; }
+  .statcard .k { font-size: 12px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; color: var(--faint); }
+  .statcard .v { font-size: 30px; font-weight: 700; letter-spacing: -0.02em; margin: 10px 0 4px; }
+  .statcard .d { font-size: 14px; color: var(--muted); margin: 0; }
+
+  /* ---------- feature list ---------- */
+  .feat { display: flex; gap: 13px; align-items: flex-start; }
+  .feat svg { width: 19px; height: 19px; flex: 0 0 19px; margin-top: 3px; color: var(--teal); }
+  .feat p { font-size: 14.5px; color: var(--muted); margin: 0; }
+  .feat-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 30px 40px; }
+  @media (max-width: 860px) { .feat-grid { grid-template-columns: 1fr; } }
+
+  /* ---------- comparison ---------- */
+  table.compare { width: 100%; border-collapse: collapse; font-size: 15px; background: #fff; border: 1px solid var(--hairline); border-radius: var(--radius); overflow: hidden; }
+  table.compare th, table.compare td { padding: 15px 18px; text-align: left; border-bottom: 1px solid var(--hairline); vertical-align: top; }
+  table.compare thead th { font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--faint); font-weight: 600; background: var(--sand); }
+  table.compare tbody tr:last-child td { border-bottom: none; }
+  table.compare td.them { color: var(--muted); }
+  table.compare td.us { font-weight: 500; }
+  @media (max-width: 720px) { table.compare { font-size: 13.5px; } table.compare th, table.compare td { padding: 11px 12px; } }
+
+  /* ---------- faq ---------- */
+  details {
+    border-bottom: 1px solid var(--hairline); padding: 18px 0;
+  }
+  details summary {
+    cursor: pointer; font-weight: 500; font-size: 16px; list-style: none;
+    display: flex; justify-content: space-between; gap: 20px; align-items: center;
+  }
+  details summary::-webkit-details-marker { display: none; }
+  details summary::after { content: "+"; color: var(--faint); font-size: 20px; font-weight: 400; }
+  details[open] summary::after { content: "\2013"; }
+  details p { font-size: 15px; color: var(--muted); margin: 12px 0 0; max-width: 60em; }
+
+  /* ---------- closing ---------- */
+  .closing { background: var(--text); color: #fff; text-align: center; }
+  .closing h2 { color: #fff; }
+  .closing p { color: #c8c7c3; font-size: 17px; max-width: 32em; margin: 0 auto 30px; }
+  .closing .btn-primary { background: #fff; color: var(--text); }
+
+  footer { padding: 40px 0; border-top: 1px solid var(--hairline); font-size: 13px; color: var(--faint); }
+  .foot-inner { display: flex; justify-content: space-between; gap: 20px; flex-wrap: wrap; align-items: center; }
+  .foot-links { display: flex; gap: 20px; }
+  .foot-links a:hover { color: var(--text); }
+</style>
+</head>
+<body>
+
+<!-- ============ NAV ============ -->
+<header class="nav">
+  <div class="wrap nav-inner">
+    <a class="brand" href="#top">
+      <svg viewBox="0 0 20 20" fill="none" stroke="#37352f" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <ellipse cx="10" cy="10" rx="6" ry="7" stroke-width="1.75" />
+        <polyline points="6.6 12.3 8.9 9.1 10.8 10.5 13.8 5.3" stroke-width="1.4" />
+      </svg>
+      Orium
+    </a>
+    <nav class="nav-links">
+      <a class="hide-sm" href="#how">How it works</a>
+      <a class="hide-sm" href="#built">Why it fits</a>
+      <a class="hide-sm" href="#compare">Compare</a>
+      <a class="hide-sm" href="#faq">FAQ</a>
+      <a class="btn btn-primary" href="#start">Start free</a>
+    </nav>
+  </div>
+</header>
+
+<!-- ============ HERO ============ -->
+<div id="top" class="hero">
+  <div class="wrap hero-grid">
+    <div>
+      <span class="eyebrow">Cash flow forecasting for families</span>
+      <h1>Know when money gets tight, weeks before it does.</h1>
+      <p class="lede">
+        Orium reads your bills, income, debt and goals forward and tells you the exact day
+        your balance hits its lowest point. No guessing at the end of the month.
+      </p>
+      <div class="cta-row">
+        <a class="btn btn-primary btn-lg" href="#start">Start free</a>
+        <a class="btn btn-ghost btn-lg" href="#how">See how it works</a>
+      </div>
+      <p class="cta-note">Free while in beta. No bank login. Nothing to sync.</p>
+    </div>
+
+    <div class="mock" role="img" aria-label="Orium forecast showing a lowest balance of 4,200 pesos on September 13">
+      <div class="mock-head">
+        <span class="mock-title">Forecast</span>
+        <span>
+          <span class="mock-dot"></span><span class="mock-dot"></span><span class="mock-dot"></span>
+        </span>
+      </div>
+      <div class="mock-alert">
+        <div class="mock-alert-label">Lowest balance ahead</div>
+        <div class="mock-alert-amt">&#8369;4,200</div>
+        <div class="mock-alert-sub">On Sep 13, 2026. First goes tight on Sep 1.</div>
+      </div>
+      <table class="mock-table">
+        <thead>
+          <tr><th>Date</th><th>Item</th><th class="num">Amount</th><th class="num">Balance</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Aug 30</td><td>Salary <span class="tag">income</span></td>
+            <td class="num pos">+35,000</td><td class="num"><span class="pill pill-ok">62,400</span></td>
+          </tr>
+          <tr>
+            <td>Sep 1</td><td>Rent <span class="tag">bill</span></td>
+            <td class="num neg">-18,000</td><td class="num"><span class="pill pill-warn">44,400</span></td>
+          </tr>
+          <tr>
+            <td>Sep 5</td><td>Internet <span class="tag">bill</span></td>
+            <td class="num neg">-1,500</td><td class="num"><span class="pill pill-warn">42,900</span></td>
+          </tr>
+          <tr>
+            <td>Sep 10</td><td>Car loan <span class="tag">debt</span></td>
+            <td class="num neg">-12,800</td><td class="num"><span class="pill pill-warn">30,100</span></td>
+          </tr>
+          <tr>
+            <td>Sep 13</td><td>Tuition <span class="tag">misc</span></td>
+            <td class="num neg">-25,900</td><td class="num"><span class="pill pill-bad">4,200</span></td>
+          </tr>
+          <tr>
+            <td>Sep 15</td><td>Salary <span class="tag">income</span></td>
+            <td class="num pos">+35,000</td><td class="num"><span class="pill pill-ok">39,200</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ============ PROBLEM ============ -->
+<section>
+  <div class="wrap">
+    <div class="cols-2" style="align-items:center; gap:56px;">
+      <div>
+        <p class="quote">The real question was never "how much did we spend."</p>
+        <p class="quote-sub">
+          It is "will we make it to the 15th." Most money apps answer the first one.
+          They sort last month's receipts into neat categories and show you a pie chart
+          of a decision you already made.
+        </p>
+        <p class="quote-sub" style="margin-top:16px;">
+          Orium answers the second one. It takes what you already know is coming, every
+          bill, every payday, every loan payment, every goal, and lays it out in order
+          so you can see where the road dips.
+        </p>
+      </div>
+      <div class="cols-2" style="grid-template-columns:1fr; gap:16px;">
+        <div class="statcard">
+          <div class="k">Lowest balance ahead</div>
+          <div class="v">&#8369;4,200 on Sep 13</div>
+          <p class="d">How bad it gets, and when. Scanned across your whole horizon, not just this month.</p>
+        </div>
+        <div class="statcard">
+          <div class="k">First goes negative</div>
+          <div class="v">Sep 1, not Sep 13</div>
+          <p class="d">Trouble usually starts earlier than the worst day. Orium shows both, because they are different problems.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ HOW IT WORKS ============ -->
+<section id="how" class="tint">
+  <div class="wrap">
+    <div class="sec-head center">
+      <h2>Three steps. Then it runs itself.</h2>
+      <p>Setup takes one sitting. After that you are just confirming what actually happened.</p>
+    </div>
+    <div class="cols-3">
+      <div class="card">
+        <span class="step">1</span>
+        <h3>Enter what you have</h3>
+        <p>
+          Your accounts and wallets, with what is in them right now. Cash counts.
+          GCash counts. The envelope in the drawer counts.
+        </p>
+      </div>
+      <div class="card">
+        <span class="step">2</span>
+        <h3>Enter what is coming</h3>
+        <p>
+          Bills, income, loan payments, savings goals, one-off expenses. Set each one's
+          real schedule once, whether that is the 15th and 30th, every second Friday,
+          or the last Monday of the month.
+        </p>
+      </div>
+      <div class="card">
+        <span class="step">3</span>
+        <h3>Read your future balance</h3>
+        <p>
+          Orium projects every transaction in order and shows your running balance on
+          every date, colored by how safe that number is for your family.
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ BUILT FOR ============ -->
+<section id="built">
+  <div class="wrap">
+    <div class="sec-head">
+      <h2>Built for how Filipino families are actually paid.</h2>
+      <p>
+        Most budgeting apps are designed around a US paycheck and a US bank. That
+        assumption breaks quietly, and you only notice when the numbers stop matching
+        your life.
+      </p>
+    </div>
+    <div class="feat-grid">
+      <div class="feat">
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="14" height="12.5" rx="2"/><line x1="3" y1="8" x2="17" y2="8"/><line x1="7.5" y1="2.5" x2="7.5" y2="5.5"/><line x1="12.5" y1="2.5" x2="12.5" y2="5.5"/></svg>
+        <div>
+          <h3>The 15th and the 30th</h3>
+          <p>Semi-monthly pay is a first-class schedule here, not a workaround stitched together from two monthly reminders.</p>
+        </div>
+      </div>
+      <div class="feat">
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6.5h14v9H3z"/><circle cx="10" cy="11" r="2.2"/></svg>
+        <div>
+          <h3>Cash, e-wallets, and the drawer</h3>
+          <p>You enter your own balances, so money that no bank feed can see is still part of the picture.</p>
+        </div>
+      </div>
+      <div class="feat">
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15V9M8 15V5M12 15v-4M16 15V7"/></svg>
+        <div>
+          <h3>Salary plus sideline</h3>
+          <p>A steady paycheck and irregular freelance income can sit side by side, each on its own real schedule.</p>
+        </div>
+      </div>
+      <div class="feat">
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="7"/><polyline points="10 6 10 10 13 12"/></svg>
+        <div>
+          <h3>Tuition, fiesta, Christmas</h3>
+          <p>One-off expenses months out are part of the forecast from the day you enter them, not a surprise when they arrive.</p>
+        </div>
+      </div>
+      <div class="feat">
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 13.5c2-4 4-6 6.5-6s4.5 2 6.5 6"/><circle cx="10" cy="4.5" r="1.6"/></svg>
+        <div>
+          <h3>Debt with an end date</h3>
+          <p>Every loan shows how far along you are and the month you finish paying. The date you are working toward, in plain view.</p>
+        </div>
+      </div>
+      <div class="feat">
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3.5" width="14" height="13" rx="2"/><path d="M6.5 10.5l2.5 2.5 4.5-5"/></svg>
+        <div>
+          <h3>Budgets that behave like envelopes</h3>
+          <p>A grocery budget is a pool of money that goes up when you get paid and down when you spend. No allocation theory to learn.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ PEAKS ============ -->
+<section class="tint">
+  <div class="wrap">
+    <div class="sec-head">
+      <h2>See the whole year at a glance.</h2>
+      <p>
+        Peaks and Drops lays out every month of every year ahead, with the highest and
+        lowest your balance gets in each one. The tight months stop being a surprise.
+      </p>
+    </div>
+    <div class="cols-3">
+      <div class="card">
+        <h3>Settle as you go</h3>
+        <p>
+          When a bill is actually paid, mark it settled. Orium records what you forecast
+          against what really happened, so the projection ahead of you stays honest.
+        </p>
+      </div>
+      <div class="card">
+        <h3>Edit one occurrence</h3>
+        <p>
+          Rent moved this month? Change that single instance without touching the rule.
+          The forecast updates and the change is flagged so you remember why.
+        </p>
+      </div>
+      <div class="card">
+        <h3>Your definition of tight</h3>
+        <p>
+          You set the thresholds for what counts as comfortable, low or dangerous, and
+          name the tiers yourself. Every color in the app follows your numbers.
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ COMPARE ============ -->
+<section id="compare">
+  <div class="wrap">
+    <div class="sec-head">
+      <h2>Not a spending tracker.</h2>
+      <p>
+        If you want to know where last month went, there are good apps for that. Orium
+        is for the other question.
+      </p>
+    </div>
+    <table class="compare">
+      <thead>
+        <tr>
+          <th style="width:26%"></th>
+          <th style="width:37%">Typical budgeting app</th>
+          <th style="width:37%">Orium</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Points</strong></td>
+          <td class="them">Backward. Categorizes what you already spent.</td>
+          <td class="us">Forward. Projects what is still coming.</td>
+        </tr>
+        <tr>
+          <td><strong>Main screen</strong></td>
+          <td class="them">This month's spending by category.</td>
+          <td class="us">Your balance on every future date.</td>
+        </tr>
+        <tr>
+          <td><strong>Answers</strong></td>
+          <td class="them">"Where did the money go?"</td>
+          <td class="us">"Will we make it, and when do we get tight?"</td>
+        </tr>
+        <tr>
+          <td><strong>Needs</strong></td>
+          <td class="them">A bank connection that supports your bank.</td>
+          <td class="us">Nothing. You enter your own numbers.</td>
+        </tr>
+        <tr>
+          <td><strong>Handles cash</strong></td>
+          <td class="them">Poorly. Invisible to a sync feed.</td>
+          <td class="us">Exactly like any other account.</td>
+        </tr>
+        <tr>
+          <td><strong>Pay cycle</strong></td>
+          <td class="them">Assumes weekly or biweekly.</td>
+          <td class="us">Any real schedule, including the 15th and 30th.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ============ FAQ ============ -->
+<section id="faq" class="tint">
+  <div class="wrap" style="max-width:800px;">
+    <div class="sec-head center" style="margin-bottom:20px;">
+      <h2>Questions</h2>
+    </div>
+
+    <details open>
+      <summary>Do I have to connect my bank?</summary>
+      <p>
+        No, and you cannot. Orium never asks for a bank login and never touches your
+        accounts. You type in your balances and your schedules. That is deliberate:
+        bank sync is unreliable here and blind to cash, and your money is not only in
+        banks.
+      </p>
+    </details>
+
+    <details>
+      <summary>How much work is this every day?</summary>
+      <p>
+        Setup is the real effort, roughly one sitting. After that the recurring items
+        run on their own. Day to day you are confirming that a bill was paid and
+        logging the occasional grocery run.
+      </p>
+    </details>
+
+    <details>
+      <summary>My income is irregular. Does that break it?</summary>
+      <p>
+        No. Enter the income you can count on and leave the rest out. A forecast built
+        on your reliable income is a conservative one, which is the useful direction to
+        be wrong in. Windfalls only ever make the picture better.
+      </p>
+    </details>
+
+    <details>
+      <summary>How far ahead does it forecast?</summary>
+      <p>
+        Up to five years. Far enough to see a loan finish and a tuition year land,
+        without pretending to know things nobody knows.
+      </p>
+    </details>
+
+    <details>
+      <summary>Can I try it before entering my real numbers?</summary>
+      <p>
+        Yes. New accounts can load a full sample family so you can click through a
+        working forecast first, then wipe it and start on your own numbers whenever
+        you are ready.
+      </p>
+    </details>
+
+    <details>
+      <summary>Does it work on my phone?</summary>
+      <p>
+        Yes. Orium works in the browser on phone, tablet and desktop, with every
+        feature available on each.
+      </p>
+    </details>
+
+    <details>
+      <summary>Who can see my data?</summary>
+      <p>
+        Only you. Every record is tied to your account and locked to it at the database
+        level. You can wipe everything or delete your account entirely from Settings at
+        any time.
+      </p>
+    </details>
+  </div>
+</section>
+
+<!-- ============ CLOSING ============ -->
+<section id="start" class="closing">
+  <div class="wrap">
+    <h2>Stop finding out on the 28th.</h2>
+    <p>
+      Set up your bills and income once, and never wonder again whether the money will
+      hold. Free while in beta.
+    </p>
+    <a class="btn btn-primary btn-lg" href="#">Create your free account</a>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap foot-inner">
+    <div class="brand" style="font-size:14px;">
+      <svg viewBox="0 0 20 20" fill="none" stroke="#37352f" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <ellipse cx="10" cy="10" rx="6" ry="7" stroke-width="1.75" />
+        <polyline points="6.6 12.3 8.9 9.1 10.8 10.5 13.8 5.3" stroke-width="1.4" />
+      </svg>
+      Orium
+    </div>
+    <div class="foot-links">
+      <a href="/privacy">Privacy</a>
+      <a href="/terms">Terms</a>
+      <a href="/login">Log in</a>
+    </div>
+    <div>Orium is not a bank and does not give financial advice.</div>
+  </div>
+</footer>
+
+</body>
+</html>
