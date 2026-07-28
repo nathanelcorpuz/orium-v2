@@ -8,6 +8,12 @@ Format per bug: steps to reproduce → what happened → what was expected. Clau
 
 ## Fixed
 
+### Bug #7 - Guided setup's add-item modal gets stuck open with no way to close it
+- **Reproduce**: in guided setup, on any step with at least one item already added, click "Add another X", then click Cancel or the X close button. Reported by the user 2026-07-27/28 on the Accounts step, said to apply to every step.
+- **What happened**: the modal stayed open regardless of Cancel/Close, and the wizard's Back/Forward buttons stayed hidden with no visible way to leave the step.
+- **Expected**: Cancel/Close actually closes the add-item form and returns to the normal step view.
+- **Fixed by**: **T136+T137** in SPEC.md - `OnboardingWizard.tsx`'s `onClose` handlers only cleared local state, not the server-persisted "reopen" flag that was also keeping the modal open. See T136+T137's write-up for the full root cause and fix.
+
 ### Bug #6 - Recurring items save on today's day-of-month regardless of the date/frequency actually picked
 - **Reproduce**: add a Bill (or Income/Debt/Savings), change the Start date away from its today default (e.g. to the 31st), leave a day-based preset selected ("Monthly on the 31st"), save. Reported by the user 2026-07-27/28 (income due-date 31st saving as 27th; "~90% of my future transactions dated the 27th" across a session of varied entries).
 - **What happened**: the "Repeats" preset pill correctly relabeled itself to match the new start date and stayed visually selected, but the saved rule used the day/weekday from whichever start date was in effect when the form first mounted (almost always today, since every Add form defaults to it) - not the one actually picked.

@@ -241,6 +241,23 @@ export function OnboardingWizard({
     router.refresh();
   }
 
+  // T136 (user-reported bug): closing the add-form modal only ever cleared
+  // local `adding` state, but `addFormOpen` is `adding || reopenKey !== null`
+  // - and `reopenKey` is server-persisted (set by handleAddAnother above), so
+  // whenever the modal was opened via "Add another" rather than the initial
+  // "Add a bill" button, Cancel/Close did nothing: the modal stayed open
+  // (still driven by the untouched `reopenKey`), and Back/Forward stayed
+  // hidden (`showStepNav` requires `reopenKey === null`) with no visible way
+  // out. Every create-modal's `onClose` now goes through this instead of a
+  // bare `setAdding(false)`, so closing always actually closes.
+  async function handleCloseAddForm() {
+    setAdding(false);
+    if (reopenKey !== null) {
+      await clearWizardState();
+      router.refresh();
+    }
+  }
+
   async function handleSkip(key: string) {
     setPendingKey(key);
     await skipOnboardingStep(key);
@@ -305,7 +322,7 @@ export function OnboardingWizard({
       {step.key === "accounts" && (
         <BalanceModal
           balance={null}
-          onClose={() => setAdding(false)}
+          onClose={handleCloseAddForm}
           createActionOverride={createBalanceForWizard}
         />
       )}
@@ -313,7 +330,7 @@ export function OnboardingWizard({
         <BillModal
           bill={null}
           balances={balances}
-          onClose={() => setAdding(false)}
+          onClose={handleCloseAddForm}
           createActionOverride={createBillForWizard}
         />
       )}
@@ -321,7 +338,7 @@ export function OnboardingWizard({
         <IncomeModal
           income={null}
           balances={balances}
-          onClose={() => setAdding(false)}
+          onClose={handleCloseAddForm}
           createActionOverride={createIncomeForWizard}
         />
       )}
@@ -333,7 +350,7 @@ export function OnboardingWizard({
           balances={balances}
           createAction={createDebtForWizard}
           updateAction={updateDebt}
-          onClose={() => setAdding(false)}
+          onClose={handleCloseAddForm}
         />
       )}
       {step.key === "savings" && (
@@ -344,14 +361,14 @@ export function OnboardingWizard({
           balances={balances}
           createAction={createSavingsForWizard}
           updateAction={updateSavings}
-          onClose={() => setAdding(false)}
+          onClose={handleCloseAddForm}
         />
       )}
       {step.key === "budgets" && (
         <BudgetModal
           budget={null}
           incomes={incomeOptions}
-          onClose={() => setAdding(false)}
+          onClose={handleCloseAddForm}
           createActionOverride={createBudgetForWizard}
         />
       )}
@@ -359,7 +376,7 @@ export function OnboardingWizard({
         <ExtraModal
           extra={null}
           balances={balances}
-          onClose={() => setAdding(false)}
+          onClose={handleCloseAddForm}
           createActionOverride={createExtraForWizard}
         />
       )}
