@@ -5,6 +5,7 @@ import { formatCentavos } from "@/lib/money";
 import { monthlyEquivalent } from "@/lib/engine/monthlyTotals";
 import { summarizeRecurrence } from "@/lib/recurrenceSummary";
 import { AmountRangeFilter, matchesAmountFilter, type ComparisonOp } from "@/components/AmountRangeFilter";
+import { AmountSortControl, sortByAmount, type SortOrder } from "@/components/AmountSortControl";
 import { MultiSelectChips } from "@/components/MultiSelectChips";
 import { PreviewModeBar } from "@/components/PreviewModeBar";
 import { SubmitButton } from "@/components/SubmitButton";
@@ -59,6 +60,7 @@ export function BillsClient({
   const [amountOp, setAmountOp] = useState<ComparisonOp>("any");
   const [amountValue1, setAmountValue1] = useState("");
   const [amountValue2, setAmountValue2] = useState("");
+  const [sortOrder, setSortOrder] = useState<SortOrder>("none");
 
   function toggleUnit(unit: RecurrenceUnit) {
     setSelectedUnits((prev) => {
@@ -92,6 +94,11 @@ export function BillsClient({
       return true;
     });
   }, [bills, nameFilter, selectedUnits, amountOp, amountValue1, amountValue2]);
+
+  const sortedBills = useMemo(
+    () => sortByAmount(filteredBills, sortOrder, (bill) => bill.amount),
+    [filteredBills, sortOrder],
+  );
 
   // Bills could previously only be monthly, so summing raw amounts was
   // exact; now that any recurrence unit is possible, the total needs the
@@ -153,6 +160,7 @@ export function BillsClient({
                 onValue1Change={setAmountValue1}
                 onValue2Change={setAmountValue2}
               />
+              <AmountSortControl value={sortOrder} onChange={setSortOrder} />
               {filtersActive && (
                 <button
                   type="button"
@@ -173,11 +181,11 @@ export function BillsClient({
 
         {bills.length === 0 ? (
           <p className="text-slate-500">No bills yet. Add your first bill above.</p>
-        ) : filteredBills.length === 0 ? (
+        ) : sortedBills.length === 0 ? (
           <p className="text-slate-500">No bills match these filters.</p>
         ) : (
           <ul className="space-y-2">
-            {filteredBills.map((bill) => {
+            {sortedBills.map((bill) => {
               return (
               <li
                 key={bill.id}

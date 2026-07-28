@@ -5,6 +5,7 @@ import { formatCentavos } from "@/lib/money";
 import { monthlyEquivalent } from "@/lib/engine/monthlyTotals";
 import { summarizeRecurrence } from "@/lib/recurrenceSummary";
 import { AmountRangeFilter, matchesAmountFilter, type ComparisonOp } from "@/components/AmountRangeFilter";
+import { AmountSortControl, sortByAmount, type SortOrder } from "@/components/AmountSortControl";
 import { MultiSelectChips } from "@/components/MultiSelectChips";
 import { SubmitButton } from "@/components/SubmitButton";
 import type { RecurrenceUnit } from "@/lib/engine/types";
@@ -58,6 +59,7 @@ export function IncomeClient({
   const [amountOp, setAmountOp] = useState<ComparisonOp>("any");
   const [amountValue1, setAmountValue1] = useState("");
   const [amountValue2, setAmountValue2] = useState("");
+  const [sortOrder, setSortOrder] = useState<SortOrder>("none");
 
   function toggleUnit(unit: RecurrenceUnit) {
     setSelectedUnits((prev) => {
@@ -102,6 +104,11 @@ export function IncomeClient({
       return true;
     });
   }, [incomes, nameFilter, selectedUnits, amountOp, amountValue1, amountValue2]);
+
+  const sortedIncomes = useMemo(
+    () => sortByAmount(filteredIncomes, sortOrder, (income) => income.amount),
+    [filteredIncomes, sortOrder],
+  );
 
   // Goes through incomeRule (not the raw row) because IncomeRow's
   // days_of_month is snake_case - monthlyEquivalent's optional daysOfMonth
@@ -159,6 +166,7 @@ export function IncomeClient({
                 onValue1Change={setAmountValue1}
                 onValue2Change={setAmountValue2}
               />
+              <AmountSortControl value={sortOrder} onChange={setSortOrder} />
               {filtersActive && (
                 <button
                   type="button"
@@ -179,11 +187,11 @@ export function IncomeClient({
 
         {incomes.length === 0 ? (
           <p className="text-slate-500">No income sources yet. Add your first one above.</p>
-        ) : filteredIncomes.length === 0 ? (
+        ) : sortedIncomes.length === 0 ? (
           <p className="text-slate-500">No income sources match these filters.</p>
         ) : (
           <ul className="space-y-2">
-            {filteredIncomes.map((income) => {
+            {sortedIncomes.map((income) => {
               const funds = budgetNamesByIncomeId.get(income.id);
               return (
               <li

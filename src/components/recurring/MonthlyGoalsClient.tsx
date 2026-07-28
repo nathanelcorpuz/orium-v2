@@ -8,6 +8,7 @@ import { goalProgress } from "@/lib/engine/goalProgress";
 import { summarizeRecurrence } from "@/lib/recurrenceSummary";
 import { todayInManila } from "@/lib/date";
 import { AmountRangeFilter, matchesAmountFilter, type ComparisonOp } from "@/components/AmountRangeFilter";
+import { AmountSortControl, sortByAmount, type SortOrder } from "@/components/AmountSortControl";
 import { MultiSelectChips } from "@/components/MultiSelectChips";
 import { ProgressBar } from "@/components/ProgressBar";
 import { SubmitButton } from "@/components/SubmitButton";
@@ -83,6 +84,7 @@ export function MonthlyGoalsClient({
   const [amountOp, setAmountOp] = useState<ComparisonOp>("any");
   const [amountValue1, setAmountValue1] = useState("");
   const [amountValue2, setAmountValue2] = useState("");
+  const [sortOrder, setSortOrder] = useState<SortOrder>("none");
 
   function toggleUnit(unit: RecurrenceUnit) {
     setSelectedUnits((prev) => {
@@ -116,6 +118,11 @@ export function MonthlyGoalsClient({
       return true;
     });
   }, [items, nameFilter, selectedUnits, amountOp, amountValue1, amountValue2]);
+
+  const sortedItems = useMemo(
+    () => sortByAmount(filteredItems, sortOrder, (item) => item.amount),
+    [filteredItems, sortOrder],
+  );
 
   const today = todayInManila();
   // Debt/Savings could previously only be monthly, so summing raw amounts
@@ -185,6 +192,7 @@ export function MonthlyGoalsClient({
                 onValue1Change={setAmountValue1}
                 onValue2Change={setAmountValue2}
               />
+              <AmountSortControl value={sortOrder} onChange={setSortOrder} />
               {filtersActive && (
                 <button
                   type="button"
@@ -205,11 +213,11 @@ export function MonthlyGoalsClient({
 
         {items.length === 0 ? (
           <p className="text-slate-500">No {noun}s yet. Add your first one above.</p>
-        ) : filteredItems.length === 0 ? (
+        ) : sortedItems.length === 0 ? (
           <p className="text-slate-500">No {noun}s match these filters.</p>
         ) : (
           <ul className="space-y-2">
-            {filteredItems.map((item) => {
+            {sortedItems.map((item) => {
               const remaining = remainingTotal({ ...goalRule(item), amount: item.amount }, today);
               const metaLine = `${summarizeRecurrence(goalRule(item))} · ${
                 remaining === null ? "Ongoing" : `${formatCentavos(remaining)} remaining`

@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { AmountRangeFilter, matchesAmountFilter, type ComparisonOp } from "@/components/AmountRangeFilter";
+import { AmountSortControl, sortByAmount, type SortOrder } from "@/components/AmountSortControl";
 import { MultiSelectChips } from "@/components/MultiSelectChips";
 import { BudgetCard, type BudgetEntryRow, type IncomeItemRow } from "./BudgetCard";
 import { BudgetModal, type BudgetRow } from "./BudgetModal";
@@ -42,6 +43,7 @@ export function BudgetsClient({
   const [allocationOp, setAllocationOp] = useState<ComparisonOp>("any");
   const [allocationValue1, setAllocationValue1] = useState("");
   const [allocationValue2, setAllocationValue2] = useState("");
+  const [sortOrder, setSortOrder] = useState<SortOrder>("none");
 
   function toggleType(type: ReplenishType) {
     setSelectedTypes((prev) => {
@@ -74,6 +76,11 @@ export function BudgetsClient({
       return true;
     });
   }, [budgets, nameFilter, selectedTypes, allocationOp, allocationValue1, allocationValue2]);
+
+  const sortedBudgets = useMemo(
+    () => sortByAmount(filteredBudgets, sortOrder, (budget) => budget.allocation),
+    [filteredBudgets, sortOrder],
+  );
 
   return (
     <div className="p-4 md:p-8">
@@ -122,6 +129,7 @@ export function BudgetsClient({
                 onValue1Change={setAllocationValue1}
                 onValue2Change={setAllocationValue2}
               />
+              <AmountSortControl value={sortOrder} onChange={setSortOrder} />
               {filtersActive && (
                 <button
                   type="button"
@@ -142,11 +150,11 @@ export function BudgetsClient({
 
         {budgets.length === 0 ? (
           <p className="text-slate-500">No budgets yet. Add your first one above.</p>
-        ) : filteredBudgets.length === 0 ? (
+        ) : sortedBudgets.length === 0 ? (
           <p className="text-slate-500">No budgets match these filters.</p>
         ) : (
           <div className="space-y-4">
-            {filteredBudgets.map((budget) => (
+            {sortedBudgets.map((budget) => (
               <BudgetCard
                 key={budget.id}
                 budget={budget}

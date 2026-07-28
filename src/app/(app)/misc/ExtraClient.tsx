@@ -5,6 +5,7 @@ import { formatCentavos } from "@/lib/money";
 import { formatFullDate, todayInManila } from "@/lib/date";
 import { DatePicker } from "@/components/DatePicker";
 import { AmountRangeFilter, matchesAmountFilter, type ComparisonOp } from "@/components/AmountRangeFilter";
+import { AmountSortControl, sortByAmount, type SortOrder } from "@/components/AmountSortControl";
 import { SubmitButton } from "@/components/SubmitButton";
 import { deleteExtra } from "./actions";
 import { ExtraModal, type BalanceOption, type ExtraRow } from "./ExtraModal";
@@ -22,6 +23,7 @@ export function ExtraClient({ extras, balances }: { extras: ExtraRow[]; balances
   const [amountOp, setAmountOp] = useState<ComparisonOp>("any");
   const [amountValue1, setAmountValue1] = useState("");
   const [amountValue2, setAmountValue2] = useState("");
+  const [sortOrder, setSortOrder] = useState<SortOrder>("none");
 
   function clearFilters() {
     setNameFilter("");
@@ -45,6 +47,11 @@ export function ExtraClient({ extras, balances }: { extras: ExtraRow[]; balances
       return true;
     });
   }, [extras, nameFilter, dueFrom, dueTo, amountOp, amountValue1, amountValue2]);
+
+  const sortedExtras = useMemo(
+    () => sortByAmount(filteredExtras, sortOrder, (extra) => extra.amount),
+    [filteredExtras, sortOrder],
+  );
 
   // T71 follow-up: shows the connected account's name (if any) on each row.
   const balanceNameById = useMemo(() => new Map(balances.map((b) => [b.id, b.name])), [balances]);
@@ -113,6 +120,7 @@ export function ExtraClient({ extras, balances }: { extras: ExtraRow[]; balances
                 onValue1Change={setAmountValue1}
                 onValue2Change={setAmountValue2}
               />
+              <AmountSortControl value={sortOrder} onChange={setSortOrder} />
               {filtersActive && (
                 <button
                   type="button"
@@ -133,11 +141,11 @@ export function ExtraClient({ extras, balances }: { extras: ExtraRow[]; balances
 
         {extras.length === 0 ? (
           <p className="text-slate-500">No misc items yet. Add your first one above.</p>
-        ) : filteredExtras.length === 0 ? (
+        ) : sortedExtras.length === 0 ? (
           <p className="text-slate-500">No misc items match these filters.</p>
         ) : (
           <ul className="space-y-2">
-            {filteredExtras.map((extra) => (
+            {sortedExtras.map((extra) => (
               <li
                 key={extra.id}
                 className="flex items-center justify-between rounded-lg border border-notion-hairline bg-white p-4"
