@@ -8,6 +8,12 @@ Format per bug: steps to reproduce → what happened → what was expected. Clau
 
 ## Fixed
 
+### Bug #6 - Recurring items save on today's day-of-month regardless of the date/frequency actually picked
+- **Reproduce**: add a Bill (or Income/Debt/Savings), change the Start date away from its today default (e.g. to the 31st), leave a day-based preset selected ("Monthly on the 31st"), save. Reported by the user 2026-07-27/28 (income due-date 31st saving as 27th; "~90% of my future transactions dated the 27th" across a session of varied entries).
+- **What happened**: the "Repeats" preset pill correctly relabeled itself to match the new start date and stayed visually selected, but the saved rule used the day/weekday from whichever start date was in effect when the form first mounted (almost always today, since every Add form defaults to it) - not the one actually picked.
+- **Expected**: the saved recurrence rule matches whatever start date and preset are shown selected in the form.
+- **Fixed by**: **T135** in SPEC.md - `RecurrencePicker.tsx`'s preset labels recomputed live from the `startDate` prop, but the actual submitted `value` state didn't. See T135's write-up for the full root cause and fix.
+
 ### Bug #5 - Guided setup opens claiming "Account added" on a brand-new account that has nothing
 - **Reproduce**: create a genuinely new account (`/api/dev-new-account`, T121) and pick "Start guided setup" from the welcome modal. Reported by the user 2026-07-26 with a screenshot.
 - **What happened**: the wizard opens on "Step 1 of 7: Add an account" but immediately shows the post-add interstitial - "Account added. Add another, or continue to the next step?" - with no add form and an empty item list. Nothing had been added.

@@ -90,6 +90,27 @@ export function RecurrencePicker({
 
   const monthMode = value.ordinal !== null ? "ordinal" : "days";
 
+  // `presets` recomputes live from `startDate` (via the useMemo above), so a
+  // preset pill's label/selection always reflects the current start date -
+  // but `value` (what's actually submitted via the hidden inputs below) was
+  // only ever set at mount or on an explicit pill click. Without this, an
+  // edited Start Date field would keep showing e.g. "Monthly on the 31st"
+  // selected while silently still submitting whatever day the *first*
+  // start date produced (T135 - bills/income saving on today's day-of-month
+  // regardless of the date actually picked). Render-time state adjustment
+  // (React's documented pattern, matching T50's `prevFilterKey`) rather than
+  // a useEffect, since this is a synchronous derivation, not a side effect.
+  const [syncedStartDate, setSyncedStartDate] = useState(startDate);
+  if (startDate !== syncedStartDate) {
+    setSyncedStartDate(startDate);
+    if (selectedPresetId !== "custom") {
+      const preset = presets.find((p) => p.id === selectedPresetId);
+      if (preset) {
+        setValue((v) => ({ ...v, ...preset.rule }));
+      }
+    }
+  }
+
   function selectPreset(presetId: string) {
     const preset = presets.find((p) => p.id === presetId);
     if (!preset) return;
