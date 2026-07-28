@@ -4,6 +4,8 @@ import { useMemo, useState } from "react";
 import { AmountRangeFilter, matchesAmountFilter, type ComparisonOp } from "@/components/AmountRangeFilter";
 import { AmountSortControl, sortByAmount, type SortOrder } from "@/components/AmountSortControl";
 import { MultiSelectChips } from "@/components/MultiSelectChips";
+import { ReorderButtons } from "@/components/ReorderButtons";
+import { useOrderedList } from "@/lib/useOrderedList";
 import { BudgetCard, type BudgetEntryRow, type IncomeItemRow } from "./BudgetCard";
 import { BudgetModal, type BudgetRow } from "./BudgetModal";
 
@@ -65,9 +67,18 @@ export function BudgetsClient({
   const filtersActive =
     nameFilter !== "" || selectedTypes.size > 0 || allocationOp !== "any";
 
+  // T145: persisted custom row order (up/down buttons) - only meaningful
+  // as the base ordering when nothing else is already imposing one.
+  const { orderedItems: orderedBudgets, moveUp, moveDown } = useOrderedList(
+    "orium.budgetsOrder",
+    budgets,
+    (budget) => budget.id,
+  );
+  const canReorder = sortOrder === "none" && !filtersActive;
+
   const filteredBudgets = useMemo(() => {
     const name = nameFilter.trim().toLowerCase();
-    return budgets.filter((budget) => {
+    return orderedBudgets.filter((budget) => {
       if (name && !budget.name.toLowerCase().includes(name)) return false;
       if (selectedTypes.size > 0 && !selectedTypes.has(replenishType(budget))) return false;
       if (!matchesAmountFilter(budget.allocation, allocationOp, allocationValue1, allocationValue2)) {
@@ -75,7 +86,7 @@ export function BudgetsClient({
       }
       return true;
     });
-  }, [budgets, nameFilter, selectedTypes, allocationOp, allocationValue1, allocationValue2]);
+  }, [orderedBudgets, nameFilter, selectedTypes, allocationOp, allocationValue1, allocationValue2]);
 
   const sortedBudgets = useMemo(
     () => sortByAmount(filteredBudgets, sortOrder, (budget) => budget.allocation),
@@ -154,15 +165,26 @@ export function BudgetsClient({
           <p className="text-slate-500">No budgets match these filters.</p>
         ) : (
           <div className="space-y-4">
-            {sortedBudgets.map((budget) => (
-              <BudgetCard
-                key={budget.id}
-                budget={budget}
-                entries={entriesByBudgetId[budget.id] ?? []}
-                incomes={incomes}
-                onEdit={() => setModalState(budget)}
-                edited={editedIds.has(budget.id)}
-              />
+            {sortedBudgets.map((budget, index) => (
+              <div key={budget.id} className="flex items-start gap-2">
+                {canReorder && (
+                  <ReorderButtons
+                    onMoveUp={() => moveUp(budget.id)}
+                    onMoveDown={() => moveDown(budget.id)}
+                    isFirst={index === 0}
+                    isLast={index === sortedBudgets.length - 1}
+                  />
+                )}
+                <div className="min-w-0 flex-1">
+                  <BudgetCard
+                    budget={budget}
+                    entries={entriesByBudgetId[budget.id] ?? []}
+                    incomes={incomes}
+                    onEdit={() => setModalState(budget)}
+                    edited={editedIds.has(budget.id)}
+                  />
+                </div>
+              </div>
             ))}
           </div>
         )}

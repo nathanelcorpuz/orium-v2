@@ -6,7 +6,9 @@ import { formatFullDate, todayInManila } from "@/lib/date";
 import { DatePicker } from "@/components/DatePicker";
 import { AmountRangeFilter, matchesAmountFilter, type ComparisonOp } from "@/components/AmountRangeFilter";
 import { AmountSortControl, sortByAmount, type SortOrder } from "@/components/AmountSortControl";
+import { ReorderButtons } from "@/components/ReorderButtons";
 import { SubmitButton } from "@/components/SubmitButton";
+import { useOrderedList } from "@/lib/useOrderedList";
 import { deleteExtra } from "./actions";
 import { ExtraModal, type BalanceOption, type ExtraRow } from "./ExtraModal";
 
@@ -37,16 +39,25 @@ export function ExtraClient({ extras, balances }: { extras: ExtraRow[]; balances
   const filtersActive =
     nameFilter !== "" || dueFrom !== "" || dueTo !== "" || amountOp !== "any";
 
+  // T145: persisted custom row order (up/down buttons) - only meaningful
+  // as the base ordering when nothing else is already imposing one.
+  const { orderedItems: orderedExtras, moveUp, moveDown } = useOrderedList(
+    "orium.miscOrder",
+    extras,
+    (extra) => extra.id,
+  );
+  const canReorder = sortOrder === "none" && !filtersActive;
+
   const filteredExtras = useMemo(() => {
     const name = nameFilter.trim().toLowerCase();
-    return extras.filter((extra) => {
+    return orderedExtras.filter((extra) => {
       if (name && !extra.name.toLowerCase().includes(name)) return false;
       if (dueFrom && extra.due_date < dueFrom) return false;
       if (dueTo && extra.due_date > dueTo) return false;
       if (!matchesAmountFilter(extra.amount, amountOp, amountValue1, amountValue2)) return false;
       return true;
     });
-  }, [extras, nameFilter, dueFrom, dueTo, amountOp, amountValue1, amountValue2]);
+  }, [orderedExtras, nameFilter, dueFrom, dueTo, amountOp, amountValue1, amountValue2]);
 
   const sortedExtras = useMemo(
     () => sortByAmount(filteredExtras, sortOrder, (extra) => extra.amount),
@@ -145,12 +156,20 @@ export function ExtraClient({ extras, balances }: { extras: ExtraRow[]; balances
           <p className="text-slate-500">No misc items match these filters.</p>
         ) : (
           <ul className="space-y-2">
-            {sortedExtras.map((extra) => (
+            {sortedExtras.map((extra, index) => (
               <li
                 key={extra.id}
                 className="flex items-center justify-between rounded-lg border border-notion-hairline bg-white p-4"
               >
-                <div>
+                {canReorder && (
+                  <ReorderButtons
+                    onMoveUp={() => moveUp(extra.id)}
+                    onMoveDown={() => moveDown(extra.id)}
+                    isFirst={index === 0}
+                    isLast={index === sortedExtras.length - 1}
+                  />
+                )}
+                <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-1.5">
                     <p className="font-medium text-notion-text">{extra.name}</p>
                     {extra.balance_id && (

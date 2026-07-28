@@ -11,9 +11,11 @@ import { AmountRangeFilter, matchesAmountFilter, type ComparisonOp } from "@/com
 import { AmountSortControl, sortByAmount, type SortOrder } from "@/components/AmountSortControl";
 import { MultiSelectChips } from "@/components/MultiSelectChips";
 import { ProgressBar } from "@/components/ProgressBar";
+import { ReorderButtons } from "@/components/ReorderButtons";
 import { SubmitButton } from "@/components/SubmitButton";
 import type { ForecastRow, RecurrenceUnit } from "@/lib/engine/types";
 import type { RecurringItemActionState } from "@/lib/recurringItem";
+import { useOrderedList } from "@/lib/useOrderedList";
 import { MonthlyGoalModal, type BalanceOption } from "./MonthlyGoalModal";
 import { ItemTransactionsModal, type SettlementRow } from "./ItemTransactionsModal";
 import type { MonthlyGoalRow } from "./MonthlyGoalRow";
@@ -106,18 +108,29 @@ export function MonthlyGoalsClient({
   const filtersActive =
     nameFilter !== "" || selectedUnits.size > 0 || amountOp !== "any";
 
+  // T145: persisted custom row order (up/down buttons), keyed by pageTitle
+  // ("Debt"/"Savings") since this one component serves both pages - only
+  // meaningful as the base ordering when nothing else is already imposing
+  // one.
+  const { orderedItems: orderedGoalItems, moveUp, moveDown } = useOrderedList(
+    `orium.${pageTitle.toLowerCase()}Order`,
+    items,
+    (item) => item.id,
+  );
+  const canReorder = sortOrder === "none" && !filtersActive;
+
   // T71 follow-up: shows the connected account's name (if any) on each row.
   const balanceNameById = useMemo(() => new Map(balances.map((b) => [b.id, b.name])), [balances]);
 
   const filteredItems = useMemo(() => {
     const name = nameFilter.trim().toLowerCase();
-    return items.filter((item) => {
+    return orderedGoalItems.filter((item) => {
       if (name && !item.name.toLowerCase().includes(name)) return false;
       if (selectedUnits.size > 0 && !selectedUnits.has(item.unit)) return false;
       if (!matchesAmountFilter(item.amount, amountOp, amountValue1, amountValue2)) return false;
       return true;
     });
-  }, [items, nameFilter, selectedUnits, amountOp, amountValue1, amountValue2]);
+  }, [orderedGoalItems, nameFilter, selectedUnits, amountOp, amountValue1, amountValue2]);
 
   const sortedItems = useMemo(
     () => sortByAmount(filteredItems, sortOrder, (item) => item.amount),
@@ -217,7 +230,7 @@ export function MonthlyGoalsClient({
           <p className="text-slate-500">No {noun}s match these filters.</p>
         ) : (
           <ul className="space-y-2">
-            {sortedItems.map((item) => {
+            {sortedItems.map((item, index) => {
               const remaining = remainingTotal({ ...goalRule(item), amount: item.amount }, today);
               const metaLine = `${summarizeRecurrence(goalRule(item))} · ${
                 remaining === null ? "Ongoing" : `${formatCentavos(remaining)} remaining`
@@ -230,6 +243,14 @@ export function MonthlyGoalsClient({
                   key={item.id}
                   className="flex items-center justify-between rounded-lg border border-notion-hairline bg-white p-4"
                 >
+                  {canReorder && (
+                    <ReorderButtons
+                      onMoveUp={() => moveUp(item.id)}
+                      onMoveDown={() => moveDown(item.id)}
+                      isFirst={index === 0}
+                      isLast={index === sortedItems.length - 1}
+                    />
+                  )}
                   {/* User request 2026-07-24: clicking an item (not its
                       Edit/Delete buttons, which sit in a sibling div below)
                       opens its upcoming/paid transactions view. */}

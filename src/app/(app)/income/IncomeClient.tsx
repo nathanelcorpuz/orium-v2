@@ -7,8 +7,10 @@ import { summarizeRecurrence } from "@/lib/recurrenceSummary";
 import { AmountRangeFilter, matchesAmountFilter, type ComparisonOp } from "@/components/AmountRangeFilter";
 import { AmountSortControl, sortByAmount, type SortOrder } from "@/components/AmountSortControl";
 import { MultiSelectChips } from "@/components/MultiSelectChips";
+import { ReorderButtons } from "@/components/ReorderButtons";
 import { SubmitButton } from "@/components/SubmitButton";
 import type { RecurrenceUnit } from "@/lib/engine/types";
+import { useOrderedList } from "@/lib/useOrderedList";
 import { deleteIncome } from "./actions";
 import { IncomeModal, type BalanceOption, type IncomeRow } from "./IncomeModal";
 
@@ -81,6 +83,15 @@ export function IncomeClient({
   const filtersActive =
     nameFilter !== "" || selectedUnits.size > 0 || amountOp !== "any";
 
+  // T145: persisted custom row order (up/down buttons) - only meaningful
+  // as the base ordering when nothing else is already imposing one.
+  const { orderedItems: orderedIncomes, moveUp, moveDown } = useOrderedList(
+    "orium.incomeOrder",
+    incomes,
+    (income) => income.id,
+  );
+  const canReorder = sortOrder === "none" && !filtersActive;
+
   // T71 follow-up: connected account name, and budget names replenished from
   // each income, for display on each row.
   const balanceNameById = useMemo(() => new Map(balances.map((b) => [b.id, b.name])), [balances]);
@@ -97,13 +108,13 @@ export function IncomeClient({
 
   const filteredIncomes = useMemo(() => {
     const name = nameFilter.trim().toLowerCase();
-    return incomes.filter((income) => {
+    return orderedIncomes.filter((income) => {
       if (name && !income.name.toLowerCase().includes(name)) return false;
       if (selectedUnits.size > 0 && !selectedUnits.has(income.unit)) return false;
       if (!matchesAmountFilter(income.amount, amountOp, amountValue1, amountValue2)) return false;
       return true;
     });
-  }, [incomes, nameFilter, selectedUnits, amountOp, amountValue1, amountValue2]);
+  }, [orderedIncomes, nameFilter, selectedUnits, amountOp, amountValue1, amountValue2]);
 
   const sortedIncomes = useMemo(
     () => sortByAmount(filteredIncomes, sortOrder, (income) => income.amount),
@@ -191,14 +202,22 @@ export function IncomeClient({
           <p className="text-slate-500">No income sources match these filters.</p>
         ) : (
           <ul className="space-y-2">
-            {sortedIncomes.map((income) => {
+            {sortedIncomes.map((income, index) => {
               const funds = budgetNamesByIncomeId.get(income.id);
               return (
               <li
                 key={income.id}
                 className="flex items-center justify-between rounded-lg border border-notion-hairline bg-white p-4"
               >
-                <div>
+                {canReorder && (
+                  <ReorderButtons
+                    onMoveUp={() => moveUp(income.id)}
+                    onMoveDown={() => moveDown(income.id)}
+                    isFirst={index === 0}
+                    isLast={index === sortedIncomes.length - 1}
+                  />
+                )}
+                <div className="min-w-0 flex-1">
                   {/* T71 follow-up: connected account + linked budgets moved
                       from a run-on text line into pill badges next to the
                       name (matching the Budgets page's "Connected to

@@ -8,8 +8,10 @@ import { AmountRangeFilter, matchesAmountFilter, type ComparisonOp } from "@/com
 import { AmountSortControl, sortByAmount, type SortOrder } from "@/components/AmountSortControl";
 import { MultiSelectChips } from "@/components/MultiSelectChips";
 import { PreviewModeBar } from "@/components/PreviewModeBar";
+import { ReorderButtons } from "@/components/ReorderButtons";
 import { SubmitButton } from "@/components/SubmitButton";
 import type { RecurrenceUnit } from "@/lib/engine/types";
+import { useOrderedList } from "@/lib/useOrderedList";
 import { deleteBill } from "./actions";
 import { BillModal, type BalanceOption, type BillRow } from "./BillModal";
 
@@ -82,18 +84,27 @@ export function BillsClient({
   const filtersActive =
     nameFilter !== "" || selectedUnits.size > 0 || amountOp !== "any";
 
+  // T145: persisted custom row order (up/down buttons) - only meaningful
+  // as the base ordering when nothing else is already imposing one.
+  const { orderedItems: orderedBills, moveUp, moveDown } = useOrderedList(
+    "orium.billsOrder",
+    bills,
+    (bill) => bill.id,
+  );
+  const canReorder = sortOrder === "none" && !filtersActive;
+
   // T71 follow-up: shows the connected account's name (if any) on each row.
   const balanceNameById = useMemo(() => new Map(balances.map((b) => [b.id, b.name])), [balances]);
 
   const filteredBills = useMemo(() => {
     const name = nameFilter.trim().toLowerCase();
-    return bills.filter((bill) => {
+    return orderedBills.filter((bill) => {
       if (name && !bill.name.toLowerCase().includes(name)) return false;
       if (selectedUnits.size > 0 && !selectedUnits.has(bill.unit)) return false;
       if (!matchesAmountFilter(bill.amount, amountOp, amountValue1, amountValue2)) return false;
       return true;
     });
-  }, [bills, nameFilter, selectedUnits, amountOp, amountValue1, amountValue2]);
+  }, [orderedBills, nameFilter, selectedUnits, amountOp, amountValue1, amountValue2]);
 
   const sortedBills = useMemo(
     () => sortByAmount(filteredBills, sortOrder, (bill) => bill.amount),
@@ -185,13 +196,21 @@ export function BillsClient({
           <p className="text-slate-500">No bills match these filters.</p>
         ) : (
           <ul className="space-y-2">
-            {sortedBills.map((bill) => {
+            {sortedBills.map((bill, index) => {
               return (
               <li
                 key={bill.id}
                 className="flex items-center justify-between rounded-lg border border-notion-hairline bg-white p-4"
               >
-                <div>
+                {!previewMode && canReorder && (
+                  <ReorderButtons
+                    onMoveUp={() => moveUp(bill.id)}
+                    onMoveDown={() => moveDown(bill.id)}
+                    isFirst={index === 0}
+                    isLast={index === sortedBills.length - 1}
+                  />
+                )}
+                <div className="min-w-0 flex-1">
                   {/* T71 follow-up: the connected account moved from a
                       run-on text line into its own pill badge next to the
                       name (matching the Budgets page's "Connected to
