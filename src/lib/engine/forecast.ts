@@ -163,8 +163,16 @@ export function generateForecast(input: GenerateForecastInput): ForecastRow[] {
     }
   }
 
-  // Array.prototype.sort is stable (ES2019+), so equal due dates keep their insertion order.
-  rows.sort((a, b) => (a.dueDate < b.dueDate ? -1 : a.dueDate > b.dueDate ? 1 : 0));
+  // Array.prototype.sort is stable (ES2019+), so equal due-date-and-sign rows keep
+  // their insertion order. Same-day rows put incoming amounts (income, refunds) before
+  // outgoing ones so the running balance reflects money landing before it's spent.
+  rows.sort((a, b) => {
+    if (a.dueDate !== b.dueDate) return a.dueDate < b.dueDate ? -1 : 1;
+    const aIncoming = a.amount >= 0;
+    const bIncoming = b.amount >= 0;
+    if (aIncoming !== bIncoming) return aIncoming ? -1 : 1;
+    return 0;
+  });
 
   let runningBalance = balances.reduce((sum, balance) => sum + balance.amount, 0);
 
