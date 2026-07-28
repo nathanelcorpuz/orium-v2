@@ -8,6 +8,12 @@ Format per bug: steps to reproduce → what happened → what was expected. Clau
 
 ## Fixed
 
+### Bug #10 - Deleting a future budget entry from Forecast closed the modal before the delete finished
+- **Reproduce**: log a spend/add funds on a manual budget dated in the future, open it from the Forecast table, click "Delete this entry." Flagged as a known gap in T133 (2026-07-27), confirmed and fixed during the T134 mobile stress-test pass (2026-07-28).
+- **What happened**: the modal closed immediately on click, before the delete server action had actually run - a failed delete (the underlying function never even checked Supabase's own error result) would fail completely silently.
+- **Expected**: the modal shows pending feedback, stays open on failure with an error message, and only closes once the delete genuinely succeeds.
+- **Fixed by**: **T147** in SPEC.md - `deleteBudgetEntry` now returns an error state like every other budget action, and both call sites (`EditSettleModal.tsx`, `BudgetEntriesModal.tsx`) wait for it via `useActionState`. See T147's write-up for the full root cause and fix.
+
 ### Bug #9 - Missing space in Misc's account-connect helper text ("adds it tothat account's")
 - **Reproduce**: open Add misc item, look at the helper text under the account dropdown. Reported by the user 2026-07-27/28 as "fromthat" (the "Money out"/subtracts-from branch); reproduced here as "tothat" (the default "Money in"/adds-to branch) - same bug, either direction.
 - **What happened**: the two words ran together with no space, even though the JSX source has one.

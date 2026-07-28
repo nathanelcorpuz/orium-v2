@@ -358,7 +358,17 @@ export async function updateBudgetEntry(
 // settlement row is found by matching the same fields it was written with
 // (source_type/source_id/actual_date/actual_amount) rather than an id -
 // otherwise deleting an entry would leave a phantom transaction in History.
-export async function deleteBudgetEntry(formData: FormData) {
+// T134 (stress-test finding, flagged but deliberately left open by T133):
+// used to be a bare `(formData) => void` action, which is why
+// EditSettleModal.tsx's delete form had to close itself synchronously on
+// submit rather than after the delete actually finished - a failed delete
+// (this function never even checked Supabase's own error results) would
+// fail completely silently, modal already gone. Now returns BudgetActionState
+// like every other budget action here, so the caller can wait for it.
+export async function deleteBudgetEntry(
+  _prevState: BudgetActionState,
+  formData: FormData,
+): Promise<BudgetActionState> {
   const id = formData.get("id") as string;
   const supabase = await createClient();
 
@@ -368,7 +378,8 @@ export async function deleteBudgetEntry(formData: FormData) {
     .eq("id", id)
     .single();
 
-  await supabase.from("budget_entries").delete().eq("id", id);
+  const { error: deleteError } = await supabase.from("budget_entries").delete().eq("id", id);
+  if (deleteError) return { error: deleteError.message };
 
   if (entry) {
     const sign = entry.direction === "incoming" ? 1 : -1;
@@ -385,4 +396,5 @@ export async function deleteBudgetEntry(formData: FormData) {
   revalidatePath("/history");
   revalidatePath("/forecast");
   revalidatePath("/");
+  return { error: null };
 }

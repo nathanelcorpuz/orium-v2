@@ -33,6 +33,12 @@ function BudgetEntryListItem({
 }) {
   const [mode, setMode] = useState<"view" | "edit" | "delete">("view");
   const [editState, editFormAction, editPending] = useActionState(updateBudgetEntry, initialState);
+  // T134 (stress-test finding): deleteBudgetEntry used to be a bare
+  // (formData) => void action with no error reporting at all - a failed
+  // delete gave zero feedback beyond the spinner completing. Now returns
+  // BudgetActionState like updateBudgetEntry above, so a failure surfaces
+  // the same way an edit failure already does.
+  const [deleteState, deleteFormAction] = useActionState(deleteBudgetEntry, initialState);
   const submitted = useRef(false);
 
   useEffect(() => {
@@ -106,30 +112,33 @@ function BudgetEntryListItem({
 
   if (mode === "delete") {
     return (
-      <li className="flex items-center justify-between gap-2 text-sm">
-        <span className="text-slate-600">Delete this entry?</span>
-        <span className="flex items-center gap-1">
-          <form action={deleteBudgetEntry}>
-            <input type="hidden" name="id" value={entry.id} />
-            <SubmitButton
-              title="Confirm delete"
-              aria-label="Confirm delete"
-              className="rounded p-1 text-red-600 hover:bg-red-50 disabled:opacity-50"
-              spinnerClassName="h-3.5 w-3.5"
+      <li className="flex flex-col gap-1">
+        <div className="flex items-center justify-between gap-2 text-sm">
+          <span className="text-slate-600">Delete this entry?</span>
+          <span className="flex items-center gap-1">
+            <form action={deleteFormAction}>
+              <input type="hidden" name="id" value={entry.id} />
+              <SubmitButton
+                title="Confirm delete"
+                aria-label="Confirm delete"
+                className="rounded p-1 text-red-600 hover:bg-red-50 disabled:opacity-50"
+                spinnerClassName="h-3.5 w-3.5"
+              >
+                <CheckIcon className="h-3.5 w-3.5" />
+              </SubmitButton>
+            </form>
+            <button
+              type="button"
+              onClick={() => setMode("view")}
+              title="Cancel"
+              aria-label="Cancel"
+              className="rounded p-1 text-slate-400 hover:bg-notion-hover hover:text-notion-text"
             >
-              <CheckIcon className="h-3.5 w-3.5" />
-            </SubmitButton>
-          </form>
-          <button
-            type="button"
-            onClick={() => setMode("view")}
-            title="Cancel"
-            aria-label="Cancel"
-            className="rounded p-1 text-slate-400 hover:bg-notion-hover hover:text-notion-text"
-          >
-            <CloseIcon className="h-3.5 w-3.5" />
-          </button>
-        </span>
+              <CloseIcon className="h-3.5 w-3.5" />
+            </button>
+          </span>
+        </div>
+        {deleteState.error && <p className="text-xs text-red-600">{deleteState.error}</p>}
       </li>
     );
   }

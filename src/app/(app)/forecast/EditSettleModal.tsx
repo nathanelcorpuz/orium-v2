@@ -65,6 +65,17 @@ export function EditSettleModal({
     settleBudgetReplenish,
     initialState,
   );
+  // T134 (stress-test finding, flagged but deliberately left open by T133):
+  // this form used to close the modal synchronously via onSubmit={onClose},
+  // before deleteBudgetEntry (which used to return void with no error
+  // reporting at all) had actually finished - a failed delete gave zero
+  // feedback, modal already gone. Now goes through useActionState like
+  // every other action in this modal, folded into the same close-on-success
+  // effect below instead of closing unconditionally on submit.
+  const [deleteEntryState, deleteEntryFormAction, deleteEntryPending] = useActionState(
+    deleteBudgetEntry,
+    initialEntryState,
+  );
   const submitted = useRef(false);
 
   useEffect(() => {
@@ -74,10 +85,12 @@ export function EditSettleModal({
       !settlePending &&
       !entryPending &&
       !replenishPending &&
+      !deleteEntryPending &&
       !editState.error &&
       !settleState.error &&
       !entryState.error &&
-      !replenishState.error
+      !replenishState.error &&
+      !deleteEntryState.error
     ) {
       onClose();
     }
@@ -86,10 +99,12 @@ export function EditSettleModal({
     settlePending,
     entryPending,
     replenishPending,
+    deleteEntryPending,
     editState,
     settleState,
     entryState,
     replenishState,
+    deleteEntryState,
     onClose,
   ]);
 
@@ -248,11 +263,24 @@ export function EditSettleModal({
               </button>
             </div>
           </form>
-          <form action={deleteBudgetEntry} onSubmit={onClose} className="mt-3 border-t border-notion-hairline pt-3">
+          <form
+            action={deleteEntryFormAction}
+            onSubmit={() => {
+              submitted.current = true;
+            }}
+            className="mt-3 border-t border-notion-hairline pt-3"
+          >
             <input type="hidden" name="id" value={row.sourceId} />
-            <button type="submit" className="text-sm text-red-600 underline hover:text-red-700">
-              Delete this entry
+            <button
+              type="submit"
+              disabled={deleteEntryPending}
+              className="text-sm text-red-600 underline hover:text-red-700 disabled:opacity-50"
+            >
+              {deleteEntryPending ? "Deleting..." : "Delete this entry"}
             </button>
+            {deleteEntryState.error && (
+              <p className="mt-1 text-sm text-red-600">{deleteEntryState.error}</p>
+            )}
           </form>
         </>
       ) : mode === "edit" ? (
