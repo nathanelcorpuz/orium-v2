@@ -120,8 +120,6 @@ export function BudgetCard({
   // Bills/Income/Debt/Savings rows already do (recurrenceSummary.ts).
   const replenishLabel = incomeName ? `Connected to ${incomeName}` : rule ? summarizeRecurrence(rule) : "Manual";
 
-  const isManual = !budget.linked_income_id;
-
   return (
     <div className="rounded-lg border border-notion-hairline bg-white p-4">
       <div className="mb-3 flex items-start justify-between">
@@ -219,24 +217,20 @@ export function BudgetCard({
         >
           Log spend
         </button>
-        {isManual && (
-          <>
-            <button
-              type="button"
-              onClick={() => setActiveModal("add")}
-              className="rounded border border-notion-hairline px-3 py-1.5 text-sm text-green-700 hover:bg-notion-hover"
-            >
-              Add funds
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveModal("take")}
-              className="rounded border border-notion-hairline px-3 py-1.5 text-sm text-red-600 hover:bg-notion-hover"
-            >
-              Take funds
-            </button>
-          </>
-        )}
+        <button
+          type="button"
+          onClick={() => setActiveModal("add")}
+          className="rounded border border-notion-hairline px-3 py-1.5 text-sm text-green-700 hover:bg-notion-hover"
+        >
+          Add funds
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveModal("take")}
+          className="rounded border border-notion-hairline px-3 py-1.5 text-sm text-red-600 hover:bg-notion-hover"
+        >
+          Take funds
+        </button>
       </div>
 
       {activeModal === "entries" && (
