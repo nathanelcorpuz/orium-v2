@@ -1,50 +1,33 @@
-reminder for next session
+# REMINDER.md
 
-* \[x] handle other scenarios for lowest balance ahead, not just the negative balance cus right now it only shows the negative balance on text and nothing else — moved to SPEC.md as **T76** (2026-07-24)
-* \[x] i want the account connected to the bills etc. to be "deducted from" label instead of "account" — moved to SPEC.md as **T77** (2026-07-24)
-* \[x] i want the income records to have a "added to" account selection — moved to SPEC.md as **T77** (2026-07-24)
-* \[x] work on todos below reminder, completed items need to persist, manage them so they don't clutter the forecast tab — moved to SPEC.md as **T84** (2026-07-25)
-* \[x] add these to future specs (don't set them as T yet, only informational once these start) — logged as informational notes in SPEC.md's "Before MVP launch" section (2026-07-25), not scoped as tasks per your instruction
+Scratchpad for things raised between sessions. Write anything here, in any shape - it does not need to be a well-formed task.
 
-  * notifications to phone — noted; also flagged the tension with SPEC's existing "Out of scope" list, which already excludes notifications
-  * history - graphs insights — this is the same ask as SPEC's existing unscoped "A more insightful History page" note, just reaffirmed
-* \[x] convert the "preview with sample data" flow to an icon in the menu just below the settings as a lightbulb icon with the text "How to use" which will guide the user on how to use the entire web app, starting from adding accounts, adding bills, adding income, adding debts/savings, adding budgets and the things you can do there, adding misc, and then the dashboard features, and then the forecast table, all in one smooth flow from start to end. — moved to SPEC.md as **T110** (2026-07-26)
-* \[x] rename the route "/extra" to "/misc" — moved to SPEC.md as **T111** (2026-07-26)
-* \[x] all buttons everywhere should have a hand icon when being hovered as well as slight color changing — moved to SPEC.md as **T112** (2026-07-26)
-* \[x] there should never be long em dashes anywhere at all and put this in the SPEC and CLAUDE — done: rule added to SPEC.md ("Writing style" section) and CLAUDE.md, tracked as **T113** (2026-07-26)
-* \[x] when clicking on the tour, it should automatically be scrolled on the top showing the "Dashboard" text, not in the middle. — superseded: mid-session you redirected the whole tour redesign (see below), moved to SPEC.md as **T116** (2026-07-26), which fixed the scroll-to-top behavior as part of the rebuild
-* \[x] it shouldn't say "review the tour again", again should be removed — fixed as part of **T116**
-* \[x] it shouldn't say "Click forecast to continue", it should say "Click Done to go to Forecast" or the Done button should say Go to Forecast or Next, so the Step shouldn't be step 1 of 1, it should be step 1 of <total steps until the end of tour> this should apply on succeeding steps — superseded by **T116**'s smaller 4-step design (per-step "Go to X" button labels, no more generic "continue" phrasing); the redesign no longer has enough steps to need cross-page global numbering
-* \[x] the forecast page when clicking done it quickly shows the reset sample data modal then split second moves to the next page, making UX confusing — fixed as part of **T116** (the modal no longer races the tour's own navigation)
-* \[x] in the accounts tour, there's a step 2 of 2 that says continue to bills. this should be the case for all the steps, like in Dashboard, it should highlight the next tab like this. then, if the user clicks Done while the next tab is highlighted, it should auto route there, same as when they click on the actual tab — superseded: you redirected to a much smaller 4-step tour design instead of extending the per-page chain, tracked as **T116**
-* \[x] each page, account, bill, income, etc should also add a step that they can filter through the items and manage items — superseded by **T116**'s redesign, which deliberately dropped the per-page walkthrough in favor of one short tour plus a single "add your finance info" step pointing at all the pages at once
-* \[x] include history in the tour — superseded; **T116**'s smaller tour doesn't visit History (or any per-page tour) at all
-* \[x] the settings tour is clunky... i want each part of the settings to have its own quick 1-step tour — superseded; **T116** removed the Settings tour entirely along with every other per-page tour
-* \[x] (mid-session redirect, 2026-07-26) replace the whole tour system with: a 4-step guided tour (Dashboard intro, centered message only -> highlight Accounts tab and go there -> highlight all six finance nav tabs at once, no forced navigation -> Forecast page, highlighted whole) plus guided setup (T115's wizard) changed from a hard block to fully opt-in, offered during/after the tour and always reachable from Settings — moved to SPEC.md as **T116** (2026-07-26)
-* \[x] short tour rebuilt to the exact 6-step spec (placeholder-only sample data, per-step routing Dashboard -> Accounts -> Bills -> Forecast -> Settings -> Dashboard/Peaks and Drops, "Complete" button, then a persistent 3-option prompt with a small Close and a pointer to Settings > Help) — moved to SPEC.md as **T120** (2026-07-26)
-* \[x] i cant test the new onboarding flow anymore as I get an "email rate limit exceeded" error from supabase — fixed as part of **T120**: new dev-only `/api/dev-reset-onboarding` resets the logged-in account back to brand-new onboarding state, so the flow replays with no new signups and no confirmation emails. Add `?wipe=1` to also clear financial data for the empty-account case.
-* \[x] form helpers should each have an x that asks "don't show this tip next time?" — done as part of **T120**; dismissals are per-tip and saved to your account (survive logout/other devices), with "Bring back form tips" in Settings > Help to undo.
-* \[x] short tour: step 3: should have bills, income, debt, savings, budgets, misc highlighted as well not just bills — moved to SPEC.md as **T129** (2026-07-27)
-* \[x] short tour: step 5: the message popup is blocking the lowest balance ahead part of the settings — moved to SPEC.md as **T129** (2026-07-27)
-* \[x] guided setup: should allow the user to delete entries as well, and make the edit / delete buttons icon, not text — moved to SPEC.md as **T129** (2026-07-27)
-* \[x] guided setup: give them an option to go back and forward to the previous and next step from step 1 to step 7 — moved to SPEC.md as **T129** (2026-07-27)
-* \[x] dashboard lowest balance ahead section, make insights text  smaller — moved to SPEC.md as **T129** (2026-07-27)
-* \[x] step 3 in quick tour = the highlighted bills page has a horizontal white line cutting just below the icon and the text — moved to SPEC.md as **T131** (2026-07-27)
-* 
-* \[x] Continue stress test — moved to SPEC.md as **T134** (2026-07-28)
-* \[x] Launch strategy / beta sizing on Supabase free tier / beta legitimacy via FB or Reddit / overall beta->paid->mobile sequencing — moved to SPEC.md's "Before MVP launch" section as an unscoped discussion item (2026-07-28); needs an actual conversation, not a unilateral build
-* \[x] signup code-only + handle more than 2 emails/hour — the code-only half shipped as **T132**; the email-volume half is your own action item (custom SMTP), documented in SPEC.md's Operations note (2026-07-27)
-* \[x] guided setup bug: add-item modal auto-opens and traps forward/back buttons, can't be closed — moved to SPEC.md as **T136** (2026-07-28)
-* \[x] guided setup bug: buttons aren't closing when a modal is open sometimes — moved to SPEC.md as **T137** (2026-07-28)
-* \[x] guided setup: network error after entering 10+ bills and moving to the next step — moved to SPEC.md as **T138** (2026-07-28)
-* \[x] feature request: ascending/descending by amount filter in finance records — moved to SPEC.md as **T143** (2026-07-28)
-* \[x] feature request: varying twice-a-month recurrence (16th/31st, 5th/25th, etc.) — moved to SPEC.md as **T144** (2026-07-28)
-* \[x] bug: income due-date 31st reverts to 27th (today) on save; "90% of transactions dated the 27th"; "make sure all repeats options work" — these are the same underlying report, moved to SPEC.md as **T135** (2026-07-28)
-* \[x] bug: Add Debt's date picker gets cut off / horizontal scroll resets the date — moved to SPEC.md as **T139** (2026-07-28)
-* \[x] ends on date should limit to 5 years from the start date — T85 already caps every end date at 5 years *from today*; moved to SPEC.md as a verify-first task, **T146** (2026-07-28), to confirm that's what you meant
-* \[x] finance lists should be draggable/reorderable across all pages — moved to SPEC.md as **T145** (2026-07-28)
-* \[x] Misc forecast edits should update the Misc page too — moved to SPEC.md as a verify-first task, **T142** (2026-07-28): this should already work since one-offs share one row between both pages, not a separate override layer
-* \[x] Misc: redundant "info" wording on Money in/Money out + "fromthat" typo — moved to SPEC.md as **T141** (2026-07-28)
-* \[x] Misc: still showing raw `2026-09-26` format instead of "Jun 1, 2026" — moved to SPEC.md as **T140** (2026-07-28)
-* \[x] spec future pre-launch features (notifications, import/templates/guided build, partner sharing, what-if scenarios) — moved to SPEC.md's "Before MVP launch" section (2026-07-28); partner sharing and notifications both conflict with the existing "Out of scope" list and need an explicit scope decision first
-* \[x] send the GTM playbook for an ongoing discussion — moved to SPEC.md's "Before MVP launch" section (2026-07-28) as a standing ask; not included in this public repo file per your instruction
+**How this file works** (per CLAUDE.md's session workflow): at the start of a session, everything here is triaged into its proper home - SPEC.md for scoped tasks and product decisions, BUGS.md for defects, a standalone document for anything bigger - and then **removed from this file**. SPEC.md is the record; this file is the inbox. Git history has every previous version if an old note needs looking up.
+
+---
+
+## Pending
+
+(nothing - inbox is empty)
+
+---
+
+## Last triage
+
+**2026-07-31.** The 30 items collected between 2026-07-29 and 2026-07-30 were sorted as follows.
+
+**Became bugs** (BUGS.md, all four confirmed by reading the code and scoped at the top of SPEC.md Phase 20):
+- Forecast dropping past-dated unsettled transactions, which hid a real negative balance: **Bug #11 / T150**.
+- The "20,000 income minus 1,000 budget = 19,000" note turned out to describe a defect rather than a missing feature - settling a linked income double-counts the allocation: **Bug #14 / T151**.
+- Accounts opened from the Forecast not showing connected finances: **Bug #12 / T152**.
+- "First goes negative" being the wrong label when the danger threshold is above zero: **Bug #13 / T153**.
+
+**Became tasks** (SPEC.md Phase 20, T154-T164): the missing test for same-day ordering, bold Forecast dates and comment bubbles, start dates on list rows, the Yearly preset and "Ends: never" default, Forecast row details, upgraded filters, somewhere for completed debts and savings to go, the desktop date-grouped Forecast layout, the activity log, the "what changed since you last logged in" feed, and the family calendar view.
+
+**Became a phase** (SPEC.md Phase 21, T165-T168): seven separate budget-account notes turned out to describe one feature - budget accounts as a second layer behind the cash-flow accounts - so they were grouped rather than scoped individually.
+
+**Became a document**: the production-safety, staging and inviting-users note is now **STAGING.md** in the repo root, with the decisions it raises listed in SPEC.md's "Before MVP launch" section.
+
+**Became decisions, deliberately not tasks** (SPEC.md "Before MVP launch"): raising the horizon from 5 to 25 years (this reverses T146, confirmed only three days earlier, so it needs an explicit re-decision), email notifications (requested four separate ways and still on the "Out of scope" list), user-defined categories, and per-account forecasted balances.
+
+**Already shipped**: same-day income-before-deductions ordering had already landed in commit `c6b85d3`; it is now documented as **T148**. The Add/Take funds change in `f7aee0d` is documented as **T149**.
