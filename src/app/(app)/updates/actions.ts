@@ -44,3 +44,23 @@ export async function dismissUpdate(formData: FormData) {
   await supabase.from("activity_log_dismissals").insert({ user_id: user.id, activity_log_id: id });
   revalidatePath("/updates");
 }
+
+// T187: marks one entry read without touching the rest of the feed -
+// "Mark all as read" (markUpdatesSeen above) stays the bulk path via the
+// existing watermark; this is the individual case, the same insert-only
+// shape as dismissUpdate above (migration 0035's activity_log_reads).
+export async function markUpdateRead(formData: FormData) {
+  const id = formData.get("id");
+  if (typeof id !== "string" || !id) return;
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return;
+
+  await supabase.from("activity_log_reads").insert({ user_id: user.id, activity_log_id: id });
+  revalidatePath("/updates");
+  // The sidebar's unread badge (AppShell, T163) also needs to drop by one.
+  revalidatePath("/", "layout");
+}

@@ -36,6 +36,18 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   if (seenAt) unseenUpdatesQuery = unseenUpdatesQuery.gt("created_at", seenAt);
   const { count: unseenUpdatesCount } = await unseenUpdatesQuery;
 
+  // T187: an entry marked read individually (before "Mark all as read" is
+  // ever clicked) still counts toward the raw query above, since that only
+  // knows about the bulk watermark - subtract it back out here via the
+  // embedded join so the badge agrees with what the Updates page itself
+  // considers unread.
+  let readSinceSeenQuery = supabase
+    .from("activity_log_reads")
+    .select("activity_log_id, activity_log!inner(created_at)", { count: "exact", head: true });
+  if (seenAt) readSinceSeenQuery = readSinceSeenQuery.gt("activity_log.created_at", seenAt);
+  const { count: readSinceSeenCount } = await readSinceSeenQuery;
+  const unseenCount = Math.max(0, (unseenUpdatesCount ?? 0) - (readSinceSeenCount ?? 0));
+
   return (
     <FormTipsProvider dismissed={prefs?.dismissed_form_tips ?? []}>
       <AppShell
@@ -48,7 +60,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         onboardingChoice={prefs ? prefs.onboarding_choice : "skipped"}
         onboardingTourStep={prefs?.onboarding_tour_step ?? null}
         onboardingTourCompletedAt={prefs?.onboarding_tour_completed_at ?? null}
-        unseenUpdatesCount={unseenUpdatesCount ?? 0}
+        unseenUpdatesCount={unseenCount}
       >
         {children}
       </AppShell>

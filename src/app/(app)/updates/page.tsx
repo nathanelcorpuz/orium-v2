@@ -19,7 +19,7 @@ export type ActivityLogRow = {
 export default async function UpdatesPage() {
   const supabase = await createClient();
 
-  const [logRes, prefsRes, dismissalsRes] = await Promise.all([
+  const [logRes, prefsRes, dismissalsRes, readsRes] = await Promise.all([
     supabase
       .from("activity_log")
       .select("id, created_at, action, entity_type, entity_name, detail")
@@ -29,19 +29,24 @@ export default async function UpdatesPage() {
     // T185: dismissed entries are filtered out here, server-side, so a
     // hidden row is never even sent to the client rather than hidden by CSS.
     supabase.from("activity_log_dismissals").select("activity_log_id"),
+    // T187: individually-marked-read entries, so an entry read before "Mark
+    // all as read" is ever clicked stops showing as new on this and every
+    // later visit, not just until the next reload.
+    supabase.from("activity_log_reads").select("activity_log_id"),
   ]);
 
   if (logRes.error) {
     return <p className="p-8 text-red-600">Could not load updates: {logRes.error.message}</p>;
   }
 
-  // Read once, before UpdatesClient marks it seen - this render's "new"
-  // boundary has to be the watermark as it stood *before* this visit, or
-  // every entry would immediately count as already-seen and nothing would
-  // ever visibly highlight as new.
+  // T187: no longer "read once before this visit auto-marks it seen" (T163's
+  // old behavior) - the watermark now only ever moves via an explicit "Mark
+  // all as read" click, so reading it here has no special ordering concern
+  // anymore.
   const seenAt = prefsRes.data?.activity_log_seen_at ?? null;
   const dismissedIds = new Set((dismissalsRes.data ?? []).map((row) => row.activity_log_id));
+  const readIds = new Set((readsRes.data ?? []).map((row) => row.activity_log_id));
   const entries = (logRes.data ?? []).filter((entry) => !dismissedIds.has(entry.id));
 
-  return <UpdatesClient entries={entries} seenAt={seenAt} />;
+  return <UpdatesClient entries={entries} seenAt={seenAt} readIds={readIds} />;
 }
