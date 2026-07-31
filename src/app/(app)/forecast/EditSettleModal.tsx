@@ -9,8 +9,10 @@ import { formatFullDate, todayInManila } from "@/lib/date";
 import type { ForecastRow } from "@/lib/engine/types";
 import { deleteBudgetEntry, updateBudgetEntry, type BudgetActionState } from "@/app/(app)/budgets/actions";
 import {
+  editBudgetReplenish,
   editOneOff,
   editRecurringOccurrence,
+  resetBudgetReplenish,
   settleBudgetReplenish,
   settleOccurrence,
   type ForecastActionState,
@@ -39,13 +41,22 @@ export function EditSettleModal({
   // (budgets/actions.ts) rather than new ones, since those already do
   // exactly what's needed here (including revalidating /forecast).
   const isBudgetEntry = row.sourceType === "budget_entry";
-  // Phase 11 (T59): a projected replenish occurrence for a budget on its
-  // own schedule ("replenish every") - settle-only, no Edit tab (there's
-  // nothing to move/rename before settling, per budget_replenish_overrides'
-  // v1 scope). Only ever reached for row.budgetSettleable rows -
-  // ForecastClient never makes an income-linked budget_replenish row
-  // clickable, since those settle automatically via their linked income.
+  // Phase 11 (T59): a projected replenish occurrence. Was settle-only with no
+  // Edit tab, and income-linked ones weren't clickable at all.
+  //
+  // T168 (user request 2026-07-31) changes both. A projected replenishment is
+  // now adjustable per instance - amount and date - via
+  // budget_replenish_overrides, extended by migration 0027. Crucially that had
+  // to include income-linked budgets: every budget in real use is linked to an
+  // income, so an editor that skipped them would have been an editor nobody
+  // could reach.
+  //
+  // Settling stays exactly as scoped: only an own-schedule budget's row can be
+  // settled here (`budgetSettleable`). An income-linked one still settles
+  // automatically when its income does, so it gets the Edit form alone with no
+  // toggle - you can change what it will transfer, not declare it done.
   const isBudgetReplenish = row.sourceType === "budget_replenish";
+  const canSettleReplenish = isBudgetReplenish && row.budgetSettleable === true;
   // User request 2026-07-24: the amount field shouldn't require typing a
   // minus sign for outflow types - only "extra" genuinely goes either way
   // (no fixed direction), so it's the one type that keeps manual sign entry.
@@ -63,6 +74,16 @@ export function EditSettleModal({
   );
   const [replenishState, replenishFormAction, replenishPending] = useActionState(
     settleBudgetReplenish,
+    initialState,
+  );
+  // T168: editing and resetting a projected replenishment. Separate action
+  // states so an error in one never blanks the other's message.
+  const [editReplenishState, editReplenishFormAction, editReplenishPending] = useActionState(
+    editBudgetReplenish,
+    initialState,
+  );
+  const [resetReplenishState, resetReplenishFormAction, resetReplenishPending] = useActionState(
+    resetBudgetReplenish,
     initialState,
   );
   // T134 (stress-test finding, flagged but deliberately left open by T133):
@@ -86,11 +107,15 @@ export function EditSettleModal({
       !entryPending &&
       !replenishPending &&
       !deleteEntryPending &&
+      !editReplenishPending &&
+      !resetReplenishPending &&
       !editState.error &&
       !settleState.error &&
       !entryState.error &&
       !replenishState.error &&
-      !deleteEntryState.error
+      !deleteEntryState.error &&
+      !editReplenishState.error &&
+      !resetReplenishState.error
     ) {
       onClose();
     }
@@ -100,17 +125,25 @@ export function EditSettleModal({
     entryPending,
     replenishPending,
     deleteEntryPending,
+    editReplenishPending,
+    resetReplenishPending,
     editState,
     settleState,
     entryState,
     replenishState,
     deleteEntryState,
+    editReplenishState,
+    resetReplenishState,
     onClose,
   ]);
 
   return (
     <Modal title={row.name} onClose={onClose}>
-      {!isBudgetEntry && !isBudgetReplenish && (
+      {/* T168: budget_replenish rows get the toggle too, but only when the
+          row is genuinely settleable here. An income-linked one shows the
+          Edit form alone - offering a Settle tab that refuses to work would
+          be worse than not offering it. */}
+      {!isBudgetEntry && (!isBudgetReplenish || canSettleReplenish) && (
         <div className="mb-4">
           <SegmentedControl
             options={[
@@ -123,7 +156,98 @@ export function EditSettleModal({
         </div>
       )}
 
-      {isBudgetReplenish ? (
+      {isBudgetReplenish && (mode === "edit" || !canSettleReplenish) ? (
+        <div className="space-y-4">
+          <form
+            action={editReplenishFormAction}
+            onSubmit={() => {
+              submitted.current = true;
+            }}
+            className="space-y-4"
+          >
+            <input type="hidden" name="budgetId" value={row.budgetId} />
+            <input type="hidden" name="originalDate" value={row.originalDate} />
+            <p className="text-sm text-slate-500">
+              Adjust this one replenishment. The budget&apos;s allocation and schedule stay as they
+              are - only this occurrence changes.
+            </p>
+            <div>
+              <label className="block text-sm text-slate-600" htmlFor="amountPesos">
+                Amount ({currency})
+              </label>
+              <input
+                id="amountPesos"
+                name="amountPesos"
+                type="number"
+                step="0.01"
+                min="0"
+                required
+                onKeyDown={blockNegativeKey}
+                defaultValue={centavosToPesosString(Math.abs(row.amount))}
+                className="mt-1 w-full rounded border border-notion-hairline p-2 text-notion-text focus:border-notion-accent focus:outline-none"
+              />
+            </div>
+            <div>
+              <label className="block text-sm text-slate-600" htmlFor="date">
+                Date
+              </label>
+              <DatePicker
+                id="date"
+                name="date"
+                required
+                defaultValue={row.dueDate}
+                min={todayInManila()}
+                className="mt-1 w-full rounded border border-notion-hairline p-2 text-left focus:border-notion-accent focus:outline-none"
+              />
+            </div>
+            {editReplenishState.error && (
+              <p className="text-sm text-red-600">{editReplenishState.error}</p>
+            )}
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={onClose}
+                className="rounded border border-notion-hairline px-4 py-2 text-notion-text hover:bg-notion-hover"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={editReplenishPending}
+                className="rounded bg-notion-text px-4 py-2 text-white hover:opacity-90 disabled:opacity-50"
+              >
+                {editReplenishPending ? "Saving..." : "Save"}
+              </button>
+            </div>
+          </form>
+
+          {/* Only offered once there is actually an edit to undo - `edited`
+              is set by the engine exactly when an override changed this
+              occurrence's amount or date. */}
+          {row.edited && (
+            <form
+              action={resetReplenishFormAction}
+              onSubmit={() => {
+                submitted.current = true;
+              }}
+              className="border-t border-notion-hairline pt-4"
+            >
+              <input type="hidden" name="budgetId" value={row.budgetId} />
+              <input type="hidden" name="originalDate" value={row.originalDate} />
+              {resetReplenishState.error && (
+                <p className="mb-2 text-sm text-red-600">{resetReplenishState.error}</p>
+              )}
+              <button
+                type="submit"
+                disabled={resetReplenishPending}
+                className="text-sm text-slate-500 underline hover:text-notion-text disabled:opacity-50"
+              >
+                {resetReplenishPending ? "Resetting..." : "Reset to the usual amount and date"}
+              </button>
+            </form>
+          )}
+        </div>
+      ) : isBudgetReplenish ? (
         <form
           action={replenishFormAction}
           onSubmit={() => {

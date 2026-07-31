@@ -75,7 +75,9 @@ export async function loadForecast(): Promise<ForecastData> {
     // Every entry, not just future ones - the Dashboard's budget card
     // needs full history to compute a running total (budgetLedger.ts).
     supabase.from("budget_entries").select("id, budget_id, entry_date, amount, note, direction"),
-    supabase.from("budget_replenish_overrides").select("id, budget_id, original_date, skipped"),
+    supabase
+      .from("budget_replenish_overrides")
+      .select("id, budget_id, original_date, skipped, new_date, new_amount"),
     supabase
       .from("preferences")
       .select("currency, balance_ranges, balance_tier_labels, sample_data_seeded_at")
@@ -162,6 +164,9 @@ export async function loadForecast(): Promise<ForecastData> {
     budgetId: row.budget_id,
     originalDate: row.original_date,
     skipped: row.skipped,
+    // T168 (migration 0027)
+    newDate: row.new_date,
+    newAmount: row.new_amount,
   }));
 
   const input: GenerateForecastInput = {

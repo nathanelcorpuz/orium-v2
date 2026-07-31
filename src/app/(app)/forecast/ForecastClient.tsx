@@ -63,10 +63,16 @@ const TYPE_OPTIONS: { value: ForecastRow["type"]; label: string }[] = [
 ];
 
 // T90: shared between the full desktop table and the compact mobile/tablet
-// table below - a row's clickability (Phase 11/T59: an income-linked
-// budget_replenish row settles automatically with its income, so it's never
-// independently clickable) drives identical role/tabIndex/click/keydown
-// handling in both.
+// table below, so a row's clickability drives identical role/tabIndex/click/
+// keydown handling in both.
+//
+// T168: every row is now clickable except in preview mode. Income-linked
+// budget_replenish rows used to be excluded (Phase 11/T59) because they
+// settle automatically with their income and so had nothing to open. They
+// have something now - a per-instance amount/date edit - and since in
+// practice every budget is income-linked, leaving them unclickable would
+// have made that editor unreachable. The modal still refuses to *settle*
+// them; see EditSettleModal's `canSettleReplenish`.
 function forecastRowProps(row: ForecastRow, isClickable: boolean, onSelect: (row: ForecastRow) => void) {
   return {
     role: isClickable ? "button" : undefined,
@@ -112,7 +118,7 @@ function ForecastNameCell({ row, isAutoReplenish }: { row: ForecastRow; isAutoRe
       {isAutoReplenish && (
         <span
           className="ml-1.5 rounded-full bg-notion-hover px-1.5 py-0.5 text-xs text-slate-500"
-          title="Replenishes automatically when its linked income is settled"
+          title="Replenishes automatically when its linked income is settled. Click the row to adjust this one occurrence."
         >
           auto
         </span>
@@ -583,7 +589,7 @@ export function ForecastClient({
                     // ("replenish every") budget_replenish row, which is.
                     const isAutoReplenish = row.sourceType === "budget_replenish" && row.budgetSettleable !== true;
                     // T103: never clickable at all in preview mode.
-                    const isClickable = !previewMode && !isAutoReplenish;
+                    const isClickable = !previewMode;
                     return (
                       <tr
                         key={`${row.sourceType}-${row.sourceId}-${row.originalDate}-${index}`}
@@ -669,7 +675,7 @@ export function ForecastClient({
                       {group.rows.map(({ row, index }) => {
                         const isAutoReplenish =
                           row.sourceType === "budget_replenish" && row.budgetSettleable !== true;
-                        const isClickable = !previewMode && !isAutoReplenish;
+                        const isClickable = !previewMode;
                         return (
                           <tr
                             key={`${row.sourceType}-${row.sourceId}-${row.originalDate}-${index}`}

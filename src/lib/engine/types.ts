@@ -118,6 +118,13 @@ export interface BudgetReplenishOverride {
   budgetId: string;
   originalDate: string; // YYYY-MM-DD, identifies which projected occurrence this covers
   skipped: boolean;
+  // T168 (migration 0027): per-instance edits, mirroring OccurrenceOverride's
+  // long-standing shape. Null means "leave this alone" for each field
+  // independently, so an occurrence can be moved without changing its amount
+  // and vice versa. `newAmount` is a positive magnitude like
+  // `Budget.allocation`, which the forecast negates for display.
+  newDate?: string | null;
+  newAmount?: number | null;
 }
 
 export interface BudgetEntry {

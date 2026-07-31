@@ -163,17 +163,29 @@ export function generateForecast(input: GenerateForecastInput): ForecastRow[] {
       const override = budgetReplenishOverridesByKey.get(budgetOverrideKey(budget.id, originalDate));
       if (override?.skipped) continue;
 
+      // T168: per-instance edits, applied exactly the way recurring-item
+      // overrides are handled in the loop above. `newAmount` is stored as a
+      // positive magnitude (same convention as `budget.allocation`), so the
+      // negation happens here rather than at the storage layer. Each field
+      // is independent: moving an occurrence must not reset its amount.
+      const editedAmount = override?.newAmount ?? null;
+      const editedDate = override?.newDate ?? null;
+
       rows.push({
         sourceType: "budget_replenish",
         sourceId: budget.id,
         originalDate,
         name: budget.name,
-        amount: -budget.allocation,
-        dueDate: effectiveDate,
+        amount: -(editedAmount ?? budget.allocation),
+        // An income-linked budget's date already tracks its income's own
+        // overrides (`effectiveDate`); an explicit edit here wins over that,
+        // since the user set it on this row directly.
+        dueDate: editedDate ?? effectiveDate,
         type: "budget",
         budgetId: budget.id,
         budgetName: budget.name,
         budgetSettleable: budget.linkedIncomeId === null ? true : undefined,
+        edited: editedAmount !== null || editedDate !== null ? true : undefined,
       });
     }
 

@@ -298,6 +298,91 @@ export async function settleOccurrence(
   return { error: null };
 }
 
+// T168 (user request 2026-07-31): adjust a single projected replenishment
+// without touching the budget's allocation or its schedule - "only 8,000 into
+// this budget this month", or "I need it a week earlier". Deliberately the
+// same shape as editRecurringOccurrence above, writing to the same kind of
+// per-instance override table (budget_replenish_overrides, extended with
+// new_date/new_amount by migration 0027).
+//
+// Two differences from the recurring-item editor, both from what a budget row
+// actually is: there is no name to edit (the row is named after its budget),
+// and the amount is a positive magnitude like `budgets.allocation` rather than
+// a signed value - the forecast negates it for display, so storing a negative
+// here would double-negate.
+export async function editBudgetReplenish(
+  _prevState: ForecastActionState,
+  formData: FormData,
+): Promise<ForecastActionState> {
+  const budgetId = formData.get("budgetId") as string;
+  const originalDate = formData.get("originalDate") as string;
+  const amount = parseCentavos(formData.get("amountPesos") as string);
+  const date = formData.get("date") as string;
+
+  if (amount === null || amount <= 0) return { error: "Enter a valid amount." };
+  if (!date) return { error: "Date is required." };
+  if (date < todayInManila()) return { error: "Date can't be in the past." };
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Not signed in." };
+
+  const { error } = await supabase.from("budget_replenish_overrides").upsert(
+    {
+      user_id: user.id,
+      budget_id: budgetId,
+      original_date: originalDate,
+      new_date: date,
+      new_amount: amount,
+      // `skipped` defaults to true in the table (migration 0011, written for
+      // the settle path), so an edit has to say otherwise explicitly -
+      // without this the row would vanish from the forecast instead of
+      // changing.
+      skipped: false,
+    },
+    { onConflict: "budget_id,original_date" },
+  );
+  if (error) return { error: error.message };
+
+  revalidatePath("/forecast");
+  revalidatePath("/budgets");
+  revalidatePath("/");
+  return { error: null };
+}
+
+// T168: drops a per-instance edit, putting the occurrence back on its
+// scheduled date and the budget's own allocation. Deleting the row rather
+// than nulling the columns, so an un-edited occurrence has no override row at
+// all - the same end state it had before it was ever edited.
+export async function resetBudgetReplenish(
+  _prevState: ForecastActionState,
+  formData: FormData,
+): Promise<ForecastActionState> {
+  const budgetId = formData.get("budgetId") as string;
+  const originalDate = formData.get("originalDate") as string;
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Not signed in." };
+
+  const { error } = await supabase
+    .from("budget_replenish_overrides")
+    .delete()
+    .eq("budget_id", budgetId)
+    .eq("original_date", originalDate)
+    .eq("skipped", false);
+  if (error) return { error: error.message };
+
+  revalidatePath("/forecast");
+  revalidatePath("/budgets");
+  revalidatePath("/");
+  return { error: null };
+}
+
 // Phase 11 (SPEC.md T59): settles a projected replenish occurrence for a
 // budget on its own schedule ("replenish every", no linked income - those
 // auto-settle via settleOccurrence's income branch above instead, since

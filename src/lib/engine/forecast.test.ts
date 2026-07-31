@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { generateForecast, splitPastDue } from "./forecast";
-import type { Budget, BudgetEntry, OneOffItem, OccurrenceOverride, RecurringItem } from "./types";
+import type {
+  Budget,
+  BudgetEntry,
+  BudgetReplenishOverride,
+  OneOffItem,
+  OccurrenceOverride,
+  RecurringItem,
+} from "./types";
 
 const today = "2026-01-01";
 const horizon = "2026-03-31";
@@ -924,5 +931,116 @@ describe("generateForecast comment pass-through (T155)", () => {
     // Undefined rather than null or "" - a blank comment must not render an
     // indicator with nothing behind it.
     expect(result.map((row) => row.comment)).toEqual([undefined, undefined, undefined]);
+  });
+});
+
+// T168 (user request 2026-07-31): a projected budget replenishment is
+// adjustable per instance - amount, date, or both - via
+// budget_replenish_overrides, which until migration 0027 could only say
+// "skipped". Same per-instance override shape recurring items have always had.
+describe("generateForecast budget replenish per-instance edits (T168)", () => {
+  const ownScheduleBudget = testBudget({
+    id: "budget-1",
+    name: "Groceries",
+    allocation: 1000000,
+    linkedIncomeId: null,
+    startDate: "2026-01-05",
+    interval: 1,
+    unit: "month",
+    daysOfMonth: [5],
+    endsType: "never",
+  });
+
+  const run = (budgetReplenishOverrides: BudgetReplenishOverride[]) =>
+    generateForecast({
+      balances: [],
+      recurringItems: [],
+      overrides: [],
+      oneOffs: [],
+      budgets: [ownScheduleBudget],
+      budgetEntries: [],
+      budgetReplenishOverrides,
+      today: "2026-01-01",
+      horizon: "2026-02-28",
+    }).filter((row) => row.sourceType === "budget_replenish");
+
+  it("uses the allocation and scheduled date when no override exists", () => {
+    expect(run([]).map((row) => [row.dueDate, row.amount, row.edited ?? false])).toEqual([
+      ["2026-01-05", -1000000, false],
+      ["2026-02-05", -1000000, false],
+    ]);
+  });
+
+  it("applies a changed amount to only that occurrence", () => {
+    const rows = run([
+      {
+        id: "ov-1",
+        budgetId: "budget-1",
+        originalDate: "2026-01-05",
+        skipped: false,
+        newDate: null,
+        newAmount: 800000,
+      },
+    ]);
+
+    // 8,000 instead of 10,000 in January; February untouched.
+    expect(rows.map((row) => [row.dueDate, row.amount, row.edited ?? false])).toEqual([
+      ["2026-01-05", -800000, true],
+      ["2026-02-05", -1000000, false],
+    ]);
+  });
+
+  it("moves a single occurrence without changing its amount", () => {
+    const rows = run([
+      {
+        id: "ov-1",
+        budgetId: "budget-1",
+        originalDate: "2026-02-05",
+        skipped: false,
+        newDate: "2026-01-28",
+        newAmount: null,
+      },
+    ]);
+
+    // Moved earlier, so it now sorts ahead of its own January sibling.
+    expect(rows.map((row) => [row.dueDate, row.amount])).toEqual([
+      ["2026-01-05", -1000000],
+      ["2026-01-28", -1000000],
+    ]);
+    expect(rows[1].originalDate).toBe("2026-02-05");
+    expect(rows[1].edited).toBe(true);
+  });
+
+  it("applies amount and date together", () => {
+    const rows = run([
+      {
+        id: "ov-1",
+        budgetId: "budget-1",
+        originalDate: "2026-01-05",
+        skipped: false,
+        newDate: "2026-01-20",
+        newAmount: 250000,
+      },
+    ]);
+
+    expect(rows[0].dueDate).toBe("2026-01-20");
+    expect(rows[0].amount).toBe(-250000);
+  });
+
+  it("still drops a skipped occurrence, edits or not", () => {
+    const rows = run([
+      {
+        id: "ov-1",
+        budgetId: "budget-1",
+        originalDate: "2026-01-05",
+        skipped: true,
+        newDate: "2026-01-20",
+        newAmount: 250000,
+      },
+    ]);
+
+    // Skip wins - a settled replenishment must not reappear just because it
+    // also carries edit fields.
+    expect(rows.map((row) => row.dueDate)).toEqual(["2026-02-05"]);
   });
 });
