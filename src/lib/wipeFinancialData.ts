@@ -20,6 +20,14 @@ import type { createClient } from "@/lib/supabase/server";
 // helper taking a Supabase client anyway (every export there becomes a
 // server action, whose arguments must be serializable).
 export const FINANCIAL_DATA_TABLES = [
+  // T162/T163: activity_log has no FK to anything else here (by design - a
+  // log entry has to survive the row it describes being deleted), so its
+  // position in this list doesn't matter for FK ordering. Included so
+  // "Restore sample data" doesn't leave real history sitting in the Updates
+  // feed next to fresh sample-data entries, and so account deletion doesn't
+  // leave it behind if the auth user row itself is ever kept around longer
+  // than this wipe.
+  "activity_log",
   "budget_entries",
   "budget_replenish_overrides",
   "occurrence_overrides",

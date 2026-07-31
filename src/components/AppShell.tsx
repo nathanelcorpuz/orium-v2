@@ -41,6 +41,9 @@ const NAV_ITEMS = [
   { href: "/budgets", label: "Budgets", tourKey: "budgets", financeGroup: true },
   { href: "/misc", label: "Misc", tourKey: "misc", financeGroup: true },
   { href: "/history", label: "History", tourKey: "history" },
+  // T163: sits next to History - both are "look back" pages - rather than
+  // up with Dashboard/Forecast, which are forward-looking.
+  { href: "/updates", label: "Updates", tourKey: "updates" },
   { href: "/settings", label: "Settings", tourKey: "settings" },
 ];
 
@@ -55,12 +58,14 @@ function SidebarContent({
   collapsed,
   pathname,
   greetingName,
+  unseenUpdatesCount,
   onNavigate,
   onClose,
 }: {
   collapsed: boolean;
   pathname: string;
   greetingName: string;
+  unseenUpdatesCount: number;
   onNavigate?: () => void;
   onClose?: () => void;
 }) {
@@ -122,7 +127,7 @@ function SidebarContent({
               title={collapsed ? item.label : undefined}
               data-tour={item.tourKey ? `nav-${item.tourKey}` : undefined}
               data-tour-group={item.financeGroup ? "finance" : undefined}
-              className={`flex items-center gap-2 rounded py-1.5 text-sm ${collapsed ? "justify-center px-2" : "px-3"} ${
+              className={`relative flex items-center gap-2 rounded py-1.5 text-sm ${collapsed ? "justify-center px-2" : "px-3"} ${
                 active
                   ? "bg-notion-hover font-medium text-notion-accent"
                   : "text-notion-text hover:bg-notion-hover"
@@ -130,6 +135,21 @@ function SidebarContent({
             >
               <Icon className="h-4 w-4 shrink-0" />
               {!collapsed && <span className="truncate">{item.label}</span>}
+              {/* T163: an unseen count, only on the Updates link and only
+                  while there's something to show - a permanent "0" badge
+                  would be noise. Shown even when collapsed (as a small dot
+                  count next to the centered icon) since a couple checking
+                  in after a few days is exactly who this is for, and they
+                  might not expand the sidebar first. */}
+              {item.href === "/updates" && unseenUpdatesCount > 0 && (
+                <span
+                  className={`shrink-0 rounded-full bg-notion-accent px-1.5 py-0.5 text-xs font-medium text-white ${
+                    collapsed ? "absolute right-1 top-1" : "ml-auto"
+                  }`}
+                >
+                  {unseenUpdatesCount > 99 ? "99+" : unseenUpdatesCount}
+                </span>
+              )}
             </Link>
           );
         })}
@@ -274,12 +294,14 @@ export function AppShell({
   onboardingChoice,
   onboardingTourStep,
   onboardingTourCompletedAt,
+  unseenUpdatesCount,
   children,
 }: {
   greetingName: string;
   onboardingChoice: string | null;
   onboardingTourStep: number | null;
   onboardingTourCompletedAt: string | null;
+  unseenUpdatesCount: number;
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
@@ -349,7 +371,12 @@ export function AppShell({
         >
           <ChevronIcon direction={collapsed ? "right" : "left"} className="h-3.5 w-3.5" />
         </button>
-        <SidebarContent collapsed={collapsed} pathname={pathname} greetingName={greetingName} />
+        <SidebarContent
+          collapsed={collapsed}
+          pathname={pathname}
+          greetingName={greetingName}
+          unseenUpdatesCount={unseenUpdatesCount}
+        />
       </aside>
 
       <MobileDrawer open={mobileOpen} onClose={() => setMobileOpen(false)} side="left" widthClassName="w-64">
@@ -357,6 +384,7 @@ export function AppShell({
           collapsed={false}
           pathname={pathname}
           greetingName={greetingName}
+          unseenUpdatesCount={unseenUpdatesCount}
           onNavigate={() => setMobileOpen(false)}
           onClose={() => setMobileOpen(false)}
         />

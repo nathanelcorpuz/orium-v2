@@ -25,3 +25,28 @@ export function formatMonthYear(dateStr: string): string {
   const [year, month] = dateStr.split("-").map(Number);
   return `${MONTH_ABBR[month - 1]} ${year}`;
 }
+
+// T163: the activity log's `created_at` is a real timestamptz (unlike every
+// due-date/start-date elsewhere in this app, which is a plain YYYY-MM-DD).
+// Both resolve in the same Asia/Manila timezone `todayInManila()` uses, so
+// "today" in the feed always agrees with "today" everywhere else in the app
+// - a naive `new Date().toString()` would drift by a day near midnight if
+// the server happens to run in UTC.
+
+// "2026-07-31T15:45:00Z" -> "2026-07-31" - a day-grouping key, same
+// technique todayInManila() uses (en-CA locale reliably yields YYYY-MM-DD).
+// Feed that straight into formatFullDate() for a display header rather than
+// parsing one back out of a combined string.
+export function dayKeyManila(isoString: string): string {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Manila" }).format(new Date(isoString));
+}
+
+// "2026-07-31T15:45:00Z" -> "3:45 PM"
+export function formatTimeManila(isoString: string): string {
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Manila",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  }).format(new Date(isoString));
+}

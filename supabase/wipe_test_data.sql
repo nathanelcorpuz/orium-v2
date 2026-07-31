@@ -27,6 +27,9 @@ begin
 
   raise notice 'Wiping test data for account: %', v_email;
 
+  -- T162: kept in sync with wipeFinancialData.ts's FINANCIAL_DATA_TABLES,
+  -- per this file's own stated invariant above.
+  delete from public.activity_log where user_id = v_user;
   delete from public.budget_entries where user_id = v_user;
   delete from public.budget_replenish_overrides where user_id = v_user;
   delete from public.occurrence_overrides where user_id = v_user;
@@ -40,6 +43,7 @@ end $$;
 
 -- Confirmation (expect every count to be 0):
 select
+  (select count(*) from public.activity_log) as activity_log,
   (select count(*) from public.balances) as balances,
   (select count(*) from public.recurring_items) as recurring_items,
   (select count(*) from public.one_off_items) as one_off_items,

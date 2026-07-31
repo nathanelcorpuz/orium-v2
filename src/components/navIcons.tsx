@@ -114,6 +114,18 @@ export function HistoryIcon({ className }: IconProps) {
   );
 }
 
+// T163: a bell would collide visually with RemindersPanel's own BellIcon
+// (a different surface, but the same glyph reused for "Updates" in the
+// sidebar could read as if it were about reminders) - a simple pulse/
+// activity line instead, distinct from every other nav icon here.
+export function UpdatesIcon({ className }: IconProps) {
+  return (
+    <svg {...BASE} className={className}>
+      <polyline points="2 11 6 11 8 6 12 16 14 11 18 11" />
+    </svg>
+  );
+}
+
 export function SettingsIcon({ className }: IconProps) {
   return (
     <svg {...BASE} className={className}>
@@ -336,5 +348,6 @@ export const NAV_ICONS: Record<string, (props: IconProps) => React.JSX.Element> 
   "/misc": ExtrasIcon,
   "/forecast": ForecastIcon,
   "/history": HistoryIcon,
+  "/updates": UpdatesIcon,
   "/settings": SettingsIcon,
 };

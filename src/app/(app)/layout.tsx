@@ -21,9 +21,20 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const { data: prefs } = await supabase
     .from("preferences")
     .select(
-      "onboarding_choice, onboarding_tour_step, onboarding_tour_completed_at, dismissed_form_tips",
+      "onboarding_choice, onboarding_tour_step, onboarding_tour_completed_at, dismissed_form_tips, activity_log_seen_at",
     )
     .single();
+
+  // T163: an unseen count next to the sidebar's "Updates" link, so a couple
+  // sharing one account can tell at a glance that something changed since
+  // they last looked, without opening the page. `{ head: true }` asks
+  // PostgREST for just the count, not the matching rows - the sidebar only
+  // ever needs the number. Null `activity_log_seen_at` (never viewed) counts
+  // every entry as unseen rather than starting the badge at zero.
+  const seenAt = prefs?.activity_log_seen_at ?? null;
+  let unseenUpdatesQuery = supabase.from("activity_log").select("id", { count: "exact", head: true });
+  if (seenAt) unseenUpdatesQuery = unseenUpdatesQuery.gt("created_at", seenAt);
+  const { count: unseenUpdatesCount } = await unseenUpdatesQuery;
 
   return (
     <FormTipsProvider dismissed={prefs?.dismissed_form_tips ?? []}>
@@ -37,6 +48,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         onboardingChoice={prefs ? prefs.onboarding_choice : "skipped"}
         onboardingTourStep={prefs?.onboarding_tour_step ?? null}
         onboardingTourCompletedAt={prefs?.onboarding_tour_completed_at ?? null}
+        unseenUpdatesCount={unseenUpdatesCount ?? 0}
       >
         {children}
       </AppShell>
