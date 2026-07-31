@@ -79,6 +79,18 @@ Steps 1 and 2 are independent of each other and both are prerequisites for the r
 
 ## Open decisions for the user
 
-- Second hosted Supabase project (recommended) or local Docker via the Supabase CLI?
+- ~~Second hosted Supabase project (recommended) or local Docker via the Supabase CLI?~~ **Decided 2026-08-01: second hosted project.** Done - see "Progress" below.
 - Closed signup with dashboard invites, or open signup behind an invite code?
-- Data refresh on explicit request (recommended) or as a standing per-session step?
+- ~~Data refresh on explicit request (recommended) or as a standing per-session step?~~ **Decided 2026-08-01: on explicit request only** ("refresh the test data"), per the recommendation above. Not yet built - section 3's refresh mechanism is still just a plan.
+
+---
+
+## Progress (2026-08-01)
+
+Step 1 of the suggested order is done: a second free Supabase project, **"Orium Staging"** (ref `gwvnqvampbztirzqjuaq`, same org, same `ap-southeast-1` region, confirmed $0/month), was created and all 33 migration files in `supabase/migrations/` were applied to it in order - **with one deliberate exception**: `0007_budgets_drop_legacy_after_t38.sql` was skipped, because checking production directly showed `budgets.monthly_allocation` is still there - T38 never actually ran that migration against production, so staging was built to match production's *real* current schema rather than the idealized one the migration files alone would imply. Verified after applying: staging's 14 public tables match production's table list exactly.
+
+`.env.local` now points local `npm run dev` at staging instead of production - the hazard STAGING.md's section 1 opened with (`/api/dev-reset-onboarding?wipe=1` wiping whichever account is logged in) is retired for local development from this point forward. Production's old values are kept commented out in the same file for a one-line revert if ever needed.
+
+**One manual step left**: `SUPABASE_SERVICE_ROLE_KEY` in `.env.local` is blank for staging. The Supabase MCP connection can only read publishable/anon keys, not the service-role secret, so this one has to come from the user directly: Supabase dashboard > "Orium Staging" project > Settings > API > copy the `service_role` secret > paste it into `.env.local`. Until that's filled in, the dev-only routes that use the service-role client (`/api/dev-new-account`, `/api/dev-reset-onboarding`) won't work against staging.
+
+**Not yet done**: staging has no data in it (migrations only, no seed run yet - the schema is there but every table is empty). Custom SMTP, signup gating, and the one-way data refresh mechanism (section 3/4) are all still just the plan written above, not built.
