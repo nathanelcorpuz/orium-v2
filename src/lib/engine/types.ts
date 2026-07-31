@@ -21,6 +21,12 @@ export interface RecurringItem {
   // Forecast settle modal defaults to this account and settling applies the
   // actual amount to it automatically - see ForecastRow.balanceId below.
   balanceId: string | null;
+  // T155: the user's own note on the item, carried through to the Forecast
+  // row so it can be surfaced there. Optional rather than required-nullable
+  // like balanceId above, deliberately: the engine never reads it, it is
+  // display metadata passing through, and optional keeps every existing
+  // fixture and constructor valid.
+  comments?: string | null;
 
   // Recurrence rule (SPEC.md Phase 6A). interval/unit/endsType are DB
   // NOT NULL - every row has a complete rule. The rest depend on which
@@ -69,6 +75,8 @@ export interface OneOffItem {
   dueDate: string; // YYYY-MM-DD
   // T71 (SPEC.md Phase 12): see RecurringItem.balanceId above.
   balanceId: string | null;
+  // T155: see RecurringItem.comments above.
+  comments?: string | null;
 }
 
 // Budgets v3 - a running ledger (SPEC.md Phase 10, T57 cutover). The old
@@ -167,6 +175,11 @@ export interface ForecastRow {
   // pre-select it. Omitted (not null) when unset, same convention as
   // `edited`, so existing toEqual literals without it are unaffected.
   balanceId?: string;
+  // T155: the source item's own comment, for the Forecast's comment-bubble
+  // indicator. Only ever set for "recurring"/"one_off" rows (budget rows use
+  // `note` above), and omitted rather than null when the item has none, so a
+  // row without a comment renders nothing at all.
+  comment?: string;
   // T150 (Bug #11): the occurrence's date has passed and it was never
   // settled, so it's still owed. The engine used to drop these rows
   // entirely, which silently erased real obligations from the running

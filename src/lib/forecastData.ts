@@ -65,12 +65,12 @@ export async function loadForecast(): Promise<ForecastData> {
     supabase
       .from("recurring_items")
       .select(
-        "id, name, type, amount, start_date, end_date, interval, unit, weekdays, days_of_month, ordinal, ordinal_weekday, ends_type, occurrence_count, balance_id",
+        "id, name, type, amount, start_date, end_date, interval, unit, weekdays, days_of_month, ordinal, ordinal_weekday, ends_type, occurrence_count, balance_id, comments",
       ),
     supabase
       .from("occurrence_overrides")
       .select("id, recurring_item_id, original_date, new_date, new_amount, new_name, skipped"),
-    supabase.from("one_off_items").select("id, name, amount, due_date, balance_id"),
+    supabase.from("one_off_items").select("id, name, amount, due_date, balance_id, comments"),
     supabase.from("budgets").select(BUDGET_COLUMNS),
     // Every entry, not just future ones - the Dashboard's budget card
     // needs full history to compute a running total (budgetLedger.ts).
@@ -116,6 +116,7 @@ export async function loadForecast(): Promise<ForecastData> {
     endsType: row.ends_type,
     occurrenceCount: row.occurrence_count,
     balanceId: row.balance_id,
+    comments: row.comments,
   }));
 
   const overrides: OccurrenceOverride[] = (overridesRes.data ?? []).map((row) => ({
@@ -134,6 +135,7 @@ export async function loadForecast(): Promise<ForecastData> {
     amount: row.amount,
     dueDate: row.due_date,
     balanceId: row.balance_id,
+    comments: row.comments,
   }));
 
   const budgetRows: BudgetRow[] = budgetsRes.data ?? [];

@@ -98,6 +98,17 @@ function ForecastNameCell({ row, isAutoReplenish }: { row: ForecastRow; isAutoRe
           ✎
         </span>
       )}
+      {/* T155: the comment lives on the underlying bill/income/misc record,
+          not on the occurrence - this surfaces it without the user having to
+          open the item. Reuses the edited-indicator's icon-plus-title
+          pattern directly above rather than introducing a second hover
+          mechanism; `title` also means it works on touch (long-press) and is
+          announced by screen readers, which a CSS-only tooltip would not. */}
+      {row.comment && (
+        <span className="ml-1.5 text-slate-400" title={row.comment}>
+          💬
+        </span>
+      )}
       {isAutoReplenish && (
         <span
           className="ml-1.5 rounded-full bg-notion-hover px-1.5 py-0.5 text-xs text-slate-500"
@@ -589,7 +600,9 @@ export function ForecastClient({
                               Past due
                             </span>
                           )}
-                          {formatFullDate(row.dueDate)}
+                          {/* T155: bolded per user request - the date is the
+                              column people scan first. */}
+                          <span className="font-semibold">{formatFullDate(row.dueDate)}</span>
                         </td>
                         <td className="px-2 py-1.5">
                           <ForecastNameCell row={row} isAutoReplenish={isAutoReplenish} />
@@ -639,10 +652,10 @@ export function ForecastClient({
                             header is what the user reads first. */}
                         <td
                           colSpan={5}
-                          className={`sticky top-[29px] z-10 border-b px-2 py-1 font-medium ${
+                          className={`sticky top-[29px] z-10 border-b px-2 py-1 font-semibold ${
                             group.rows[0]?.row.pastDue
                               ? "border-red-200 bg-red-100 text-red-800"
-                              : "border-notion-hairline bg-slate-50 text-slate-500"
+                              : "border-notion-hairline bg-slate-50 text-slate-600"
                           }`}
                         >
                           {formatFullDate(group.date)}

@@ -90,6 +90,10 @@ export function generateForecast(input: GenerateForecastInput): ForecastRow[] {
         type: item.type,
         edited: override ? true : undefined,
         balanceId: item.balanceId ?? undefined,
+        // T155: pass-through only - the engine never reads it. Empty strings
+        // collapse to undefined so a blank comment doesn't render an
+        // indicator with nothing behind it.
+        comment: item.comments?.trim() ? item.comments : undefined,
       });
 
       if (item.type === "income") {
@@ -115,6 +119,7 @@ export function generateForecast(input: GenerateForecastInput): ForecastRow[] {
       dueDate: oneOff.dueDate,
       type: "extra",
       balanceId: oneOff.balanceId ?? undefined,
+      comment: oneOff.comments?.trim() ? oneOff.comments : undefined,
     });
   }
 

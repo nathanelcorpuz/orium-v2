@@ -864,3 +864,65 @@ describe("splitPastDue (T150)", () => {
     expect(split.balanceAfterPastDue).toBe(1000000);
   });
 });
+
+// T155 (SPEC.md Phase 20): the Forecast shows a comment-bubble indicator on
+// any row whose underlying record has a comment. The engine only passes the
+// value through - it never reads it - but the pass-through is what the
+// indicator depends on, and the empty-string handling is the part with an
+// actual decision in it.
+describe("generateForecast comment pass-through (T155)", () => {
+  it("carries a recurring item's comment onto every one of its rows", () => {
+    const result = generateForecast({
+      balances: [],
+      recurringItems: [
+        monthlyItem({
+          id: "bill-1",
+          name: "Electric",
+          daysOfMonth: [10],
+          comments: "meter reading day",
+        }),
+      ],
+      overrides: [],
+      oneOffs: [],
+      today,
+      horizon,
+    });
+
+    expect(result.length).toBeGreaterThan(1);
+    expect(result.every((row) => row.comment === "meter reading day")).toBe(true);
+  });
+
+  it("carries a one-off's comment", () => {
+    const result = generateForecast({
+      balances: [],
+      recurringItems: [],
+      overrides: [],
+      oneOffs: [
+        { id: "off-1", name: "Repair", amount: -1000, dueDate: "2026-01-05", balanceId: null, comments: "quoted price" },
+      ],
+      today,
+      horizon,
+    });
+
+    expect(result[0].comment).toBe("quoted price");
+  });
+
+  it("omits the comment when absent, null, or only whitespace", () => {
+    const result = generateForecast({
+      balances: [],
+      recurringItems: [],
+      overrides: [],
+      oneOffs: [
+        { id: "a", name: "No field", amount: -1, dueDate: "2026-01-05", balanceId: null },
+        { id: "b", name: "Null", amount: -1, dueDate: "2026-01-06", balanceId: null, comments: null },
+        { id: "c", name: "Blank", amount: -1, dueDate: "2026-01-07", balanceId: null, comments: "   " },
+      ],
+      today,
+      horizon,
+    });
+
+    // Undefined rather than null or "" - a blank comment must not render an
+    // indicator with nothing behind it.
+    expect(result.map((row) => row.comment)).toEqual([undefined, undefined, undefined]);
+  });
+});
