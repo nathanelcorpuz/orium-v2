@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { formatCentavos } from "@/lib/money";
 import { monthlyEquivalent } from "@/lib/engine/monthlyTotals";
 import { startDateLabel, summarizeRecurrence } from "@/lib/recurrenceSummary";
+import { DatePicker } from "@/components/DatePicker";
 import { AmountRangeFilter, matchesAmountFilter, type ComparisonOp } from "@/components/AmountRangeFilter";
 import { accountFilterOptions, matchesAccountFilter } from "@/lib/accountFilter";
 import { AmountSortControl, sortByAmount, type SortOrder } from "@/components/AmountSortControl";
@@ -61,6 +62,11 @@ export function BillsClient({
   // AmountRangeFilter/MultiSelectChips components.
   const [nameFilter, setNameFilter] = useState("");
   const [selectedUnits, setSelectedUnits] = useState<Set<RecurrenceUnit>>(new Set());
+  // T178: filter by start date range - the one date field a recurring item
+  // exposes directly (there's no single "due date" the way a one-off has),
+  // matching Misc's existing due-date range and Forecast's date filter.
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   const [amountOp, setAmountOp] = useState<ComparisonOp>("any");
   const [amountValue1, setAmountValue1] = useState("");
   const [amountValue2, setAmountValue2] = useState("");
@@ -89,6 +95,8 @@ export function BillsClient({
   function clearFilters() {
     setNameFilter("");
     setSelectedUnits(new Set());
+    setDateFrom("");
+    setDateTo("");
     setAmountOp("any");
     setAmountValue1("");
     setAmountValue2("");
@@ -96,7 +104,12 @@ export function BillsClient({
   }
 
   const filtersActive =
-    nameFilter !== "" || selectedUnits.size > 0 || amountOp !== "any" || selectedAccounts.size > 0;
+    nameFilter !== "" ||
+    selectedUnits.size > 0 ||
+    dateFrom !== "" ||
+    dateTo !== "" ||
+    amountOp !== "any" ||
+    selectedAccounts.size > 0;
 
   // T145: persisted custom row order (up/down buttons) - only meaningful
   // as the base ordering when nothing else is already imposing one.
@@ -115,11 +128,23 @@ export function BillsClient({
     return orderedBills.filter((bill) => {
       if (name && !bill.name.toLowerCase().includes(name)) return false;
       if (selectedUnits.size > 0 && !selectedUnits.has(bill.unit)) return false;
+      if (dateFrom && bill.start_date < dateFrom) return false;
+      if (dateTo && bill.start_date > dateTo) return false;
       if (!matchesAmountFilter(bill.amount, amountOp, amountValue1, amountValue2)) return false;
       if (!matchesAccountFilter(bill.balance_id, selectedAccounts)) return false;
       return true;
     });
-  }, [orderedBills, nameFilter, selectedUnits, amountOp, amountValue1, amountValue2, selectedAccounts]);
+  }, [
+    orderedBills,
+    nameFilter,
+    selectedUnits,
+    dateFrom,
+    dateTo,
+    amountOp,
+    amountValue1,
+    amountValue2,
+    selectedAccounts,
+  ]);
 
   const sortedBills = useMemo(
     () => sortByAmount(filteredBills, sortOrder, (bill) => bill.amount),
@@ -176,6 +201,22 @@ export function BillsClient({
               <div className="flex flex-col gap-1">
                 <label className="text-xs text-slate-500">Recurs</label>
                 <MultiSelectChips options={UNIT_OPTIONS} selected={selectedUnits} onToggle={toggleUnit} />
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-xs text-slate-500">Start from</label>
+                <DatePicker
+                  value={dateFrom}
+                  onChange={setDateFrom}
+                  className="rounded border border-notion-hairline px-1.5 py-1 text-left text-xs focus:border-notion-accent focus:outline-none"
+                />
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-xs text-slate-500">Start to</label>
+                <DatePicker
+                  value={dateTo}
+                  onChange={setDateTo}
+                  className="rounded border border-notion-hairline px-1.5 py-1 text-left text-xs focus:border-notion-accent focus:outline-none"
+                />
               </div>
               {/* T159: hidden when there are no accounts to filter by - an
                   empty chip row under a label is just noise. */}

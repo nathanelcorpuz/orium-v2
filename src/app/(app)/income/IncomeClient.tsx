@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { formatCentavos } from "@/lib/money";
 import { monthlyEquivalent } from "@/lib/engine/monthlyTotals";
 import { startDateLabel, summarizeRecurrence } from "@/lib/recurrenceSummary";
+import { DatePicker } from "@/components/DatePicker";
 import { AmountRangeFilter, matchesAmountFilter, type ComparisonOp } from "@/components/AmountRangeFilter";
 import { accountFilterOptions, matchesAccountFilter } from "@/lib/accountFilter";
 import { AmountSortControl, sortByAmount, type SortOrder } from "@/components/AmountSortControl";
@@ -60,6 +61,11 @@ export function IncomeClient({
   // Bills' filter bar exactly, reusing the same shared components.
   const [nameFilter, setNameFilter] = useState("");
   const [selectedUnits, setSelectedUnits] = useState<Set<RecurrenceUnit>>(new Set());
+  // T178: filter by start date range - matches Misc's existing due-date
+  // range and Forecast's date filter; a recurring item's start_date is the
+  // one date field it exposes directly.
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   const [amountOp, setAmountOp] = useState<ComparisonOp>("any");
   const [amountValue1, setAmountValue1] = useState("");
   const [amountValue2, setAmountValue2] = useState("");
@@ -88,6 +94,8 @@ export function IncomeClient({
   function clearFilters() {
     setNameFilter("");
     setSelectedUnits(new Set());
+    setDateFrom("");
+    setDateTo("");
     setAmountOp("any");
     setAmountValue1("");
     setAmountValue2("");
@@ -95,7 +103,12 @@ export function IncomeClient({
   }
 
   const filtersActive =
-    nameFilter !== "" || selectedUnits.size > 0 || amountOp !== "any" || selectedAccounts.size > 0;
+    nameFilter !== "" ||
+    selectedUnits.size > 0 ||
+    dateFrom !== "" ||
+    dateTo !== "" ||
+    amountOp !== "any" ||
+    selectedAccounts.size > 0;
 
   // T145: persisted custom row order (up/down buttons) - only meaningful
   // as the base ordering when nothing else is already imposing one.
@@ -125,11 +138,23 @@ export function IncomeClient({
     return orderedIncomes.filter((income) => {
       if (name && !income.name.toLowerCase().includes(name)) return false;
       if (selectedUnits.size > 0 && !selectedUnits.has(income.unit)) return false;
+      if (dateFrom && income.start_date < dateFrom) return false;
+      if (dateTo && income.start_date > dateTo) return false;
       if (!matchesAmountFilter(income.amount, amountOp, amountValue1, amountValue2)) return false;
       if (!matchesAccountFilter(income.balance_id, selectedAccounts)) return false;
       return true;
     });
-  }, [orderedIncomes, nameFilter, selectedUnits, amountOp, amountValue1, amountValue2, selectedAccounts]);
+  }, [
+    orderedIncomes,
+    nameFilter,
+    selectedUnits,
+    dateFrom,
+    dateTo,
+    amountOp,
+    amountValue1,
+    amountValue2,
+    selectedAccounts,
+  ]);
 
   const sortedIncomes = useMemo(
     () => sortByAmount(filteredIncomes, sortOrder, (income) => income.amount),
@@ -182,6 +207,22 @@ export function IncomeClient({
               <div className="flex flex-col gap-1">
                 <label className="text-xs text-slate-500">Recurs</label>
                 <MultiSelectChips options={UNIT_OPTIONS} selected={selectedUnits} onToggle={toggleUnit} />
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-xs text-slate-500">Start from</label>
+                <DatePicker
+                  value={dateFrom}
+                  onChange={setDateFrom}
+                  className="rounded border border-notion-hairline px-1.5 py-1 text-left text-xs focus:border-notion-accent focus:outline-none"
+                />
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-xs text-slate-500">Start to</label>
+                <DatePicker
+                  value={dateTo}
+                  onChange={setDateTo}
+                  className="rounded border border-notion-hairline px-1.5 py-1 text-left text-xs focus:border-notion-accent focus:outline-none"
+                />
               </div>
               {balances.length > 0 && (
                 <div className="flex flex-col gap-1">

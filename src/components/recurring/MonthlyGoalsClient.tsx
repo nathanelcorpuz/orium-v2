@@ -7,6 +7,7 @@ import { monthlyEquivalent } from "@/lib/engine/monthlyTotals";
 import { goalProgress } from "@/lib/engine/goalProgress";
 import { startDateLabel, summarizeRecurrence } from "@/lib/recurrenceSummary";
 import { todayInManila } from "@/lib/date";
+import { DatePicker } from "@/components/DatePicker";
 import { AmountRangeFilter, matchesAmountFilter, type ComparisonOp } from "@/components/AmountRangeFilter";
 import { accountFilterOptions, matchesAccountFilter } from "@/lib/accountFilter";
 import { AmountSortControl, sortByAmount, type SortOrder } from "@/components/AmountSortControl";
@@ -86,6 +87,11 @@ export function MonthlyGoalsClient({
   // Debt and Savings since they both render through this one component.
   const [nameFilter, setNameFilter] = useState("");
   const [selectedUnits, setSelectedUnits] = useState<Set<RecurrenceUnit>>(new Set());
+  // T178: filter by start date range - matches Misc's existing due-date
+  // range and Forecast's date filter; a recurring item's start_date is the
+  // one date field it exposes directly.
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   const [amountOp, setAmountOp] = useState<ComparisonOp>("any");
   const [amountValue1, setAmountValue1] = useState("");
   const [amountValue2, setAmountValue2] = useState("");
@@ -114,6 +120,8 @@ export function MonthlyGoalsClient({
   function clearFilters() {
     setNameFilter("");
     setSelectedUnits(new Set());
+    setDateFrom("");
+    setDateTo("");
     setAmountOp("any");
     setAmountValue1("");
     setAmountValue2("");
@@ -121,7 +129,12 @@ export function MonthlyGoalsClient({
   }
 
   const filtersActive =
-    nameFilter !== "" || selectedUnits.size > 0 || amountOp !== "any" || selectedAccounts.size > 0;
+    nameFilter !== "" ||
+    selectedUnits.size > 0 ||
+    dateFrom !== "" ||
+    dateTo !== "" ||
+    amountOp !== "any" ||
+    selectedAccounts.size > 0;
 
   // T145: persisted custom row order (up/down buttons), keyed by pageTitle
   // ("Debt"/"Savings") since this one component serves both pages - only
@@ -143,11 +156,23 @@ export function MonthlyGoalsClient({
     return orderedGoalItems.filter((item) => {
       if (name && !item.name.toLowerCase().includes(name)) return false;
       if (selectedUnits.size > 0 && !selectedUnits.has(item.unit)) return false;
+      if (dateFrom && item.start_date < dateFrom) return false;
+      if (dateTo && item.start_date > dateTo) return false;
       if (!matchesAmountFilter(item.amount, amountOp, amountValue1, amountValue2)) return false;
       if (!matchesAccountFilter(item.balance_id, selectedAccounts)) return false;
       return true;
     });
-  }, [orderedGoalItems, nameFilter, selectedUnits, amountOp, amountValue1, amountValue2, selectedAccounts]);
+  }, [
+    orderedGoalItems,
+    nameFilter,
+    selectedUnits,
+    dateFrom,
+    dateTo,
+    amountOp,
+    amountValue1,
+    amountValue2,
+    selectedAccounts,
+  ]);
 
   const sortedItems = useMemo(
     () => sortByAmount(filteredItems, sortOrder, (item) => item.amount),
@@ -265,6 +290,22 @@ export function MonthlyGoalsClient({
               <div className="flex flex-col gap-1">
                 <label className="text-xs text-slate-500">Recurs</label>
                 <MultiSelectChips options={UNIT_OPTIONS} selected={selectedUnits} onToggle={toggleUnit} />
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-xs text-slate-500">Start from</label>
+                <DatePicker
+                  value={dateFrom}
+                  onChange={setDateFrom}
+                  className="rounded border border-notion-hairline px-1.5 py-1 text-left text-xs focus:border-notion-accent focus:outline-none"
+                />
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-xs text-slate-500">Start to</label>
+                <DatePicker
+                  value={dateTo}
+                  onChange={setDateTo}
+                  className="rounded border border-notion-hairline px-1.5 py-1 text-left text-xs focus:border-notion-accent focus:outline-none"
+                />
               </div>
               {balances.length > 0 && (
                 <div className="flex flex-col gap-1">
