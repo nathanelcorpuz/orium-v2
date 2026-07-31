@@ -12,12 +12,21 @@ Two supporting files, added 2026-07-31, deliberately do *not* need reading at se
 - The user is the product owner: ask before making product or architecture decisions not covered by SPEC.md.
 
 ## Session workflow (always follow)
-1. At session start, check REMINDER.md to see if there are pending items to be done while waiting for usage or on downtime and always work on those first and check with user to ask if they need to be done at the session or should be written in the spec first before proceeding then update the REMINDER.md to mark all tasks there to be done or added to the spec when they are and if tasks are in the spec and in the reminders at the same time those that are in the reminders should be removed and in the SPEC kept, check `git log` and the Roadmap checklists in SPEC.md (and BUGS.md for open bugs) to see where we left off.
-2. Work on **exactly one task** from SPEC.md per session unless told otherwise. **Task order is non-negotiable: always pick the topmost unchecked (`- [ ]`) item in the Roadmap section, top to bottom.** Never skip ahead to a later task, and never pick one out of order, without the user explicitly telling you to.
-3. Before writing code, state a short plan (3–6 bullets) and wait for approval.
-4. After building: run `npm run build` and `npm run test` **yourself**; fix failures before finishing. **The user is never to run `npm run build` themselves — that's always Claude's job.** If a dev server is already running on :3000, stop it first, run the build, then restart the dev server afterward so the user's session isn't left down.
-5. End every session by committing with a clear message (e.g. `T5: engine monthly expansion + tests`) and updating the task checkbox in SPEC.md.
-6. Tell the user how to verify the result in the browser in 1–2 steps.
+1. **At session start:**
+   - Check REMINDER.md for pending items. Work through those first.
+   - If a reminder item is substantial, ask the user whether to do it now or write it into SPEC.md first.
+   - Once a reminder item is done or added to SPEC.md, remove it from REMINDER.md - never keep the same item listed in both files.
+   - Check `git log`, the Roadmap checklists in SPEC.md, and BUGS.md (open bugs) to see where we left off.
+2. **Pick the task:** work on exactly one task from SPEC.md per session unless told otherwise.
+   - **Task order is non-negotiable: always the topmost unchecked (`- [ ]`) item in the Roadmap, top to bottom.**
+   - Never skip ahead or cherry-pick a later task without the user explicitly saying so.
+3. **Before writing code:** state a short plan (3-6 bullets) and wait for approval.
+4. **After building:**
+   - Run `npm run build` and `npm run test` yourself; fix failures before finishing.
+   - The user never runs `npm run build` themselves - that's always Claude's job.
+   - If a dev server is already running on :3000, stop it, run the build, then restart the dev server so the user isn't left without one.
+5. **End every session** by committing with a clear message (e.g. `T5: engine monthly expansion + tests`) and checking off the task in SPEC.md.
+6. **Tell the user** how to verify the result in the browser, in 1-2 steps.
 
 ## Hard rules
 - Money = integer centavos (bigint). Never floats for money. Format only in the UI.
@@ -26,8 +35,16 @@ Two supporting files, added 2026-07-31, deliberately do *not* need reading at se
 - Every table: `user_id` + owner-only RLS. Never query with the service-role key from the browser.
 - Secrets live only in `.env.local` (gitignored). Never hardcode or commit keys. If a secret is needed, tell the user which value to paste and where.
 - No new dependencies without asking. Stack is fixed in SPEC.md.
-- Supabase is connected via MCP (project "Orium", ref `fptpkrbfbtfhzxbtmgic`) — when that connection is available, Claude applies migrations and runs SQL directly against it (`apply_migration`/`execute_sql`/etc.) instead of asking the user to paste into the SQL editor. Migrations are still written as reviewed files in `supabase/migrations/` first — the file *is* the review step, committed and visible before it's applied. State plainly what a migration will do before running it, especially anything destructive (dropping columns/tables). Ad-hoc destructive SQL that isn't a committed migration file (drop/truncate/delete without where) still needs the user's explicit go-ahead first, same as any other hard-to-reverse action. If the MCP connection isn't available in a session, fall back to proposing the SQL for the user to paste manually.
-- Before any migration that alters or drops columns/tables **and the database holds real data the user can't quickly recreate**, back up first. The Supabase dashboard's "Database > Backups" page is Pro-plan only — this project is on the free tier, which has no managed backup feature. Use a manual `pg_dump` via the Supabase CLI instead (works on any plan, no new project dependency since it runs through `npx`): `npx supabase db dump --db-url "<connection string>" -f orium-backup-YYYY-MM-DD.sql`. To get the connection string: on the project dashboard (not Settings), click the **Connect** button near the top of the page, then pick **Direct connection** (not a pooler) and copy the URI — it looks like `postgresql://postgres:[YOUR-PASSWORD]@db.<project-ref>.supabase.co:5432/postgres`. Swap in the database password (set at project creation; resettable from Project Settings > Database if forgotten). While the database only holds disposable test data, skip this step — ask the user if unsure whether current data is real.
+- **Supabase migrations, via MCP** (project "Orium", ref `fptpkrbfbtfhzxbtmgic`; staging project ref `gwvnqvampbztirzqjuaq` - see STAGING.md):
+  - When the MCP connection is available, apply migrations and run SQL directly (`apply_migration`/`execute_sql`/etc.) instead of asking the user to paste into the SQL editor.
+  - Migrations are still written as reviewed files in `supabase/migrations/` first - the file *is* the review step, committed and visible before it's applied.
+  - State plainly what a migration will do before running it, especially anything destructive (dropping columns/tables).
+  - Ad-hoc destructive SQL that isn't a committed migration file (drop/truncate/delete without a where clause) still needs the user's explicit go-ahead, same as any other hard-to-reverse action.
+  - If MCP isn't available this session, fall back to proposing the SQL for the user to paste manually.
+- **Back up before destructive migrations** (altering/dropping columns or tables) **when the database holds real data the user can't quickly recreate:**
+  - Free tier has no managed backup feature (the dashboard's "Database > Backups" page is Pro-only) - use a manual `pg_dump` instead: `npx supabase db dump --db-url "<connection string>" -f orium-backup-YYYY-MM-DD.sql`.
+  - Get the connection string from the project dashboard's **Connect** button (not Settings) > **Direct connection** (not a pooler) > copy the URI (`postgresql://postgres:[YOUR-PASSWORD]@db.<project-ref>.supabase.co:5432/postgres`), then swap in the database password (resettable from Project Settings > Database).
+  - Skip this step while the database only holds disposable test data - ask the user if unsure whether current data is real.
 - Keep diffs small and focused on the current task. Don't refactor unrelated code.
 - **Never use long em dashes (—) anywhere** - not in UI copy, seed/sample data, code comments, or commit messages. Use a plain hyphen `-` instead. (User rule, 2026-07-25/26; see SPEC.md's "Writing style" section and T113.)
 
