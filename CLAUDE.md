@@ -3,6 +3,10 @@
 ## About this project
 Orium is a family cash-flow forecasting app (Next.js + Supabase). The full product definition, data model, engine rules, and roadmap live in **SPEC.md — the single spec file; read it before doing anything.** Active bugs are tracked in **BUGS.md** — read it before starting work.
 
+Two supporting files, added 2026-07-31, deliberately do *not* need reading at session start:
+- **ARCHIVE.md** — build write-ups for every completed task, moved out of SPEC.md when it hit ~318KB. Read it only when you need the history of a specific task; SPEC.md's "Completed work" index says which task number is which.
+- **STAGING.md** — the production-safety, staging and inviting-users plan. Read it before anything that touches the database, deployment, or user accounts. Note its first finding: local dev currently points at the production Supabase project, so `npm run dev` reads and writes the user's real financial data.
+
 ## About the user
 - Beginner coder with ~1 hour per day. Explain what you're doing in plain, non-technical language as you go.
 - The user is the product owner: ask before making product or architecture decisions not covered by SPEC.md.
