@@ -456,7 +456,28 @@ export default async function Home({
           {budgets.length === 0 ? (
             <p className="text-sm text-slate-400">No budgets yet.</p>
           ) : (
-            <ul className="space-y-2">
+            <>
+              {/* T165 (SPEC.md Phase 21): budgets are money already set aside,
+                  deliberately excluded from Total Balance above since
+                  spending from them is unpredictable - but there was no
+                  single figure showing how much is set aside in total, only
+                  each budget's own line below. */}
+              <p className="mb-2 text-sm font-medium text-notion-text">
+                Total across all budgets:{" "}
+                <span
+                  className={
+                    budgets.reduce((sum, b) => sum + computeBudgetBalance(budgetEntries, b.id, today), 0) < 0
+                      ? "text-red-600"
+                      : ""
+                  }
+                >
+                  {formatCentavos(
+                    budgets.reduce((sum, b) => sum + computeBudgetBalance(budgetEntries, b.id, today), 0),
+                    currency,
+                  )}
+                </span>
+              </p>
+              <ul className="space-y-2">
               {budgets.map((budget) => {
                 const balance = computeBudgetBalance(budgetEntries, budget.id, today);
                 // Phase 11 (T60): "days until replenish", for any budget
@@ -515,7 +536,8 @@ export default async function Home({
                   </li>
                 );
               })}
-            </ul>
+              </ul>
+            </>
           )}
         </div>
       ),

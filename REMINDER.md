@@ -14,7 +14,20 @@ Scratchpad for things raised between sessions. Write anything here, in any shape
 
 ## Last triage
 
-**2026-07-31.** The 30 items collected between 2026-07-29 and 2026-07-30 were sorted as follows.
+**2026-07-31, second pass.** Six more items arrived after the first triage the same day. One (the tracking-horizon limit) was a direct follow-up to something already discussed, and got its own final answer from the user rather than staying a discussion point; the rest became **SPEC.md Phase 22**.
+
+- **Raise the hard limit to 50 years, "final decision".** Closed out immediately as **T171** - the user's own flat framing meant no further discussion or split between validation cap and forecast horizon; both just moved to 50. Surfaced and fixed one real edge case in the process: a daily-recurring rule would have silently stopped projecting around 27 years without it, since `recurrence.ts`'s own defensive period cap was sized for the old 5-year horizon.
+- **Transaction fee per account, auto-deducted from connected forecasted transactions**: **T172**, not yet built - needs a design decision on whether it applies to incoming amounts too and how it displays, before the schema question (a new column on `balances`) is even the hard part.
+- **"Due today" yellow tag, alongside the past-due red one**: **T173**, not yet built - small, same spot in `forecast.ts` where `pastDue` is already set.
+- **"Run possible scenario" simulation/toggle feature**: **T174**, not yet built. This is the same "what-if scenarios" item already flagged unscoped in "Before MVP launch" - now with real detail behind it, but still not started, since it's the largest feature raised so far (its own storage, a scenario-aware read path on every page, an "activate" step that commits synthetic rows across every table) and deserves a proper design pass before code, the same way Budgets v2's replacement by v3 taught this project not to build ahead of a plan that's still nebulous.
+- **Temporarily disable a bill/misc/income/debt/savings/budget to preview its forecast impact**: **T175**, not yet built - smaller and more self-contained than T174, likely the more useful 80% of it for daily use.
+- **History page too small on desktop**: **T176**, not yet built - no specifics given yet on what "too small" means; needs a look before it can be scoped precisely.
+
+---
+
+## Prior triage
+
+**2026-07-31, first pass.** The 30 items collected between 2026-07-29 and 2026-07-30 were sorted as follows.
 
 **Became bugs** (BUGS.md, all four confirmed by reading the code and scoped at the top of SPEC.md Phase 20):
 - Forecast dropping past-dated unsettled transactions, which hid a real negative balance: **Bug #11 / T150**.
@@ -24,22 +37,10 @@ Scratchpad for things raised between sessions. Write anything here, in any shape
 
 **Became tasks** (SPEC.md Phase 20, T154-T164): the missing test for same-day ordering, bold Forecast dates and comment bubbles, start dates on list rows, the Yearly preset and "Ends: never" default, Forecast row details, upgraded filters, somewhere for completed debts and savings to go, the desktop date-grouped Forecast layout, the activity log, the "what changed since you last logged in" feed, and the family calendar view.
 
-**Became a phase** (SPEC.md Phase 21, T165-T168): seven separate budget-account notes turned out to describe one feature - budget accounts as a second layer behind the cash-flow accounts - so they were grouped rather than scoped individually.
+**Became a phase, and turned out mostly already built** (SPEC.md Phase 21, T165-T168): seven separate budget-account notes turned out to describe one feature. Re-reading them against the existing Budgets v3 ledger showed that "layer" already existed - excluded from cash-flow forecast, already auto-replenishing on income settle - so no new data model was built. What was missing (a combined total across all budgets) and what was genuinely broken (the settle-path double-count, per-instance edits, display gaps) got fixed; the rest was verified rather than duplicated.
 
 **Became a document**: the production-safety, staging and inviting-users note is now **STAGING.md** in the repo root, with the decisions it raises listed in SPEC.md's "Before MVP launch" section.
 
-**Became decisions, deliberately not tasks** (SPEC.md "Before MVP launch"): raising the horizon from 5 to 25 years (this reverses T146, confirmed only three days earlier, so it needs an explicit re-decision), email notifications (requested four separate ways and still on the "Out of scope" list), user-defined categories, and per-account forecasted balances.
+**Became decisions, deliberately not tasks at the time** (SPEC.md "Before MVP launch"): email notifications (requested four separate ways and still on the "Out of scope" list), user-defined categories, and per-account forecasted balances. The horizon question was later closed out for real - see the second triage above.
 
 **Already shipped**: same-day income-before-deductions ordering had already landed in commit `c6b85d3`; it is now documented as **T148**. The Add/Take funds change in `f7aee0d` is documented as **T149**.
-
-- add a "transaction fee" field in editing/settling a transaction in the forecast page to auto-deduct that from the automated calculation. it should also be based on what's selected in the account itself. so in bdo for example if it is set to 10 all forecasted transactions connected to BDO will show that transaction fee automatically
-
-- I like the past due tagging in the forecast page. create another that are for due today, make them yellow
-
-- I need a "run possible scenario" feature where everything I add when I click that button will be a simulation and not actually save persistently, allowing me to see how it will impact the finances. It can work like a Google  Sheets temporary filter view where I can save it and toggle it on or off whenever so everything can assume that scenario, from the forecast to the dashboard. also this scenario can be activated, meaning the temporary added finances can become permanently added once a button is clicked.
-
-- make the hard limit 50 years, final decision
-
-- allow to temporarily switch off a financial record (bill/misc/income/debt/savings/budgets) so I can quickly see how it will impact the forecast
-
-- the history view is too small in desktop view

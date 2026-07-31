@@ -6,7 +6,10 @@ import { AmountSortControl, sortByAmount, type SortOrder } from "@/components/Am
 import { MultiSelectChips } from "@/components/MultiSelectChips";
 import { ReorderButtons } from "@/components/ReorderButtons";
 import { useOrderedList } from "@/lib/useOrderedList";
-import { BudgetCard, type BudgetEntryRow, type IncomeItemRow } from "./BudgetCard";
+import { formatCentavos } from "@/lib/money";
+import { todayInManila } from "@/lib/date";
+import { computeBudgetBalance } from "@/lib/engine/budgetLedger";
+import { BudgetCard, toEngineEntries, type BudgetEntryRow, type IncomeItemRow } from "./BudgetCard";
 import { BudgetModal, type BudgetRow } from "./BudgetModal";
 
 type ReplenishType = "manual" | "income" | "schedule";
@@ -97,6 +100,24 @@ export function BudgetsClient({
     [filteredBudgets, sortOrder],
   );
 
+  // T165 (SPEC.md Phase 21): the one genuinely missing piece of "budget
+  // accounts as a second layer" - every individual budget already has its
+  // own running total (BudgetCard.tsx, since Phase 10's ledger model), but
+  // nothing summed them into a single figure the way Total Balance sums the
+  // cash accounts. Always every budget, regardless of the filters/sort above
+  // (which only narrow what's *displayed*) - the same convention Total
+  // Balance and Total Monthly Bills/Income already use on the Dashboard.
+  const today = todayInManila();
+  const totalAcrossBudgets = useMemo(
+    () =>
+      budgets.reduce(
+        (sum, budget) =>
+          sum + computeBudgetBalance(toEngineEntries(entriesByBudgetId[budget.id] ?? [], budget.id), budget.id, today),
+        0,
+      ),
+    [budgets, entriesByBudgetId, today],
+  );
+
   return (
     <div className="p-4 md:p-8">
       <div className="mx-auto max-w-2xl">
@@ -104,6 +125,18 @@ export function BudgetsClient({
           <div>
             <h1 className="text-xl font-semibold text-notion-text">Budgets</h1>
             <p className="text-slate-500">A running total for variable spending.</p>
+            {/* T165: budgets are a second layer of money, deliberately kept
+                out of Total Balance/the cash-flow forecast (spending here is
+                unpredictable) - but with no single figure of their own, there
+                was nowhere to see "how much do I have set aside, in total". */}
+            {budgets.length > 0 && (
+              <p className="mt-1 text-sm font-medium text-notion-text">
+                Total across all budgets:{" "}
+                <span className={totalAcrossBudgets < 0 ? "text-red-600" : ""}>
+                  {formatCentavos(totalAcrossBudgets)}
+                </span>
+              </p>
+            )}
           </div>
           <button
             type="button"

@@ -51,7 +51,9 @@ export type IncomeItemRow = {
   occurrenceCount: number | null;
 };
 
-function toEngineEntries(entries: BudgetEntryRow[], budgetId: string): BudgetEntry[] {
+// T165 (SPEC.md Phase 21): exported so BudgetsClient.tsx can reuse it for the
+// all-budgets total, rather than a third copy of the same 6-line mapping.
+export function toEngineEntries(entries: BudgetEntryRow[], budgetId: string): BudgetEntry[] {
   return entries.map((entry) => ({
     id: entry.id,
     budgetId,
