@@ -268,7 +268,7 @@ export function BillsClient({
               return (
               <li
                 key={bill.id}
-                className={`flex items-center justify-between rounded-lg border border-notion-hairline bg-white p-4 ${bill.active === false ? "opacity-60" : ""}`}
+                className={`flex items-center justify-between rounded-lg border border-notion-hairline bg-white p-4 ${bill.active === false ? "opacity-50 grayscale" : ""}`}
               >
                 {!previewMode && canReorder && (
                   <ReorderButtons

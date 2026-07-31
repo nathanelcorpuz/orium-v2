@@ -185,7 +185,7 @@ export function ExtraClient({ extras, balances }: { extras: ExtraRow[]; balances
             {sortedExtras.map((extra, index) => (
               <li
                 key={extra.id}
-                className={`flex items-center justify-between rounded-lg border border-notion-hairline bg-white p-4 ${extra.active === false ? "opacity-60" : ""}`}
+                className={`flex items-center justify-between rounded-lg border border-notion-hairline bg-white p-4 ${extra.active === false ? "opacity-50 grayscale" : ""}`}
               >
                 {canReorder && (
                   <ReorderButtons

@@ -273,7 +273,7 @@ export function IncomeClient({
               return (
               <li
                 key={income.id}
-                className={`flex items-center justify-between rounded-lg border border-notion-hairline bg-white p-4 ${income.active === false ? "opacity-60" : ""}`}
+                className={`flex items-center justify-between rounded-lg border border-notion-hairline bg-white p-4 ${income.active === false ? "opacity-50 grayscale" : ""}`}
               >
                 {canReorder && (
                   <ReorderButtons

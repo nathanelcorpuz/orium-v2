@@ -371,7 +371,7 @@ export function MonthlyGoalsClient({
               return (
                 <li
                   key={item.id}
-                  className={`flex items-center justify-between rounded-lg border border-notion-hairline bg-white p-4 ${item.active === false ? "opacity-60" : ""}`}
+                  className={`flex items-center justify-between rounded-lg border border-notion-hairline bg-white p-4 ${item.active === false ? "opacity-50 grayscale" : ""}`}
                 >
                   {canReorder && (
                     <ReorderButtons

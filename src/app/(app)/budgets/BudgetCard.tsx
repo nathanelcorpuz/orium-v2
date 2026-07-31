@@ -136,7 +136,7 @@ export function BudgetCard({
   const isActive = budget.active !== false;
 
   return (
-    <div className={`rounded-lg border border-notion-hairline bg-white p-4 ${isActive ? "" : "opacity-60"}`}>
+    <div className={`rounded-lg border border-notion-hairline bg-white p-4 ${isActive ? "" : "opacity-50 grayscale"}`}>
       <div className="mb-3 flex items-start justify-between">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
