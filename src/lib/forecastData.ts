@@ -45,12 +45,12 @@ export type ForecastData = {
   // dataset (auto-seeded at signup or brought back via "Restore sample
   // data") - the Dashboard's sample-data banner keys off this.
   sampleDataSeededAt: string | null;
-  // T174: null when no scenario is currently toggled on. When set, `forecast`
-  // above already has that scenario's rows merged in - these two fields are
-  // only for the UI's own "you are viewing a scenario" banner, not for
-  // deciding whether to merge (that already happened).
-  activeScenarioId: string | null;
-  activeScenarioName: string | null;
+  // T174/T183: empty when no scenario is currently toggled on. When set,
+  // `forecast` above already has every one of these scenarios' rows merged
+  // in (T183: any number can be active at once, not just one) - this field
+  // is only for the UI's own "you are viewing N scenarios" banner/panel,
+  // not for deciding whether to merge (that already happened).
+  activeScenarios: { id: string; name: string }[];
   today: string;
   horizon: string;
 };
@@ -69,6 +69,7 @@ export async function loadForecast(): Promise<ForecastData> {
     entriesRes,
     replenishOverridesRes,
     preferencesRes,
+    activeScenariosRes,
   ] = await Promise.all([
     supabase.from("balances").select("id, name, amount, comments, transaction_fee_centavos"),
     supabase
@@ -89,8 +90,12 @@ export async function loadForecast(): Promise<ForecastData> {
       .select("id, budget_id, original_date, skipped, new_date, new_amount"),
     supabase
       .from("preferences")
-      .select("currency, balance_ranges, balance_tier_labels, sample_data_seeded_at, active_scenario_id")
+      .select("currency, balance_ranges, balance_tier_labels, sample_data_seeded_at")
       .single(),
+    // T183: fetched alongside everything else above rather than after, even
+    // though the scenario item queries below still have to wait on this
+    // one's result (they need the id list to filter by).
+    supabase.from("scenarios").select("id, name").eq("is_active", true),
   ]);
 
   // These queries determine the forecast's correctness - silently treating a
@@ -199,47 +204,41 @@ export async function loadForecast(): Promise<ForecastData> {
     newAmount: row.new_amount,
   }));
 
-  // T174 ("run possible scenario"): if the user has an active scenario, its
-  // rows are merged into the *same* arrays the engine already consumes -
-  // additive to the queries above, not a change to any of them. This is the
-  // one integration point for the whole feature: every existing page/action
+  // T174 ("run possible scenario"), extended by T183 to any number of
+  // simultaneously active scenarios: every active scenario's rows are
+  // merged into the *same* arrays the engine already consumes - additive to
+  // the queries above, not a change to any of them. This is the one
+  // integration point for the whole feature: every existing page/action
   // querying `recurring_items`/`one_off_items` directly is completely
   // unaware scenarios exist, since scenario rows live in their own separate
   // tables (`scenario_recurring_items`/`scenario_one_off_items`) and are
   // never returned by those queries. See migration 0033's own comment for
   // why separate tables were chosen over a shared `scenario_id` tag column.
-  const activeScenarioId = preferencesRes.data?.active_scenario_id ?? null;
-  let activeScenarioName: string | null = null;
+  const activeScenarios = activeScenariosRes.data ?? [];
+  const activeScenarioIds = activeScenarios.map((s) => s.id);
 
-  if (activeScenarioId) {
-    const [scenarioRes, scenarioRecurringRes, scenarioOneOffRes, scenarioBudgetsRes, scenarioBudgetEntriesRes] =
+  if (activeScenarioIds.length > 0) {
+    const [scenarioRecurringRes, scenarioOneOffRes, scenarioBudgetsRes, scenarioBudgetEntriesRes] =
       await Promise.all([
-        supabase.from("scenarios").select("name").eq("id", activeScenarioId).single(),
         supabase
           .from("scenario_recurring_items")
           .select(
             "id, name, type, amount, start_date, end_date, interval, unit, weekdays, days_of_month, ordinal, ordinal_weekday, ends_type, occurrence_count, balance_id, comments",
           )
-          .eq("scenario_id", activeScenarioId),
+          .in("scenario_id", activeScenarioIds),
         supabase
           .from("scenario_one_off_items")
           .select("id, name, amount, due_date, balance_id, comments")
-          .eq("scenario_id", activeScenarioId),
+          .in("scenario_id", activeScenarioIds),
         // T182: budgets in scenarios - see migration 0037's own comment for
         // why this is a plain named "pot" rather than full replenish-
         // schedule/income-link parity with a real budget.
-        supabase.from("scenario_budgets").select("id, name, created_at").eq("scenario_id", activeScenarioId),
+        supabase.from("scenario_budgets").select("id, name, created_at").in("scenario_id", activeScenarioIds),
         supabase
           .from("scenario_budget_entries")
           .select("id, scenario_budget_id, entry_date, amount, note, direction")
-          .eq("scenario_id", activeScenarioId),
+          .in("scenario_id", activeScenarioIds),
       ]);
-
-    // A scenario that no longer exists (e.g. deleted from another tab in
-    // the same moment) just means scenario mode silently has nothing to
-    // add this render - not a page-breaking error, since the preference FK
-    // is ON DELETE SET NULL and will catch up on the next load anyway.
-    activeScenarioName = scenarioRes.data?.name ?? null;
 
     for (const row of scenarioRecurringRes.data ?? []) {
       recurringItems.push({
@@ -337,8 +336,7 @@ export async function loadForecast(): Promise<ForecastData> {
     balanceRanges: preferencesRes.data?.balance_ranges ?? DEFAULT_BALANCE_RANGES,
     tierLabels: preferencesRes.data?.balance_tier_labels ?? DEFAULT_TIER_LABELS,
     sampleDataSeededAt: preferencesRes.data?.sample_data_seeded_at ?? null,
-    activeScenarioId,
-    activeScenarioName,
+    activeScenarios,
     today,
     horizon,
   };

@@ -29,11 +29,12 @@ export const FINANCIAL_DATA_TABLES = [
   // than this wipe.
   "activity_log",
   // T174: deleting `scenarios` cascades to scenario_recurring_items/
-  // scenario_one_off_items automatically (migration 0033's own FKs), and
-  // (ON DELETE SET NULL) clears preferences.active_scenario_id for free -
-  // no separate preferences update needed. Included for the same reason
+  // scenario_one_off_items/scenario_budgets/scenario_budget_entries (T182)
+  // automatically (migrations 0033/0037's own FKs) - each scenario's own
+  // `is_active` flag (T183) goes with its row, so there's nothing separate
+  // to clear on `preferences` any more either. Included for the same reason
   // activity_log is: without it, "Restore sample data" would leave a user's
-  // real what-if scenarios (and, if one was active, their real items)
+  // real what-if scenarios (and, if any were active, their real items)
   // merged into the fresh sample forecast.
   "scenarios",
   "budget_entries",

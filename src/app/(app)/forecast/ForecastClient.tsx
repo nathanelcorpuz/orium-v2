@@ -1,6 +1,7 @@
 "use client";
 
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { formatCentavos } from "@/lib/money";
 import { formatFullDate, todayInManila } from "@/lib/date";
 import { balanceRangeColorClass, balanceRangeTier, firstDangerLabel, lowestBalanceLabel } from "@/lib/balanceColor";
@@ -13,6 +14,8 @@ import { DatePicker } from "@/components/DatePicker";
 import { ChevronIcon } from "@/components/navIcons";
 import { PreviewModeBar } from "@/components/PreviewModeBar";
 import { ScenarioModeBar } from "@/components/ScenarioModeBar";
+import { SubmitButton } from "@/components/SubmitButton";
+import { toggleScenarioActive } from "@/app/(app)/scenarios/actions";
 import { TYPE_COLOR, TYPE_LABEL } from "@/lib/forecastLabels";
 import type { ForecastRow } from "@/lib/engine/types";
 import type { ConnectedItem } from "@/lib/connectedItems";
@@ -152,7 +155,7 @@ export function ForecastClient({
   lowestBalance,
   firstDanger,
   previewMode = false,
-  activeScenarioName,
+  allScenarios,
 }: {
   forecast: ForecastRow[];
   balances: BalanceRow[];
@@ -183,13 +186,17 @@ export function ForecastClient({
   // useful, and a reminder typed during preview would otherwise write a
   // real row tied to the account behind it.
   previewMode?: boolean;
-  // T174: null when no scenario is toggled on. `forecast` above already has
-  // that scenario's rows merged in when set - this is only for the banner.
-  activeScenarioName: string | null;
+  // T174/T183: every saved scenario, active or not - `forecast` above
+  // already has every *active* one's rows merged in; this is only for the
+  // "Scenarios" button/panel and the banner, never for deciding what to
+  // merge (that already happened server-side).
+  allScenarios: { id: string; name: string; is_active: boolean }[];
 }) {
   const [editingBalance, setEditingBalance] = useState<BalanceRow | null>(null);
   const [selectedRow, setSelectedRow] = useState<ForecastRow | null>(null);
   const [insightsCollapsed, setInsightsCollapsed] = useState(false);
+  const [scenariosPanelOpen, setScenariosPanelOpen] = useState(false);
+  const activeScenarios = allScenarios.filter((s) => s.is_active);
 
   useEffect(() => {
     // Reading localStorage during the lazy useState initializer instead
@@ -370,7 +377,9 @@ export function ForecastClient({
   return (
     <div className="flex min-h-full flex-col">
       {previewMode && <PreviewModeBar />}
-      {activeScenarioName && <ScenarioModeBar scenarioName={activeScenarioName} />}
+      {activeScenarios.length > 0 && (
+        <ScenarioModeBar scenarioNames={activeScenarios.map((s) => s.name)} />
+      )}
       <div data-tour="forecast-content" className="flex min-h-0 flex-1">
         <div className="min-w-0 flex-1 p-4 md:p-8">
         <div className="mx-auto max-w-6xl">
@@ -494,20 +503,40 @@ export function ForecastClient({
             )}
           </div>
 
-          {forecast.length > 0 && (
+          {(forecast.length > 0 || allScenarios.length > 0) && (
             <div className="mb-4 flex flex-wrap items-center gap-3" data-tour="forecast-filter">
-              <button
-                type="button"
-                onClick={() => setFilterModalOpen(true)}
-                className="relative flex items-center gap-1.5 rounded border border-notion-hairline bg-white px-3 py-1.5 text-xs text-notion-text hover:bg-notion-hover"
-              >
-                Filter
-                {filtersActive && (
-                  <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-notion-accent px-1 text-[10px] font-medium text-white">
-                    {activeFilterCount}
-                  </span>
-                )}
-              </button>
+              {forecast.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setFilterModalOpen(true)}
+                  className="relative flex items-center gap-1.5 rounded border border-notion-hairline bg-white px-3 py-1.5 text-xs text-notion-text hover:bg-notion-hover"
+                >
+                  Filter
+                  {filtersActive && (
+                    <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-notion-accent px-1 text-[10px] font-medium text-white">
+                      {activeFilterCount}
+                    </span>
+                  )}
+                </button>
+              )}
+              {/* T183: independent per-scenario toggles, replacing the single
+                  amber banner's own "Turn off" as the only control - a
+                  scenario can now be switched on/off without leaving the
+                  Forecast page at all. */}
+              {allScenarios.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setScenariosPanelOpen(true)}
+                  className="relative flex items-center gap-1.5 rounded border border-notion-hairline bg-white px-3 py-1.5 text-xs text-notion-text hover:bg-notion-hover"
+                >
+                  Scenarios
+                  {activeScenarios.length > 0 && (
+                    <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-500 px-1 text-[10px] font-medium text-amber-950">
+                      {activeScenarios.length}
+                    </span>
+                  )}
+                </button>
+              )}
               {filtersActive && (
                 <>
                   <button
@@ -663,7 +692,7 @@ export function ForecastClient({
                           <tr
                             key={`${row.sourceType}-${row.sourceId}-${row.originalDate}-${index}`}
                             {...forecastRowProps(row, isClickable, setSelectedRow)}
-                            className={`border-b border-notion-hairline text-notion-text last:border-0 ${isClickable ? "cursor-pointer hover:opacity-80" : ""} ${row.pastDue ? "bg-red-50" : row.dueToday ? "bg-amber-50" : ""}`}
+                            className={`border-b border-notion-hairline text-notion-text last:border-0 ${isClickable ? "cursor-pointer hover:opacity-80" : ""} ${row.pastDue ? "bg-red-50" : row.dueToday ? "bg-amber-50" : row.fromScenario ? "bg-amber-50/60" : ""}`}
                           >
                             <td className="px-2 py-1.5">
                               <ForecastNameCell row={row} isAutoReplenish={isAutoReplenish} />
@@ -730,6 +759,43 @@ export function ForecastClient({
           balances={balances}
           onClose={() => setSelectedRow(null)}
         />
+      )}
+
+      {/* T183: every saved scenario, each with its own independent toggle -
+          flipping one immediately updates the forecast table (the form
+          revalidates this page, same as every other action here). */}
+      {scenariosPanelOpen && (
+        <Modal title="Scenarios" onClose={() => setScenariosPanelOpen(false)}>
+          {allScenarios.length === 0 ? (
+            <p className="text-sm text-slate-500">No scenarios yet.</p>
+          ) : (
+            <ul className="max-h-80 divide-y divide-notion-hairline overflow-y-auto">
+              {allScenarios.map((scenario) => (
+                <li key={scenario.id} className="flex items-center justify-between gap-2 py-2 text-sm first:pt-0">
+                  <span className="min-w-0 truncate text-notion-text">{scenario.name}</span>
+                  <form action={toggleScenarioActive} className="shrink-0">
+                    <input type="hidden" name="scenarioId" value={scenario.id} />
+                    <input type="hidden" name="active" value={scenario.is_active ? "false" : "true"} />
+                    <SubmitButton
+                      className={`rounded border px-3 py-1 text-xs ${
+                        scenario.is_active
+                          ? "border-amber-500 bg-amber-500 text-amber-950 hover:opacity-90"
+                          : "border-notion-hairline text-notion-text hover:bg-notion-hover"
+                      }`}
+                    >
+                      {scenario.is_active ? "On" : "Off"}
+                    </SubmitButton>
+                  </form>
+                </li>
+              ))}
+            </ul>
+          )}
+          <div className="mt-3 border-t border-notion-hairline pt-3 text-right">
+            <Link href="/scenarios" className="text-sm text-notion-accent hover:underline">
+              Manage scenarios &rarr;
+            </Link>
+          </div>
+        </Modal>
       )}
     </div>
   );

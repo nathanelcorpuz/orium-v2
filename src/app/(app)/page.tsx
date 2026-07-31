@@ -132,7 +132,7 @@ export default async function Home({
     balanceRanges,
     tierLabels,
     sampleDataSeededAt,
-    activeScenarioName,
+    activeScenarios,
     today,
     horizon,
   } = forecastData;
@@ -549,7 +549,9 @@ export default async function Home({
   return (
     <div className="flex min-h-full flex-col">
       {preview && <PreviewModeBar />}
-      {activeScenarioName && <ScenarioModeBar scenarioName={activeScenarioName} />}
+      {activeScenarios.length > 0 && (
+        <ScenarioModeBar scenarioNames={activeScenarios.map((s) => s.name)} />
+      )}
       <DashboardWidgetsPanel widgets={widgets}>
         <div className="mb-6">
           <h1 className="text-xl font-semibold text-notion-text">Dashboard</h1>

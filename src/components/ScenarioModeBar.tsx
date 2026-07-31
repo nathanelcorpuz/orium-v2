@@ -1,36 +1,47 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
-import { setActiveScenario } from "@/app/(app)/scenarios/actions";
-import { SubmitButton } from "./SubmitButton";
 
-// T174 ("run possible scenario"): shown on Forecast/Dashboard whenever a
-// scenario is toggled on, mirroring PreviewModeBar's own role - the one
+// T174 ("run possible scenario"), redesigned by T183 for unlimited
+// simultaneously active scenarios: mirrors PreviewModeBar's role - the one
 // persistent, unmissable signal that some of the numbers on screen are
-// hypothetical, not real. Amber rather than PreviewModeBar's dark/neutral
-// tone, matching this app's own convention (amber = "act on this
-// deliberately," already established by T173's due-today tag and T175's
-// disabled-item badge) - preview mode is a passive read-only tour, but a
-// scenario is something the user actively chose to turn on and will want to
-// turn back off.
-export function ScenarioModeBar({ scenarioName }: { scenarioName: string }) {
+// hypothetical, not real. Amber, matching this app's own "act on this
+// deliberately" convention (T173's due-today tag, T175's disabled badge).
+//
+// Deliberately smaller than T174's original version (the user's own
+// request): a single line naming the count, with a click-to-expand list of
+// which ones, rather than always spelling out every name inline - that
+// used to work when only one scenario could ever be active at a time, but
+// would grow unboundedly with several active at once.
+export function ScenarioModeBar({ scenarioNames }: { scenarioNames: string[] }) {
+  const [expanded, setExpanded] = useState(false);
+
   return (
-    <div className="sticky top-0 z-40 flex flex-wrap items-center justify-between gap-2 bg-amber-500 px-4 py-2 text-sm text-amber-950">
-      <span>
-        Viewing scenario &ldquo;{scenarioName}&rdquo; - some of the numbers below are hypothetical,
-        not real.
-      </span>
-      <div className="flex shrink-0 items-center gap-2">
-        <Link href="/scenarios" className="rounded border border-amber-950/30 px-3 py-1 hover:bg-amber-500/70">
-          Manage scenarios
+    <div className="sticky top-0 z-40 bg-amber-500 px-4 py-1.5 text-sm text-amber-950">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <button
+          type="button"
+          onClick={() => setExpanded((prev) => !prev)}
+          className="flex items-center gap-1 hover:opacity-80"
+        >
+          <span>
+            {scenarioNames.length} scenario{scenarioNames.length === 1 ? "" : "s"} active - some
+            numbers below are hypothetical
+          </span>
+          <span className="text-xs">{expanded ? "▲" : "▼"}</span>
+        </button>
+        <Link href="/scenarios" className="rounded border border-amber-950/30 px-2 py-0.5 text-xs hover:bg-amber-500/70">
+          Manage
         </Link>
-        <form action={setActiveScenario}>
-          <input type="hidden" name="scenarioId" value="" />
-          <SubmitButton className="rounded border border-amber-950/30 px-3 py-1 hover:bg-amber-500/70 disabled:opacity-50">
-            Turn off
-          </SubmitButton>
-        </form>
       </div>
+      {expanded && (
+        <ul className="mt-1 list-inside list-disc pl-1 text-xs">
+          {scenarioNames.map((name) => (
+            <li key={name}>{name}</li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }

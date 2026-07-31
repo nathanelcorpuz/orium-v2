@@ -23,23 +23,30 @@ export default async function ForecastPage({
   // `BalanceModal`, so this page has to supply the same connected-items data
   // that page does - without it the modal silently renders no connections.
   let connectedItems: ConnectedItem[];
+  // T183: every saved scenario (not just the active ones) - the Forecast
+  // page's new "Scenarios" panel lists all of them, each with its own
+  // independent toggle.
+  let allScenarios: { id: string; name: string; is_active: boolean }[];
   if (preview) {
     forecastData = getSampleFixtureData();
     reminders = SAMPLE_FIXTURE_REMINDERS;
     connectedItems = connectedItemsFromFixture(forecastData.recurringItems);
+    allScenarios = [];
   } else {
     const supabase = await createClient();
-    const [data, remindersRes, connected] = await Promise.all([
+    const [data, remindersRes, connected, scenariosRes] = await Promise.all([
       loadForecast(),
       supabase.from("reminders").select("id, text, completed").order("created_at", { ascending: true }),
       loadConnectedItems(),
+      supabase.from("scenarios").select("id, name, is_active").order("created_at", { ascending: true }),
     ]);
     forecastData = data;
     reminders = remindersRes.data ?? [];
     connectedItems = connected;
+    allScenarios = scenariosRes.data ?? [];
   }
 
-  const { forecast, balances, currency, balanceRanges, tierLabels, today, activeScenarioName } = forecastData;
+  const { forecast, balances, currency, balanceRanges, tierLabels, today } = forecastData;
   const totalBalance = balances.reduce((sum, balance) => sum + balance.amount, 0);
   // T150 (Bug #11): "lowest balance ahead" and "first hits danger" are both
   // forward-looking, so they read the upcoming rows only - but from a balance
@@ -65,7 +72,7 @@ export default async function ForecastPage({
       lowestBalance={lowestBalance}
       firstDanger={firstDanger}
       previewMode={preview}
-      activeScenarioName={activeScenarioName}
+      allScenarios={allScenarios}
     />
   );
 }

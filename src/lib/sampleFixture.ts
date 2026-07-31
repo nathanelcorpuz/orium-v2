@@ -222,10 +222,9 @@ export function getSampleFixtureData(): ForecastData {
     balanceRanges: DEFAULT_BALANCE_RANGES,
     tierLabels: DEFAULT_TIER_LABELS,
     sampleDataSeededAt: null,
-    // T174: preview mode never has a scenario active - it's a static,
+    // T174/T183: preview mode never has a scenario active - it's a static,
     // read-only fixture with no settling, no editing, and nothing to toggle.
-    activeScenarioId: null,
-    activeScenarioName: null,
+    activeScenarios: [],
     today,
     horizon,
   };

@@ -60,10 +60,11 @@ export async function deleteScenario(formData: FormData) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  // Cascade deletes scenario_recurring_items/scenario_one_off_items
-  // automatically (migration 0033); preferences.active_scenario_id is ON
-  // DELETE SET NULL, so deleting the active scenario just turns scenario
-  // mode off rather than leaving a dangling reference.
+  // Cascade deletes scenario_recurring_items/scenario_one_off_items/
+  // scenario_budgets/scenario_budget_entries automatically (migrations
+  // 0033/0037). Deleting an active scenario needs no separate "turn it off"
+  // step either (T183) - `is_active` lives on the scenario row itself, so
+  // the row and its active state disappear together.
   const { data: deleted } = await supabase.from("scenarios").delete().eq("id", id).select("name").single();
   if (user && deleted) {
     await logActivity(supabase, user.id, {
@@ -76,16 +77,16 @@ export async function deleteScenario(formData: FormData) {
   for (const path of AFFECTED_PATHS) revalidatePath(path);
 }
 
-// T174: the one on/off switch, per the user's own "toggle it on or off
-// whenever" framing - only one scenario can be active at a time, so
-// activating a different one implicitly deactivates whichever was active
-// before (a plain preferences update, not a two-step operation).
-export async function setActiveScenario(formData: FormData) {
-  // Empty string (not present at all) turns scenario mode off - the form
-  // that deactivates submits an explicit "" rather than omitting the field,
-  // so this one action handles both directions the same way
-  // setReminderCompleted's "completed" field does.
-  const scenarioId = (formData.get("scenarioId") as string) || null;
+// T183: each scenario's own independent on/off switch - reverses T174's
+// "only one at a time" constraint (a plain `preferences.active_scenario_id`
+// FK, which structurally couldn't express more than one) now that the user
+// asked for unlimited simultaneously active scenarios. Migration 0038
+// replaced that FK with a boolean directly on `scenarios` itself, so
+// toggling one scenario never touches any other's state - no more
+// "turning one on implicitly turns another off."
+export async function toggleScenarioActive(formData: FormData) {
+  const scenarioId = formData.get("scenarioId") as string;
+  const active = formData.get("active") === "true";
 
   const supabase = await createClient();
   const {
@@ -93,7 +94,7 @@ export async function setActiveScenario(formData: FormData) {
   } = await supabase.auth.getUser();
   if (!user) return;
 
-  await supabase.from("preferences").update({ active_scenario_id: scenarioId }).eq("user_id", user.id);
+  await supabase.from("scenarios").update({ is_active: active }).eq("id", scenarioId);
 
   for (const path of AFFECTED_PATHS) revalidatePath(path);
 }
@@ -187,8 +188,8 @@ export async function activateScenarioPermanently(
 
   // Deleting the scenario cascades its own scenario_recurring_items/
   // scenario_one_off_items/scenario_budgets/scenario_budget_entries rows
-  // away, and (ON DELETE SET NULL) turns off scenario mode if this was the
-  // active one.
+  // away - its own `is_active` flag (T183) goes with it, no separate
+  // cleanup needed.
   const { error: deleteError } = await supabase.from("scenarios").delete().eq("id", id);
   if (deleteError) return { error: deleteError.message };
 

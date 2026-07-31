@@ -7,11 +7,11 @@ import {
   activateScenarioPermanently,
   createScenario,
   deleteScenario,
-  setActiveScenario,
+  toggleScenarioActive,
   type ScenarioActionState,
 } from "./actions";
 
-type ScenarioRow = { id: string; name: string; created_at: string };
+type ScenarioRow = { id: string; name: string; created_at: string; is_active: boolean };
 
 const initialState: ScenarioActionState = { error: null };
 
@@ -136,8 +136,9 @@ function ScenarioRowItem({
           </Link>
         </div>
         <div className="flex shrink-0 items-center gap-2">
-          <form action={setActiveScenario}>
-            <input type="hidden" name="scenarioId" value={isActive ? "" : scenario.id} />
+          <form action={toggleScenarioActive}>
+            <input type="hidden" name="scenarioId" value={scenario.id} />
+            <input type="hidden" name="active" value={isActive ? "false" : "true"} />
             <SubmitButton
               className={`rounded border px-3 py-1.5 text-sm ${
                 isActive
@@ -192,22 +193,16 @@ function ScenarioRowItem({
   );
 }
 
-export function ScenariosClient({
-  scenarios,
-  activeScenarioId,
-}: {
-  scenarios: ScenarioRow[];
-  activeScenarioId: string | null;
-}) {
+export function ScenariosClient({ scenarios }: { scenarios: ScenarioRow[] }) {
   return (
     <div className="p-4 md:p-8">
       <div className="mx-auto max-w-2xl">
         <div className="mb-6">
           <h1 className="text-xl font-semibold text-notion-text">Scenarios</h1>
           <p className="text-slate-500">
-            Try out a &ldquo;what if&rdquo; without touching your real numbers. Turn one on and
-            the Forecast and Dashboard include it; turn it off and they don&rsquo;t. Only one
-            scenario can be on at a time.
+            Try out a &ldquo;what if&rdquo; without touching your real numbers. Turn any number of
+            them on and the Forecast and Dashboard include all of them at once; turn one off and
+            it drops back out.
           </p>
         </div>
 
@@ -218,7 +213,7 @@ export function ScenariosClient({
         ) : (
           <ul className="space-y-2">
             {scenarios.map((scenario) => (
-              <ScenarioRowItem key={scenario.id} scenario={scenario} isActive={scenario.id === activeScenarioId} />
+              <ScenarioRowItem key={scenario.id} scenario={scenario} isActive={scenario.is_active} />
             ))}
           </ul>
         )}
