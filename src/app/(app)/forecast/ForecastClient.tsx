@@ -2,8 +2,9 @@
 
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { formatCentavos } from "@/lib/money";
-import { formatFullDate } from "@/lib/date";
+import { formatFullDate, todayInManila } from "@/lib/date";
 import { balanceRangeColorClass, balanceRangeTier, firstDangerLabel, lowestBalanceLabel } from "@/lib/balanceColor";
+import { findAccountLowestPoints } from "@/lib/engine/accountBalances";
 import { BalanceModal, type BalanceRow } from "@/app/(app)/accounts/BalanceModal";
 import { AmountRangeFilter, matchesAmountFilter, type ComparisonOp } from "@/components/AmountRangeFilter";
 import { MultiSelectChips } from "@/components/MultiSelectChips";
@@ -268,6 +269,17 @@ export function ForecastClient({
   // column.
   const balanceNameById = useMemo(() => new Map(balances.map((b) => [b.id, b.name])), [balances]);
 
+  // T180: per-account forecasted balance, resolving the "Before MVP launch"
+  // discussion item of the same name - always over the full, unfiltered
+  // forecast (same convention Total Balance/Peaks and Drops already use;
+  // filters narrow what's displayed, not what's real). Cheap enough (one
+  // pass over the same rows) to compute directly here rather than threading
+  // a new prop through forecast/page.tsx.
+  const accountLowestPoints = useMemo(
+    () => findAccountLowestPoints(forecast, balances, todayInManila()),
+    [forecast, balances],
+  );
+
   const filteredForecast = useMemo(() => {
     const name = nameFilter.trim().toLowerCase();
     return forecast.filter((row) => {
@@ -368,18 +380,33 @@ export function ForecastClient({
               Total balance: {formatCentavos(totalBalance, currency)}
             </p>
             <div className="mt-2 flex flex-wrap gap-2">
-              {balances.map((balance) => (
-                <button
-                  key={balance.id}
-                  type="button"
-                  onClick={() => {
-                    if (!previewMode) setEditingBalance(balance);
-                  }}
-                  className={`rounded-full border border-notion-hairline bg-white px-3 py-1 text-sm text-notion-text ${previewMode ? "" : "hover:bg-notion-hover"}`}
-                >
-                  {balance.name}: {formatCentavos(balance.amount, currency)}
-                </button>
-              ))}
+              {balances.map((balance) => {
+                // T180: desktop-only per the original scoping - a native
+                // `title` tooltip only ever appears on mouse hover, which
+                // already limits this to desktop without any extra media
+                // query, and matches every other tooltip in this app (the
+                // "edited from schedule" ✎ mark, etc.).
+                const lowest = accountLowestPoints.get(balance.id);
+                const title =
+                  lowest && lowest.date !== todayInManila()
+                    ? `Lowest projected: ${formatCentavos(lowest.balance, currency)} on ${formatFullDate(lowest.date)}`
+                    : lowest
+                      ? `Not projected to dip below ${formatCentavos(lowest.balance, currency)}`
+                      : undefined;
+                return (
+                  <button
+                    key={balance.id}
+                    type="button"
+                    title={title}
+                    onClick={() => {
+                      if (!previewMode) setEditingBalance(balance);
+                    }}
+                    className={`rounded-full border border-notion-hairline bg-white px-3 py-1 text-sm text-notion-text ${previewMode ? "" : "hover:bg-notion-hover"}`}
+                  >
+                    {balance.name}: {formatCentavos(balance.amount, currency)}
+                  </button>
+                );
+              })}
             </div>
           </div>
 
