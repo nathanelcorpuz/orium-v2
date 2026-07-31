@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { formatCentavos } from "@/lib/money";
 import { remainingTotal } from "@/lib/engine/remaining";
 import { monthlyEquivalent } from "@/lib/engine/monthlyTotals";
@@ -15,6 +15,7 @@ import { ProgressBar } from "@/components/ProgressBar";
 import { ReorderButtons } from "@/components/ReorderButtons";
 import { SubmitButton } from "@/components/SubmitButton";
 import { ActiveToggle } from "@/components/ActiveToggle";
+import { ChevronIcon } from "@/components/navIcons";
 import type { ForecastRow, RecurrenceUnit } from "@/lib/engine/types";
 import type { RecurringItemActionState } from "@/lib/recurringItem";
 import { useOrderedList } from "@/lib/useOrderedList";
@@ -131,7 +132,8 @@ export function MonthlyGoalsClient({
     items,
     (item) => item.id,
   );
-  const canReorder = sortOrder === "none" && !filtersActive;
+  // T160: `completedItems.length > 0` is folded in below, once that's
+  // computed - see the comment there for why.
 
   // T71 follow-up: shows the connected account's name (if any) on each row.
   const balanceNameById = useMemo(() => new Map(balances.map((b) => [b.id, b.name])), [balances]);
@@ -153,6 +155,59 @@ export function MonthlyGoalsClient({
   );
 
   const today = todayInManila();
+
+  // T160 (SPEC.md Phase 20, user request "give completed debts/savings
+  // somewhere to go, separate from History"): a debt or savings item is
+  // complete once every occurrence its rule will ever produce has been
+  // settled (T72's own definition - `goalProgress`'s fraction reaches 1 -
+  // debt/savings items are DB-enforced to always have a finite total, so
+  // this is always computable, never stuck at "Ongoing"). Split out of the
+  // main list into its own section below rather than just tagged in place,
+  // since the point is to get a paid-off debt or a reached goal out of the
+  // way of the list the user actually acts on day to day.
+  const [activeItems, completedItems] = useMemo(() => {
+    const active: MonthlyGoalRow[] = [];
+    const completed: MonthlyGoalRow[] = [];
+    for (const item of sortedItems) {
+      const progress = goalProgress(goalRule(item), paidByItemId.get(item.id)?.length ?? 0);
+      (progress.total > 0 && progress.fraction === 1 ? completed : active).push(item);
+    }
+    return [active, completed];
+  }, [sortedItems, paidByItemId]);
+
+  // T160: reordering has to stay off whenever a completed item exists, even
+  // with no filter or sort active. `moveUp`/`moveDown` reorder within the
+  // full persisted order (`orderedGoalItems`), which still has completed
+  // items interspersed - the active list only *displays* a subset of it. A
+  // "move up" near that boundary would swap against a completed neighbor the
+  // user can't see, moving it in a way nothing on screen explains. Same
+  // reasoning `filtersActive` already disables reordering for.
+  const canReorder = sortOrder === "none" && !filtersActive && completedItems.length === 0;
+
+  // Collapsed by default, same localStorage-backed pattern as T81's Forecast
+  // Insights and T44's sidebar collapse - a client-only preference, not a DB
+  // column. Keyed by pageTitle since Debt and Savings are two independent
+  // pages sharing this one component.
+  const completedStorageKey = `orium.${pageTitle.toLowerCase()}CompletedCollapsed`;
+  const [completedCollapsed, setCompletedCollapsed] = useState(true);
+
+  useEffect(() => {
+    // Reading localStorage during the lazy useState initializer would create
+    // a real hydration mismatch (no `window` on the server render) - setting
+    // state here, after hydration, is the fix (T44/T81's own pattern).
+    if (localStorage.getItem(completedStorageKey) === "false") {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setCompletedCollapsed(false);
+    }
+  }, [completedStorageKey]);
+
+  function toggleCompletedCollapsed() {
+    setCompletedCollapsed((prev) => {
+      const next = !prev;
+      localStorage.setItem(completedStorageKey, String(next));
+      return next;
+    });
+  }
   // Debt/Savings could previously only be monthly, so summing raw amounts
   // was exact; now that any recurrence unit is possible, the total needs
   // the same monthly-equivalent estimate the Dashboard/Income pages use.
@@ -253,9 +308,17 @@ export function MonthlyGoalsClient({
           <p className="text-slate-500">No {noun}s yet. Add your first one above.</p>
         ) : sortedItems.length === 0 ? (
           <p className="text-slate-500">No {noun}s match these filters.</p>
+        ) : activeItems.length === 0 ? (
+          // T160: every item matching the current filters is complete - a
+          // real, if unusual, state (every debt paid off, every goal
+          // reached). Distinct from "No {noun}s match these filters" above,
+          // which means nothing at all matched.
+          <p className="text-slate-500">
+            Every {noun} here is complete - see the Completed section below.
+          </p>
         ) : (
           <ul className="space-y-2">
-            {sortedItems.map((item, index) => {
+            {activeItems.map((item, index) => {
               const remaining = remainingTotal({ ...goalRule(item), amount: item.amount }, today);
               // T156: start date prefixed the same way Bills/Income now show it.
               const metaLine = `${startDateLabel(goalRule(item))} · ${summarizeRecurrence(goalRule(item))} · ${
@@ -274,7 +337,7 @@ export function MonthlyGoalsClient({
                       onMoveUp={() => moveUp(item.id)}
                       onMoveDown={() => moveDown(item.id)}
                       isFirst={index === 0}
-                      isLast={index === sortedItems.length - 1}
+                      isLast={index === activeItems.length - 1}
                     />
                   )}
                   {/* User request 2026-07-24: clicking an item (not its
@@ -370,6 +433,92 @@ export function MonthlyGoalsClient({
               );
             })}
           </ul>
+        )}
+
+        {/* T160: a fully-settled debt or savings goal moves here rather than
+            staying in the active list above or only being visible as
+            settlements in History. Collapsed by default - this is a
+            "nothing left to do" archive, not something acted on regularly. */}
+        {completedItems.length > 0 && (
+          <div className="mt-6 rounded-lg border border-notion-hairline bg-white p-4">
+            <button
+              type="button"
+              onClick={toggleCompletedCollapsed}
+              aria-expanded={!completedCollapsed}
+              className={`flex w-full items-center justify-between text-sm font-semibold text-notion-text hover:opacity-80 ${completedCollapsed ? "" : "mb-2"}`}
+            >
+              Completed ({completedItems.length})
+              <ChevronIcon
+                direction="right"
+                className={`h-3.5 w-3.5 text-slate-400 transition-transform ${completedCollapsed ? "" : "rotate-90"}`}
+              />
+            </button>
+            {!completedCollapsed && (
+              <ul className="space-y-2">
+                {completedItems.map((item) => (
+                  <li
+                    key={item.id}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => setViewingItem(item)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        setViewingItem(item);
+                      }
+                    }}
+                    className="flex cursor-pointer items-center justify-between rounded border border-notion-hairline p-3 hover:bg-notion-hover"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p className="font-medium text-notion-text">
+                        {item.name}
+                        <span className="ml-1.5 rounded-full bg-green-100 px-1.5 py-0.5 text-xs font-medium text-green-800">
+                          ✓ Complete
+                        </span>
+                      </p>
+                      <p className="text-sm text-slate-400">{formatCentavos(Math.abs(item.amount))}</p>
+                    </div>
+                    {/* Mirrors the active list's own confirm-delete pattern
+                        below - this row has its own copy since it renders
+                        outside that loop. */}
+                    {confirmingDeleteId === item.id ? (
+                      <div
+                        className="flex shrink-0 items-center gap-2"
+                        onClick={(event) => event.stopPropagation()}
+                        onKeyDown={(event) => event.stopPropagation()}
+                      >
+                        <span className="text-sm text-slate-600">Delete?</span>
+                        <form action={deleteAction}>
+                          <input type="hidden" name="id" value={item.id} />
+                          <SubmitButton className="rounded border border-red-300 px-3 py-1 text-sm text-red-600 hover:bg-red-50 disabled:opacity-50">
+                            Yes
+                          </SubmitButton>
+                        </form>
+                        <button
+                          type="button"
+                          onClick={() => setConfirmingDeleteId(null)}
+                          className="rounded border border-notion-hairline px-3 py-1 text-sm text-notion-text hover:bg-notion-hover"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          setConfirmingDeleteId(item.id);
+                        }}
+                        className="shrink-0 rounded border border-red-300 px-3 py-1 text-sm text-red-600 hover:bg-red-50"
+                      >
+                        Delete
+                      </button>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
         )}
 
         {modalState !== null && (
