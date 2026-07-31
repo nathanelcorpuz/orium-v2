@@ -1,21 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import { formatCentavos } from "@/lib/money";
-import { formatFullDate } from "@/lib/date";
-
-const TYPE_COLOR: Record<string, string> = {
-  income: "text-green-700",
-  debt: "text-orange-700",
-  savings: "text-blue-700",
-  extra: "text-purple-700",
-  bill: "text-notion-text",
-  budget: "text-teal-700",
-};
-
-// T106: display-only mapping - `settlements.type` stores "extra" (unchanged
-// schema value), this just renders it as "misc".
-const TYPE_LABEL: Record<string, string> = {
-  extra: "misc",
-};
+import { HistoryClient } from "./HistoryClient";
 
 export default async function HistoryPage() {
   const supabase = await createClient();
@@ -34,93 +18,7 @@ export default async function HistoryPage() {
     return <p className="p-8 text-red-600">Could not load history: {settlementsRes.error.message}</p>;
   }
 
-  const rows = settlementsRes.data ?? [];
-  const currency = preferencesRes.data?.currency ?? "₱";
-
   return (
-    <div className="p-4 md:p-8">
-      {/* T176 (SPEC.md Phase 22, user report "the history view is too small
-          in desktop view"): `max-w-4xl` (896px) was a one-off value used
-          nowhere else in the app. This table has 7 columns of
-          `whitespace-nowrap` content - comparable to the Forecast table's 6 -
-          but Forecast's own wide-table container is `max-w-6xl` (1152px).
-          History was simply narrower than the app's own established
-          convention for a wide multi-column table, forcing more of it into
-          the horizontal-scroll fallback than necessary on an ordinary
-          desktop viewport. Matched to Forecast's width rather than invented
-          fresh. */}
-      <div className="mx-auto max-w-6xl">
-        <h1 className="mb-6 text-xl font-semibold text-notion-text">History</h1>
-
-        {rows.length === 0 ? (
-          <p className="text-slate-500">No settled transactions yet.</p>
-        ) : (
-          <div className="overflow-x-auto rounded-lg border border-notion-hairline bg-white">
-            {/* T93: `min-w-full` (not `w-full`) + `whitespace-nowrap` so the
-                table can grow past the container's width when it needs to -
-                `w-full` was capping it at the viewport, which defeated the
-                `overflow-x-auto` scroll above and forced long names to wrap
-                into a wall of text instead at narrow widths. */}
-            <table className="min-w-full whitespace-nowrap text-sm">
-              <thead>
-                <tr className="border-b border-notion-hairline text-left text-slate-500">
-                  <th className="p-3">Name</th>
-                  <th className="p-3">Type</th>
-                  <th className="p-3 text-right">Forecasted</th>
-                  <th className="p-3 text-right">Actual</th>
-                  <th className="p-3">Forecasted date</th>
-                  <th className="p-3">Actual date</th>
-                  <th className="p-3 text-right">Balance</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((row) => {
-                  // Most budget settlements have no real forecast to compare
-                  // against - forecasted_amount/forecasted_balance are 0 and
-                  // forecasted_date mirrors actual_date (SPEC.md "Logging a
-                  // spend"), so showing them as real numbers would be
-                  // misleading rather than just absent. Phase 11 (T59) is
-                  // the one exception: settling a projected replenish
-                  // occurrence (own-schedule or income-linked) writes a real,
-                  // non-zero forecasted_amount/date - those get a genuine
-                  // forecast-vs-actual comparison like any other type.
-                  // forecasted_balance stays "-" regardless (it's never a
-                  // real value for a budget row - see writeLedgerEntry/
-                  // settleOccurrence/settleBudgetReplenish, all of which
-                  // write 0 there).
-                  const isBudget = row.type === "budget";
-                  const budgetHasRealForecast = isBudget && row.forecasted_amount !== 0;
-                  return (
-                    <tr key={row.id} className="border-b border-notion-hairline text-notion-text last:border-0">
-                      <td className="p-3">{row.name}</td>
-                      <td className="p-3">
-                        {isBudget ? (
-                          <span className="rounded-full bg-teal-50 px-2 py-0.5 text-xs font-medium text-teal-700">
-                            budget
-                          </span>
-                        ) : (
-                          <span className={TYPE_COLOR[row.type] ?? ""}>{TYPE_LABEL[row.type] ?? row.type}</span>
-                        )}
-                      </td>
-                      <td className="p-3 text-right">
-                        {isBudget && !budgetHasRealForecast ? "-" : formatCentavos(row.forecasted_amount, currency)}
-                      </td>
-                      <td className="p-3 text-right">{formatCentavos(row.actual_amount, currency)}</td>
-                      <td className="p-3">
-                        {isBudget && !budgetHasRealForecast ? "-" : formatFullDate(row.forecasted_date)}
-                      </td>
-                      <td className="p-3">{formatFullDate(row.actual_date)}</td>
-                      <td className="p-3 text-right font-medium">
-                        {isBudget ? "-" : formatCentavos(row.forecasted_balance, currency)}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-    </div>
+    <HistoryClient rows={settlementsRes.data ?? []} currency={preferencesRes.data?.currency ?? "₱"} />
   );
 }
