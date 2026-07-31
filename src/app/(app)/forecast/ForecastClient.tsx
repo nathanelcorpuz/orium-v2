@@ -43,9 +43,8 @@ const TYPE_OPTIONS: { value: ForecastRow["type"]; label: string }[] = [
   { value: "budget", label: "Budget" },
 ];
 
-// T90: shared between the full desktop table and the compact mobile/tablet
-// table below, so a row's clickability drives identical role/tabIndex/click/
-// keydown handling in both.
+// T90, one table since T161: drives a row's clickability -
+// role/tabIndex/click/keydown - for the single date-grouped table below.
 //
 // T168: every row is now clickable except in preview mode. Income-linked
 // budget_replenish rows used to be excluded (Phase 11/T59) because they
@@ -303,11 +302,11 @@ export function ForecastClient({
   const totalBalance = balances.reduce((sum, balance) => sum + balance.amount, 0);
   const visibleForecast = filteredForecast.slice(0, visibleCount);
 
-  // T90: the compact mobile/tablet table drops the per-row Date column in
-  // favor of a sticky group-header row per distinct due date - rows are
+  // T90, now the only table's grouping (T161): drops the per-row Date column
+  // in favor of a sticky group-header row per distinct due date - rows are
   // already sorted by date, so a single forward scan groups them without
-  // re-sorting. `index` is carried along per-row for the same key/row-props
-  // wiring the full desktop table already used.
+  // re-sorting. `index` is carried along per-row for stable keys and the
+  // row-props wiring above.
   const visibleGroups = useMemo(() => {
     const groups: { date: string; rows: { row: ForecastRow; index: number }[] }[] = [];
     visibleForecast.forEach((row, index) => {
@@ -547,87 +546,20 @@ export function ForecastClient({
               data-tour="forecast-table"
               className="max-h-[50vh] overflow-auto rounded-lg border border-notion-hairline bg-white md:max-h-[70vh]"
             >
-              {/* T90: full 6-column table, unchanged - `lg`+ only (the same
-                  breakpoint T89 already uses for the desktop nav/reminders
-                  layout), so desktop behavior here is untouched. */}
-              <table className="hidden w-full text-xs lg:table">
-                <thead>
-                  <tr className="border-b border-notion-hairline text-left text-slate-500">
-                    <th className="sticky top-0 z-10 bg-white px-2 py-1.5">Date</th>
-                    <th className="sticky top-0 z-10 bg-white px-2 py-1.5">Name</th>
-                    <th className="sticky top-0 z-10 bg-white px-2 py-1.5">Type</th>
-                    <th className="sticky top-0 z-10 bg-white px-2 py-1.5">Account</th>
-                    <th className="sticky top-0 z-10 bg-white px-2 py-1.5 text-right">Amount</th>
-                    <th className="sticky top-0 z-10 bg-white px-2 py-1.5 text-right">Balance</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {visibleForecast.map((row, index) => {
-                    // Phase 11 (T59): an income-linked budget_replenish row
-                    // settles automatically when its linked income is
-                    // settled (T56's hook, extended) - it's never
-                    // independently clickable, unlike an own-schedule
-                    // ("replenish every") budget_replenish row, which is.
-                    const isAutoReplenish = row.sourceType === "budget_replenish" && row.budgetSettleable !== true;
-                    // T103: never clickable at all in preview mode.
-                    const isClickable = !previewMode;
-                    return (
-                      <tr
-                        key={`${row.sourceType}-${row.sourceId}-${row.originalDate}-${index}`}
-                        {...forecastRowProps(row, isClickable, setSelectedRow)}
-                        className={`border-b border-notion-hairline text-notion-text last:border-0 ${isClickable ? "cursor-pointer hover:opacity-80" : ""} ${row.pastDue ? "bg-red-50" : row.dueToday ? "bg-amber-50" : ""}`}
-                      >
-                        <td className="px-2 py-1.5">
-                          {/* T150 (Bug #11): overdue rows are tinted and
-                              badged rather than just sorted first - the user
-                              asked to be "visually alarmed" about anything
-                              still waiting to be settled. */}
-                          {row.pastDue && (
-                            <span className="mr-1.5 rounded bg-red-600 px-1 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">
-                              Past due
-                            </span>
-                          )}
-                          {/* T173: the same treatment for today, in amber -
-                              a distinct "act on this now" state rather than a
-                              softer shade of overdue. Dark text because amber
-                              is too light to carry white legibly. */}
-                          {row.dueToday && (
-                            <span className="mr-1.5 rounded bg-amber-400 px-1 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-950">
-                              Due today
-                            </span>
-                          )}
-                          {/* T155: bolded per user request - the date is the
-                              column people scan first. */}
-                          <span className="font-semibold">{formatFullDate(row.dueDate)}</span>
-                        </td>
-                        <td className="px-2 py-1.5">
-                          <ForecastNameCell row={row} isAutoReplenish={isAutoReplenish} />
-                        </td>
-                        <td className={`px-2 py-1.5 ${TYPE_COLOR[row.type]}`}>{TYPE_LABEL[row.type]}</td>
-                        <td className="px-2 py-1.5 text-slate-500">
-                          {row.balanceId ? (balanceNameById.get(row.balanceId) ?? "-") : "-"}
-                        </td>
-                        <td className="px-2 py-1.5 text-right">{formatCentavos(row.amount, currency)}</td>
-                        <td className="px-2 py-1.5 text-right font-medium">
-                          <ForecastBalanceCell
-                            balance={row.runningBalance}
-                            balanceRanges={balanceRanges}
-                            currency={currency}
-                          />
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-
-              {/* T90: compact table below `lg` - Name/Amount/Balance always,
-                  Type from `sm`, Account from `md`; the Date column is
-                  replaced by a sticky group-header row per distinct due
-                  date (rows are already date-sorted) so date context
-                  survives without spending a column on it at narrow
-                  widths. */}
-              <table className="w-full text-xs lg:hidden">
+              {/* T161 (user request 2026-07-30, "make desktop match
+                  mobile"): the two-table split (T90) is gone - this one
+                  date-grouped table now renders at every width. Previously
+                  desktop got a separate wide table with its own Date column
+                  and no grouping; that table is deleted rather than kept
+                  around unused, since two implementations of the same rows
+                  is exactly the failure mode that caused Bug #12. Type
+                  becomes visible from `sm` and Account from `md` exactly as
+                  they already did below `lg` - at `lg`+ (desktop) both
+                  breakpoints are already satisfied, so desktop shows every
+                  column with no further changes needed here. Sequenced after
+                  T150 (past-due grouping) and T155 (row polish) so this pass
+                  doesn't restyle the same rows twice. */}
+              <table className="w-full text-xs">
                 <thead>
                   <tr className="border-b border-notion-hairline text-left text-slate-500">
                     <th className="sticky top-0 z-20 bg-white px-2 py-1.5">Name</th>
