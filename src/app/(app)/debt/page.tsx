@@ -38,7 +38,14 @@ export default async function DebtPage() {
 
   const editedIds = idSetFromColumn(overridesRes.data, "recurring_item_id");
   const upcomingByItemId = groupBy(
-    forecast.filter((row) => row.sourceType === "recurring" && row.type === "debt"),
+    // T150 (Bug #11): the forecast now opens with any unsettled past-due
+    // backlog. This list is specifically "what is coming up" for each item -
+    // a missed payment from months ago showing as the next one would read as
+    // a bug - so past-due rows are filtered out here deliberately, keeping
+    // this page exactly as it was. Surfacing overdue goals here is a
+    // reasonable follow-up, but it is a product decision, not part of
+    // this fix.
+    forecast.filter((row) => row.sourceType === "recurring" && row.type === "debt" && !row.pastDue),
     (row) => row.sourceId,
   );
   const paidByItemId = groupBy(settlementsRes.data ?? [], (row) => row.source_id);

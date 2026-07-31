@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { generateForecast } from "./forecast";
+import { generateForecast, splitPastDue } from "./forecast";
 import type { Budget, BudgetEntry, OneOffItem, OccurrenceOverride, RecurringItem } from "./types";
 
 const today = "2026-01-01";
@@ -166,10 +166,14 @@ describe("generateForecast edited flag (Phase 7 edited-occurrence indicator)", (
 });
 
 describe("generateForecast one-offs", () => {
-  it("merges one-offs due today or later and drops ones before today", () => {
+  // T150 (Bug #11) rewrote this case. It previously asserted that a one-off
+  // dated before today was dropped; that behavior is the bug - an unsettled
+  // past-dated item is still owed, and dropping it silently restored the
+  // running balance as if the money were never leaving.
+  it("keeps past-dated one-offs, flagged past-due, ahead of upcoming ones", () => {
     const oneOffs: OneOffItem[] = [
       { id: "off-1", name: "Gift", amount: 50000, dueDate: "2026-01-05", balanceId: null },
-      { id: "off-2", name: "Old refund", amount: 20000, dueDate: "2025-12-31", balanceId: null },
+      { id: "off-2", name: "Unpaid repair", amount: -20000, dueDate: "2025-12-31", balanceId: null },
     ];
 
     const result = generateForecast({
@@ -184,13 +188,26 @@ describe("generateForecast one-offs", () => {
     expect(result).toEqual([
       {
         sourceType: "one_off",
+        sourceId: "off-2",
+        originalDate: "2025-12-31",
+        name: "Unpaid repair",
+        amount: -20000,
+        dueDate: "2025-12-31",
+        type: "extra",
+        runningBalance: 980000,
+        pastDue: true,
+      },
+      {
+        sourceType: "one_off",
         sourceId: "off-1",
         originalDate: "2026-01-05",
         name: "Gift",
         amount: 50000,
         dueDate: "2026-01-05",
         type: "extra",
-        runningBalance: 1050000,
+        // The past-due deduction comes off the top, so every later balance
+        // carries it: 1,000,000 - 20,000 + 50,000.
+        runningBalance: 1030000,
       },
     ]);
   });
@@ -668,5 +685,182 @@ describe("generateForecast same-day ordering (T148)", () => {
 
     expect(result.map((row) => row.name)).toEqual(["Refund", "Rent"]);
     expect(result.map((row) => row.runningBalance)).toEqual([400000, 100000]);
+  });
+});
+
+// T150 (Bug #11, SPEC.md Phase 20): unsettled occurrences whose date has
+// passed stay in the forecast and keep counting against the running balance.
+// The user hit the real-world version of this: a Jul 29 Misc payment dropped
+// out of the forecast on Jul 30, and a genuine Sep 1 negative balance
+// disappeared with it, reporting them as solvent when they were not.
+describe("generateForecast past-due occurrences (T150)", () => {
+  it("keeps unsettled recurring occurrences from before today", () => {
+    const rent = monthlyItem({
+      id: "bill-rent",
+      name: "Rent",
+      type: "bill",
+      amount: -300000,
+      daysOfMonth: [1],
+      startDate: "2025-11-01",
+      endDate: "2026-02-28",
+    });
+
+    const result = generateForecast({
+      balances: [{ id: "bal-1", name: "Cash", amount: 1000000 }],
+      recurringItems: [rent],
+      overrides: [],
+      oneOffs: [],
+      today: "2026-01-15",
+      horizon: "2026-02-28",
+    });
+
+    // Nov 1, Dec 1 and Jan 1 are all in the past and unsettled; Feb 1 is ahead.
+    expect(result.map((row) => [row.dueDate, row.pastDue ?? false])).toEqual([
+      ["2025-11-01", true],
+      ["2025-12-01", true],
+      ["2026-01-01", true],
+      ["2026-02-01", false],
+    ]);
+    // The backlog comes off the top: 1,000,000 - 300,000 x 4.
+    expect(result.map((row) => row.runningBalance)).toEqual([700000, 400000, 100000, -200000]);
+  });
+
+  it("drops past occurrences that were settled, since settling writes a skip", () => {
+    const rent = monthlyItem({
+      id: "bill-rent",
+      name: "Rent",
+      type: "bill",
+      amount: -300000,
+      daysOfMonth: [1],
+      startDate: "2025-11-01",
+      endDate: "2026-01-31",
+    });
+
+    const overrides: OccurrenceOverride[] = [
+      {
+        id: "ov-1",
+        recurringItemId: "bill-rent",
+        originalDate: "2025-11-01",
+        newDate: null,
+        newAmount: null,
+        newName: null,
+        skipped: true,
+      },
+      {
+        id: "ov-2",
+        recurringItemId: "bill-rent",
+        originalDate: "2025-12-01",
+        newDate: null,
+        newAmount: null,
+        newName: null,
+        skipped: true,
+      },
+    ];
+
+    const result = generateForecast({
+      balances: [{ id: "bal-1", name: "Cash", amount: 1000000 }],
+      recurringItems: [rent],
+      overrides,
+      oneOffs: [],
+      today: "2026-01-15",
+      horizon: "2026-02-28",
+    });
+
+    // Only the one genuinely-unsettled past occurrence survives - a user who
+    // settles as they go sees no backlog at all.
+    expect(result.map((row) => row.dueDate)).toEqual(["2026-01-01"]);
+    expect(result[0].pastDue).toBe(true);
+  });
+
+  it("does not mark a row past-due on its own due date", () => {
+    const result = generateForecast({
+      balances: [],
+      recurringItems: [],
+      overrides: [],
+      oneOffs: [{ id: "off-1", name: "Due today", amount: -1000, dueDate: "2026-01-15", balanceId: null }],
+      today: "2026-01-15",
+      horizon: "2026-02-28",
+    });
+
+    expect(result[0].pastDue).toBeUndefined();
+  });
+
+  it("respects an occurrence moved out of the past by an override", () => {
+    const bill = monthlyItem({
+      id: "bill-1",
+      name: "Water",
+      type: "bill",
+      amount: -50000,
+      daysOfMonth: [1],
+      startDate: "2026-01-01",
+      endDate: "2026-01-31",
+    });
+
+    const result = generateForecast({
+      balances: [],
+      recurringItems: [bill],
+      overrides: [
+        {
+          id: "ov-1",
+          recurringItemId: "bill-1",
+          originalDate: "2026-01-01",
+          newDate: "2026-01-20",
+          newAmount: null,
+          newName: null,
+          skipped: false,
+        },
+      ],
+      oneOffs: [],
+      today: "2026-01-15",
+      horizon: "2026-02-28",
+    });
+
+    // Past-due is judged on the effective date, not the original one - the
+    // user moved this bill forward, so it isn't overdue.
+    expect(result[0].dueDate).toBe("2026-01-20");
+    expect(result[0].pastDue).toBeUndefined();
+  });
+});
+
+describe("splitPastDue (T150)", () => {
+  const rows = () =>
+    generateForecast({
+      balances: [{ id: "bal-1", name: "Cash", amount: 1000000 }],
+      recurringItems: [],
+      overrides: [],
+      oneOffs: [
+        { id: "a", name: "Overdue bill", amount: -200000, dueDate: "2026-01-05", balanceId: null },
+        { id: "b", name: "Overdue refund", amount: 50000, dueDate: "2026-01-10", balanceId: null },
+        { id: "c", name: "Upcoming bill", amount: -100000, dueDate: "2026-02-01", balanceId: null },
+      ],
+      today: "2026-01-15",
+      horizon: "2026-03-31",
+    });
+
+  it("separates the backlog and reports the balance it leaves behind", () => {
+    const split = splitPastDue(rows(), 1000000);
+
+    expect(split.pastDue.map((row) => row.name)).toEqual(["Overdue bill", "Overdue refund"]);
+    expect(split.upcoming.map((row) => row.name)).toEqual(["Upcoming bill"]);
+    // Signed: owed 200,000, expecting 50,000 back.
+    expect(split.pastDueTotal).toBe(-150000);
+    expect(split.balanceAfterPastDue).toBe(850000);
+  });
+
+  it("passes the starting balance straight through when nothing is past due", () => {
+    const clean = generateForecast({
+      balances: [{ id: "bal-1", name: "Cash", amount: 1000000 }],
+      recurringItems: [],
+      overrides: [],
+      oneOffs: [{ id: "c", name: "Upcoming", amount: -100000, dueDate: "2026-02-01", balanceId: null }],
+      today: "2026-01-15",
+      horizon: "2026-03-31",
+    });
+
+    const split = splitPastDue(clean, 1000000);
+
+    expect(split.pastDue).toEqual([]);
+    expect(split.pastDueTotal).toBe(0);
+    expect(split.balanceAfterPastDue).toBe(1000000);
   });
 });

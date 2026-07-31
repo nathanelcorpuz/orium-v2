@@ -134,6 +134,9 @@ export function ForecastClient({
   tierLabels,
   reminders,
   connectedItems,
+  pastDueCount,
+  pastDueTotal,
+  balanceAfterPastDue,
   lowestBalance,
   firstDanger,
   previewMode = false,
@@ -148,6 +151,13 @@ export function ForecastClient({
   // opened from a balance chip here shows the same connected bills/income/
   // debt/savings/extras it shows when opened from the Balances page.
   connectedItems: ConnectedItem[];
+  // T150 (Bug #11): the unsettled past-due backlog, summarised. Computed on
+  // the server (`splitPastDue`) rather than re-derived here, so the banner
+  // can never disagree with the rows it describes or with the Dashboard's
+  // own past-due card.
+  pastDueCount: number;
+  pastDueTotal: number;
+  balanceAfterPastDue: number;
   lowestBalance: LowestBalancePoint;
   firstDanger: LowestBalancePoint | null;
   // T103: opt-in sample-data preview - real financial data isn't touched by
@@ -357,6 +367,28 @@ export function ForecastClient({
             </div>
           </div>
 
+          {/* T150 (Bug #11): a summary above the table, because the rows
+              themselves are the thing most likely to be scrolled past. Only
+              rendered when there actually is a backlog - a permanent "0 past
+              due" line would train the user to stop seeing it. States the
+              balance left after clearing it, since that is the number the
+              user should actually be planning against. */}
+          {pastDueCount > 0 && (
+            <div className="mb-6 rounded-lg border border-red-300 bg-red-50 p-4">
+              <h2 className="mb-1 text-sm font-semibold text-red-800">
+                {pastDueCount} past-due {pastDueCount === 1 ? "transaction" : "transactions"}
+              </h2>
+              <p className="text-sm text-red-700">
+                Dated before today and never settled, so {pastDueCount === 1 ? "it is" : "they are"}{" "}
+                still counted against your balance. Settle or remove{" "}
+                {pastDueCount === 1 ? "it" : "them"} to clear this.{" "}
+                {formatCentavos(Math.abs(pastDueTotal), currency)}{" "}
+                {pastDueTotal < 0 ? "outstanding" : "net incoming"}, leaving{" "}
+                {formatCentavos(balanceAfterPastDue, currency)} once settled.
+              </p>
+            </div>
+          )}
+
           {/* User request 2026-07-24: the lowest-balance line pulled out of
               the plain-text header into its own card, styled like the
               Dashboard's stat cards - a home for this and any future
@@ -545,9 +577,20 @@ export function ForecastClient({
                       <tr
                         key={`${row.sourceType}-${row.sourceId}-${row.originalDate}-${index}`}
                         {...forecastRowProps(row, isClickable, setSelectedRow)}
-                        className={`border-b border-notion-hairline text-notion-text last:border-0 ${isClickable ? "cursor-pointer hover:opacity-80" : ""}`}
+                        className={`border-b border-notion-hairline text-notion-text last:border-0 ${isClickable ? "cursor-pointer hover:opacity-80" : ""} ${row.pastDue ? "bg-red-50" : ""}`}
                       >
-                        <td className="px-2 py-1.5">{formatFullDate(row.dueDate)}</td>
+                        <td className="px-2 py-1.5">
+                          {/* T150 (Bug #11): overdue rows are tinted and
+                              badged rather than just sorted first - the user
+                              asked to be "visually alarmed" about anything
+                              still waiting to be settled. */}
+                          {row.pastDue && (
+                            <span className="mr-1.5 rounded bg-red-600 px-1 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">
+                              Past due
+                            </span>
+                          )}
+                          {formatFullDate(row.dueDate)}
+                        </td>
                         <td className="px-2 py-1.5">
                           <ForecastNameCell row={row} isAutoReplenish={isAutoReplenish} />
                         </td>
@@ -589,11 +632,25 @@ export function ForecastClient({
                   {visibleGroups.map((group) => (
                     <Fragment key={group.date}>
                       <tr>
+                        {/* T150 (Bug #11): every row in a group shares its
+                            date, so the first row's flag decides the whole
+                            header. Overdue days get the alarm treatment on
+                            the header itself, since on a narrow screen the
+                            header is what the user reads first. */}
                         <td
                           colSpan={5}
-                          className="sticky top-[29px] z-10 border-b border-notion-hairline bg-slate-50 px-2 py-1 font-medium text-slate-500"
+                          className={`sticky top-[29px] z-10 border-b px-2 py-1 font-medium ${
+                            group.rows[0]?.row.pastDue
+                              ? "border-red-200 bg-red-100 text-red-800"
+                              : "border-notion-hairline bg-slate-50 text-slate-500"
+                          }`}
                         >
                           {formatFullDate(group.date)}
+                          {group.rows[0]?.row.pastDue && (
+                            <span className="ml-1.5 text-[10px] font-semibold uppercase tracking-wide">
+                              Past due
+                            </span>
+                          )}
                         </td>
                       </tr>
                       {group.rows.map(({ row, index }) => {
@@ -604,7 +661,7 @@ export function ForecastClient({
                           <tr
                             key={`${row.sourceType}-${row.sourceId}-${row.originalDate}-${index}`}
                             {...forecastRowProps(row, isClickable, setSelectedRow)}
-                            className={`border-b border-notion-hairline text-notion-text last:border-0 ${isClickable ? "cursor-pointer hover:opacity-80" : ""}`}
+                            className={`border-b border-notion-hairline text-notion-text last:border-0 ${isClickable ? "cursor-pointer hover:opacity-80" : ""} ${row.pastDue ? "bg-red-50" : ""}`}
                           >
                             <td className="px-2 py-1.5">
                               <ForecastNameCell row={row} isAutoReplenish={isAutoReplenish} />

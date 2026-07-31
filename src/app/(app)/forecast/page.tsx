@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { loadForecast } from "@/lib/forecastData";
 import { findFirstDangerPoint, findLowestBalancePoint } from "@/lib/engine/lowestBalance";
+import { splitPastDue } from "@/lib/engine/forecast";
 import { getSampleFixtureData, SAMPLE_FIXTURE_REMINDERS } from "@/lib/sampleFixture";
 import { connectedItemsFromFixture, type ConnectedItem } from "@/lib/connectedItems";
 import { loadConnectedItems } from "@/lib/connectedItemsData";
@@ -40,8 +41,14 @@ export default async function ForecastPage({
 
   const { forecast, balances, currency, balanceRanges, tierLabels, today } = forecastData;
   const totalBalance = balances.reduce((sum, balance) => sum + balance.amount, 0);
-  const lowestBalance = findLowestBalancePoint(forecast, totalBalance, today);
-  const firstDanger = findFirstDangerPoint(forecast, totalBalance, balanceRanges[0], today);
+  // T150 (Bug #11): "lowest balance ahead" and "first hits danger" are both
+  // forward-looking, so they read the upcoming rows only - but from a balance
+  // that already has the past-due backlog taken off it. `balanceAfterPastDue`
+  // is exactly `totalBalance` when nothing is overdue, so this is a no-op for
+  // an up-to-date account.
+  const { pastDueTotal, balanceAfterPastDue, pastDue, upcoming } = splitPastDue(forecast, totalBalance);
+  const lowestBalance = findLowestBalancePoint(upcoming, balanceAfterPastDue, today);
+  const firstDanger = findFirstDangerPoint(upcoming, balanceAfterPastDue, balanceRanges[0], today);
 
   return (
     <ForecastClient
@@ -52,6 +59,9 @@ export default async function ForecastPage({
       tierLabels={tierLabels}
       reminders={reminders}
       connectedItems={connectedItems}
+      pastDueCount={pastDue.length}
+      pastDueTotal={pastDueTotal}
+      balanceAfterPastDue={balanceAfterPastDue}
       lowestBalance={lowestBalance}
       firstDanger={firstDanger}
       previewMode={preview}

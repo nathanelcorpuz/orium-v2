@@ -10,6 +10,7 @@ import { remainingTotal, ruleEndDate } from "@/lib/engine/remaining";
 import { goalProgress } from "@/lib/engine/goalProgress";
 import { computeMonthlyPeaksAndDrops } from "@/lib/engine/peaksAndDrops";
 import { findFirstDangerPoint, findLowestBalancePoint } from "@/lib/engine/lowestBalance";
+import { splitPastDue } from "@/lib/engine/forecast";
 import {
   budgetProgressFraction,
   budgetReplenishRule,
@@ -203,10 +204,17 @@ export default async function Home({
   const daysUntilSavingsGoal = savingsGoalDate ? daysBetween(today, savingsGoalDate) : null;
   const savingsProgress = aggregateGoalProgress(savingsItems, settledCountByItemId);
 
-  const peaksAndDrops = computeMonthlyPeaksAndDrops(forecast, totalBalance, today, horizon);
+  // T150 (Bug #11): the forecast now opens with any unsettled past-due
+  // backlog. Forward-looking stats must not read a past-due dip as a *future*
+  // event, but they do have to start from a balance that already accounts for
+  // the backlog - so they get the upcoming rows plus `balanceAfterPastDue`,
+  // which is just `totalBalance` when nothing is overdue.
+  const { pastDue, upcoming, pastDueTotal, balanceAfterPastDue } = splitPastDue(forecast, totalBalance);
+
+  const peaksAndDrops = computeMonthlyPeaksAndDrops(upcoming, balanceAfterPastDue, today, horizon);
   const peaksAndDropsByYear = groupPeaksAndDropsByYear(peaksAndDrops);
-  const lowestBalance = findLowestBalancePoint(forecast, totalBalance, today);
-  const firstDanger = findFirstDangerPoint(forecast, totalBalance, balanceRanges[0], today);
+  const lowestBalance = findLowestBalancePoint(upcoming, balanceAfterPastDue, today);
+  const firstDanger = findFirstDangerPoint(upcoming, balanceAfterPastDue, balanceRanges[0], today);
 
   // T117: every widget T117's spec lists (stat cards, Lowest Balance Ahead,
   // Peaks and Drops, Accounts, Remaining Debt, Savings, Budgets), handed to
@@ -214,6 +222,35 @@ export default async function Home({
   // rendering them inline - the panel owns order/visibility, this component
   // still owns every query and computation behind them, unchanged.
   const widgets: DashboardWidget[] = [
+    // T150 (Bug #11): the backlog leads the Dashboard when it exists, and is
+    // absent entirely when it doesn't - an empty "0 past due" card every day
+    // would train the user to ignore the one day it matters. Rendered ahead
+    // of the stat cards deliberately: "Total Balance" is money the user has
+    // not actually spent yet, and this is what is already committed against
+    // it.
+    ...(pastDue.length > 0
+      ? [
+          {
+            key: "pastDue",
+            label: "Past due",
+            node: (
+              <div className="mb-6 rounded-lg border border-red-300 bg-red-50 p-4">
+                <h2 className="mb-1 text-sm font-semibold text-red-800">
+                  {pastDue.length} past-due {pastDue.length === 1 ? "transaction" : "transactions"}
+                </h2>
+                <p className="text-sm text-red-700">
+                  {formatCentavos(Math.abs(pastDueTotal), currency)}{" "}
+                  {pastDueTotal < 0 ? "still to settle" : "net, still to settle"}, leaving{" "}
+                  {formatCentavos(balanceAfterPastDue, currency)} once cleared.{" "}
+                  <Link href="/forecast" className="font-medium underline">
+                    Review them
+                  </Link>
+                </p>
+              </div>
+            ),
+          },
+        ]
+      : []),
     {
       key: "stats",
       label: "Stat cards",

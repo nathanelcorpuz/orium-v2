@@ -167,6 +167,12 @@ export interface ForecastRow {
   // pre-select it. Omitted (not null) when unset, same convention as
   // `edited`, so existing toEqual literals without it are unaffected.
   balanceId?: string;
+  // T150 (Bug #11): the occurrence's date has passed and it was never
+  // settled, so it's still owed. The engine used to drop these rows
+  // entirely, which silently erased real obligations from the running
+  // balance. Omitted (not false) for ordinary rows, same convention as
+  // `edited` and `balanceId` above.
+  pastDue?: true;
 }
 
 export interface GenerateForecastInput {

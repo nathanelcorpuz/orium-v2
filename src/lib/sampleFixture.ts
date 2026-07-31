@@ -202,7 +202,16 @@ export function getSampleFixtureData(): ForecastData {
   };
 
   return {
-    forecast: generateForecast(input),
+    // T150 (Bug #11): past-due rows are dropped here, deliberately. The
+    // fixture backdates every rule by 180 days (`startDate` above) purely so
+    // the recurrence summaries read like an established household - not
+    // because this family owes six months of rent. Preview mode has no
+    // settling, so nothing here could ever *be* settled, and without this
+    // filter a brand-new user's very first look at Orium (the tour renders
+    // preview mode) would be roughly sixty red past-due rows and a wildly
+    // negative balance. Real accounts keep their backlog; only this static
+    // display fixture is exempt.
+    forecast: generateForecast(input).filter((row) => !row.pastDue),
     balances,
     recurringItems,
     overrides: [],

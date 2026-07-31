@@ -62,7 +62,19 @@ export function generateForecast(input: GenerateForecastInput): ForecastRow[] {
   const incomeEffectiveOccurrences = new Map<string, { originalDate: string; effectiveDate: string }[]>();
 
   for (const item of recurringItems) {
-    for (const date of expandRecurrenceOccurrences(toRecurrenceRule(item), today, horizon)) {
+    // T150 (Bug #11): expand from the rule's own start date, not from today.
+    // Occurrences before today used to be dropped on the assumption that
+    // anything in the past had already been settled - production use showed
+    // that assumption is exactly backwards, since an occurrence the user
+    // never settled is the one that most needs showing. Settling writes a
+    // `skipped` override, so a diligent user sees no extra rows here; what
+    // survives is genuinely outstanding. The user chose an unbounded
+    // lookback (2026-07-31) over a fixed window, so this walks the whole
+    // rule. `expandRecurrenceOccurrences` already ignores candidates before
+    // `rule.startDate`, and counts `after_count` from the start regardless
+    // of the window, so widening the window changes which dates are
+    // returned but not which occurrences the rule considers to exist.
+    for (const date of expandRecurrenceOccurrences(toRecurrenceRule(item), item.startDate, horizon)) {
       const override = overridesByKey.get(overrideKey(item.id, date));
       if (override?.skipped) continue;
 
@@ -89,8 +101,11 @@ export function generateForecast(input: GenerateForecastInput): ForecastRow[] {
   }
 
   for (const oneOff of oneOffs) {
-    if (oneOff.dueDate < today) continue;
-
+    // T150 (Bug #11): past-dated one-offs are kept too. This is the exact
+    // case the user reported - a Jul 29 Misc payment that vanished on Jul 30,
+    // taking a real Sep 1 negative balance with it. Settling a one-off
+    // deletes its row outright (settleOccurrence), so anything still here
+    // genuinely hasn't been dealt with.
     rows.push({
       sourceType: "one_off",
       sourceId: oneOff.id,
@@ -124,10 +139,20 @@ export function generateForecast(input: GenerateForecastInput): ForecastRow[] {
     const replenishOccurrences: { originalDate: string; effectiveDate: string }[] =
       budget.linkedIncomeId !== null
         ? (incomeEffectiveOccurrences.get(budget.linkedIncomeId) ?? [])
-        : futureBudgetReplenishDates(budgetReplenishRule(budget, null), today, horizon).map((date) => ({
-            originalDate: date,
-            effectiveDate: date,
-          }));
+        : (() => {
+            // T150: same unbounded lookback as recurring items. An
+            // own-schedule budget's replenish row is independently
+            // settleable (`budgetSettleable` below), so a missed one can
+            // actually be cleared rather than being stuck in the list
+            // forever. Income-linked budgets need no equivalent change -
+            // they borrow the income's occurrence dates, which now already
+            // include past ones, and clear when that income is settled.
+            const rule = budgetReplenishRule(budget, null);
+            return futureBudgetReplenishDates(rule, rule?.startDate ?? today, horizon).map((date) => ({
+              originalDate: date,
+              effectiveDate: date,
+            }));
+          })();
 
     for (const { originalDate, effectiveDate } of replenishOccurrences) {
       const override = budgetReplenishOverridesByKey.get(budgetOverrideKey(budget.id, originalDate));
@@ -178,6 +203,51 @@ export function generateForecast(input: GenerateForecastInput): ForecastRow[] {
 
   return rows.map((row) => {
     runningBalance = Math.round(runningBalance + row.amount);
-    return { ...row, runningBalance };
+    // T150 (Bug #11): past-due rows run through the same cumulative balance
+    // as everything else, deliberately. The account balances the user
+    // maintains are what they hold *now*, and an unsettled past obligation
+    // hasn't left the account yet - so it has to come off the top before the
+    // future is projected, exactly as if it were due today.
+    return row.dueDate < today
+      ? { ...row, runningBalance, pastDue: true as const }
+      : { ...row, runningBalance };
   });
+}
+
+export interface PastDueSplit {
+  /** Unsettled rows whose date has already passed, oldest first. */
+  pastDue: ForecastRow[];
+  /** Everything dated today or later. */
+  upcoming: ForecastRow[];
+  /** Signed sum of the past-due rows - negative when money is owed on balance. */
+  pastDueTotal: number;
+  /**
+   * The running balance once every past-due row is accounted for: the real
+   * starting point for anything forward-looking. Equals the plain account
+   * total when nothing is past due.
+   */
+  balanceAfterPastDue: number;
+}
+
+/**
+ * Separates the past-due backlog from the forward forecast (T150).
+ *
+ * Forward-looking stats - lowest balance ahead, first danger point, Peaks and
+ * Drops - must not treat a past-due dip as a *future* event, but they do have
+ * to start from a balance that already accounts for the backlog. Passing
+ * `upcoming` plus `balanceAfterPastDue` to those functions gives both, with no
+ * change needed inside any of them.
+ */
+export function splitPastDue(rows: ForecastRow[], startingBalance: number): PastDueSplit {
+  const pastDue = rows.filter((row) => row.pastDue);
+  const upcoming = rows.filter((row) => !row.pastDue);
+
+  return {
+    pastDue,
+    upcoming,
+    pastDueTotal: pastDue.reduce((sum, row) => sum + row.amount, 0),
+    // Rows are chronological, so the last past-due row already carries the
+    // cumulative effect of every one before it.
+    balanceAfterPastDue: pastDue.length > 0 ? pastDue[pastDue.length - 1].runningBalance : startingBalance,
+  };
 }
