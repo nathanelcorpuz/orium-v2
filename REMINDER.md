@@ -31,3 +31,15 @@ Scratchpad for things raised between sessions. Write anything here, in any shape
 **Became decisions, deliberately not tasks** (SPEC.md "Before MVP launch"): raising the horizon from 5 to 25 years (this reverses T146, confirmed only three days earlier, so it needs an explicit re-decision), email notifications (requested four separate ways and still on the "Out of scope" list), user-defined categories, and per-account forecasted balances.
 
 **Already shipped**: same-day income-before-deductions ordering had already landed in commit `c6b85d3`; it is now documented as **T148**. The Add/Take funds change in `f7aee0d` is documented as **T149**.
+
+- add a "transaction fee" field in editing/settling a transaction in the forecast page to auto-deduct that from the automated calculation. it should also be based on what's selected in the account itself. so in bdo for example if it is set to 10 all forecasted transactions connected to BDO will show that transaction fee automatically
+
+- I like the past due tagging in the forecast page. create another that are for due today, make them yellow
+
+- I need a "run possible scenario" feature where everything I add when I click that button will be a simulation and not actually save persistently, allowing me to see how it will impact the finances. It can work like a Google  Sheets temporary filter view where I can save it and toggle it on or off whenever so everything can assume that scenario, from the forecast to the dashboard. also this scenario can be activated, meaning the temporary added finances can become permanently added once a button is clicked.
+
+- make the hard limit 50 years, final decision
+
+- allow to temporarily switch off a financial record (bill/misc/income/debt/savings/budgets) so I can quickly see how it will impact the forecast
+
+- the history view is too small in desktop view

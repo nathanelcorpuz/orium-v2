@@ -118,15 +118,33 @@ export interface ReplenishProgress {
  * cycle/allocation target to measure spend against in the ledger model
  * (Phase 10). `null` throughout for a manual budget (no rule at all).
  */
-export function replenishProgress(rule: RecurrenceRule | null, asOf: string): ReplenishProgress {
+export function replenishProgress(
+  rule: RecurrenceRule | null,
+  asOf: string,
+  // T167: occurrence dates already dealt with - the `original_date` of every
+  // budget_replenish_overrides row marked skipped, which is what the settle
+  // path writes once a replenishment has actually happened.
+  //
+  // Without this the card kept saying "Replenishes today" for the rest of the
+  // day after the linked income was settled and the money had already moved,
+  // because the next-occurrence search only ever asked the recurrence rule,
+  // which has no idea anything was settled. Optional so the existing callers
+  // that genuinely have no override data (the Dashboard card) keep working
+  // unchanged.
+  handledDates: readonly string[] = [],
+): ReplenishProgress {
   if (rule === null) {
     return { previousDate: null, nextDate: null, daysUntil: null, fraction: null };
   }
 
+  const handled = new Set(handledDates);
+
   const past = expandRecurrenceOccurrences(rule, rule.startDate, asOf);
   const previousDate = past.length > 0 ? past[past.length - 1] : null;
 
-  const upcoming = expandRecurrenceOccurrences(rule, asOf, addDays(asOf, NEXT_OCCURRENCE_SEARCH_DAYS));
+  const upcoming = expandRecurrenceOccurrences(rule, asOf, addDays(asOf, NEXT_OCCURRENCE_SEARCH_DAYS)).filter(
+    (date) => !handled.has(date),
+  );
   const nextDate = upcoming.length > 0 ? upcoming[0] : null;
 
   const daysUntil = nextDate !== null ? daysBetween(asOf, nextDate) : null;

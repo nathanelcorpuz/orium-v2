@@ -28,11 +28,15 @@ export function BudgetsClient({
   entriesByBudgetId,
   incomes,
   editedIds,
+  handledDatesByBudgetId,
 }: {
   budgets: BudgetRow[];
   entriesByBudgetId: Record<string, BudgetEntryRow[]>;
   incomes: IncomeItemRow[];
   editedIds: Set<string>;
+  // T167: skipped replenish occurrence dates per budget, so the card can
+  // stop advertising a replenishment that already happened.
+  handledDatesByBudgetId: Record<string, string[]>;
 }) {
   const [modalState, setModalState] = useState<null | "new" | BudgetRow>(null);
 
@@ -182,6 +186,7 @@ export function BudgetsClient({
                     incomes={incomes}
                     onEdit={() => setModalState(budget)}
                     edited={editedIds.has(budget.id)}
+                    handledDates={handledDatesByBudgetId[budget.id] ?? []}
                   />
                 </div>
               </div>

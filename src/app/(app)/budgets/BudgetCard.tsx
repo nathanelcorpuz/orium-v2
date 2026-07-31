@@ -75,12 +75,16 @@ export function BudgetCard({
   incomes,
   onEdit,
   edited,
+  handledDates = [],
 }: {
   budget: BudgetRow;
   entries: BudgetEntryRow[];
   incomes: IncomeItemRow[];
   onEdit: () => void;
   edited: boolean;
+  // T167: replenish occurrences already settled, so the countdown below moves
+  // on instead of insisting a replenishment is still due today.
+  handledDates?: string[];
 }) {
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [activeModal, setActiveModal] = useState<ActiveModal>(null);
@@ -102,7 +106,7 @@ export function BudgetCard({
   // income's. Manual budgets have neither, so replenishProgress returns
   // all-null and no countdown text renders.
   const rule = budgetReplenishRule(toEngineBudget(budget), linkedIncome ?? null);
-  const progress = replenishProgress(rule, today);
+  const progress = replenishProgress(rule, today, handledDates);
   // User follow-up (2026-07-24): the bar itself is money-based, not
   // time-based - see budgetProgressFraction's own comment. Unlike the old
   // time-only fraction, this renders for manual budgets too (previousDate/
@@ -119,6 +123,12 @@ export function BudgetCard({
   // schedule-mode budget shows its own human-readable rule the same way
   // Bills/Income/Debt/Savings rows already do (recurrenceSummary.ts).
   const replenishLabel = incomeName ? `Connected to ${incomeName}` : rule ? summarizeRecurrence(rule) : "Manual";
+  // T167: for an income-linked budget the pill above only names the income,
+  // so how often it actually arrives was invisible - the user had to open the
+  // income itself to find out. The rule is already resolved (it drives the
+  // countdown), so this is just showing what was there. Skipped for
+  // schedule-mode budgets, whose pill *is* the frequency summary already.
+  const frequencyLabel = incomeName && rule ? summarizeRecurrence(rule) : null;
 
   return (
     <div className="rounded-lg border border-notion-hairline bg-white p-4">
@@ -137,9 +147,21 @@ export function BudgetCard({
               {replenishLabel}
             </span>
           </div>
+          {frequencyLabel && <p className="mt-0.5 text-xs text-slate-400">{frequencyLabel}</p>}
           <p className={`text-xl font-semibold ${balance < 0 ? "text-red-600" : "text-notion-text"}`}>
             {formatCentavos(balance)}
           </p>
+          {/* T167: a newly created budget correctly shows ₱0 - nothing has
+              replenished into it yet - which left no sign anywhere of what it
+              was actually set up to hold. Showing the configured allocation
+              next to the running total answers "₱0 out of what?". Hidden when
+              there's no allocation to state (a purely manual budget), rather
+              than printing "of ₱0". */}
+          {budget.allocation > 0 && (
+            <p className="text-xs text-slate-500">
+              {formatCentavos(budget.allocation)} allocated per replenishment
+            </p>
+          )}
           {barFraction !== null && (
             <div className="mt-1 w-full">
               <ProgressBar percent={barFraction * 100} over={false} />

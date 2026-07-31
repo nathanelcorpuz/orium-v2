@@ -222,6 +222,39 @@ describe("replenishProgress", () => {
     expect(result.daysUntil).toBeNull();
     expect(result.fraction).toBeNull();
   });
+
+  // T167: without handledDates, asOf landing on a replenish day always reads
+  // as "still due today" even after that occurrence was actually settled -
+  // BudgetCard's "Replenishes today" label going stale for the rest of the
+  // day. handledDates skips past a settled occurrence to the real next one.
+  describe("handledDates (T167)", () => {
+    it("skips a handled occurrence landing on asOf itself", () => {
+      const result = replenishProgress(weeklyMonday, "2026-01-05", ["2026-01-05"]);
+      expect(result.nextDate).toBe("2026-01-12");
+      expect(result.daysUntil).toBe(7);
+    });
+
+    it("does not affect previousDate - only the forward search is filtered", () => {
+      const result = replenishProgress(weeklyMonday, "2026-01-10", ["2026-01-12"]);
+      expect(result.previousDate).toBe("2026-01-05");
+      expect(result.nextDate).toBe("2026-01-19");
+    });
+
+    it("is a no-op when nothing in range is handled", () => {
+      const withEmpty = replenishProgress(weeklyMonday, "2026-01-10", []);
+      const withoutArg = replenishProgress(weeklyMonday, "2026-01-10");
+      expect(withEmpty).toEqual(withoutArg);
+    });
+
+    it("still returns all-null for a manual budget regardless of handledDates", () => {
+      expect(replenishProgress(null, "2026-01-10", ["2026-01-10"])).toEqual({
+        previousDate: null,
+        nextDate: null,
+        daysUntil: null,
+        fraction: null,
+      });
+    });
+  });
 });
 
 describe("budgetProgressFraction", () => {

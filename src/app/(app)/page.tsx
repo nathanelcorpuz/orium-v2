@@ -126,6 +126,7 @@ export default async function Home({
     recurringItems,
     budgets,
     budgetEntries,
+    budgetReplenishOverrides,
     currency,
     balanceRanges,
     tierLabels,
@@ -467,7 +468,18 @@ export default async function Home({
                   ? recurringItems.find((item) => item.id === budget.linkedIncomeId) ?? null
                   : null;
                 const rule = budgetReplenishRule(budget, linkedIncome);
-                const progress = replenishProgress(rule, today);
+                // T167: same staleness fix as the Budgets page - without the
+                // already-settled dates this kept reading "Replenishes today"
+                // after the linked income had been settled and the money had
+                // already moved. Only `skipped` rows count as handled; a T168
+                // edit override describes an occurrence that is still coming.
+                const progress = replenishProgress(
+                  rule,
+                  today,
+                  budgetReplenishOverrides
+                    .filter((override) => override.budgetId === budget.id && override.skipped)
+                    .map((override) => override.originalDate),
+                );
                 // User follow-up (2026-07-24): the bar itself is
                 // money-based, not time-based - see budgetProgressFraction.
                 // Renders for manual budgets too now, not just scheduled

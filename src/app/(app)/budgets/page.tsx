@@ -36,7 +36,10 @@ export default async function BudgetsPage() {
     // the budget itself as edited - the table SPEC.md calls
     // "budget_occurrence_overrides" was dropped in migration 0010 and
     // replaced by this one in migration 0011 (T59).
-    supabase.from("budget_replenish_overrides").select("budget_id"),
+    // T167 adds original_date/skipped: BudgetCard's "days until replenish"
+    // needs to know which occurrences have already been settled, or it keeps
+    // saying "Replenishes today" after the money has already moved.
+    supabase.from("budget_replenish_overrides").select("budget_id, original_date, skipped"),
   ]);
 
   if (budgetsRes.error) {
@@ -90,12 +93,24 @@ export default async function BudgetsPage() {
 
   const editedIds = idSetFromColumn(replenishOverridesRes.data, "budget_id");
 
+  // T167: only *skipped* rows count as handled. A T168 edit override is also
+  // a row in this table but the occurrence it describes is still coming, so
+  // treating it as handled would skip a replenishment that hasn't happened.
+  const handledDatesByBudgetId: Record<string, string[]> = {};
+  for (const override of replenishOverridesRes.data ?? []) {
+    if (!override.skipped) continue;
+    const list = handledDatesByBudgetId[override.budget_id] ?? [];
+    list.push(override.original_date);
+    handledDatesByBudgetId[override.budget_id] = list;
+  }
+
   return (
     <BudgetsClient
       budgets={budgets}
       entriesByBudgetId={entriesByBudgetId}
       incomes={incomes}
       editedIds={editedIds}
+      handledDatesByBudgetId={handledDatesByBudgetId}
     />
   );
 }
