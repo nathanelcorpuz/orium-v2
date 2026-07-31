@@ -21,6 +21,10 @@ export interface RecurringItem {
   // Forecast settle modal defaults to this account and settling applies the
   // actual amount to it automatically - see ForecastRow.balanceId below.
   balanceId: string | null;
+  // T175: false hides this item from the forecast entirely, without deleting
+  // it. Optional so every existing fixture and test constructor stays valid;
+  // undefined means active, matching the DB default.
+  active?: boolean;
   // T155: the user's own note on the item, carried through to the Forecast
   // row so it can be surfaced there. Optional rather than required-nullable
   // like balanceId above, deliberately: the engine never reads it, it is
@@ -77,6 +81,8 @@ export interface OneOffItem {
   balanceId: string | null;
   // T155: see RecurringItem.comments above.
   comments?: string | null;
+  // T175: see RecurringItem.active above.
+  active?: boolean;
 }
 
 // Budgets v3 - a running ledger (SPEC.md Phase 10, T57 cutover). The old
@@ -90,6 +96,11 @@ export interface Budget {
   allocation: number; // centavos, >= 0 - how much gets added when this budget replenishes
   linkedIncomeId: string | null;
   createdAt: string; // YYYY-MM-DD
+  // T175: see RecurringItem.active. Excludes this budget's projected
+  // replenishments and future ledger entries from the forecast; the budget's
+  // own running total on the Budgets page is unaffected, since that is a
+  // record of money already moved rather than a projection.
+  active?: boolean;
 
   // Phase 11 (T58): a budget's own replenish schedule ("replenish every"),
   // set only when linkedIncomeId is null (DB-enforced mutual exclusivity -

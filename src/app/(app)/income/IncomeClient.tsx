@@ -10,6 +10,7 @@ import { AmountSortControl, sortByAmount, type SortOrder } from "@/components/Am
 import { MultiSelectChips } from "@/components/MultiSelectChips";
 import { ReorderButtons } from "@/components/ReorderButtons";
 import { SubmitButton } from "@/components/SubmitButton";
+import { ActiveToggle } from "@/components/ActiveToggle";
 import type { RecurrenceUnit } from "@/lib/engine/types";
 import { useOrderedList } from "@/lib/useOrderedList";
 import { deleteIncome } from "./actions";
@@ -231,7 +232,7 @@ export function IncomeClient({
               return (
               <li
                 key={income.id}
-                className="flex items-center justify-between rounded-lg border border-notion-hairline bg-white p-4"
+                className={`flex items-center justify-between rounded-lg border border-notion-hairline bg-white p-4 ${income.active === false ? "opacity-60" : ""}`}
               >
                 {canReorder && (
                   <ReorderButtons
@@ -250,6 +251,11 @@ export function IncomeClient({
                   <div className="flex flex-wrap items-center gap-1.5">
                     <p className="font-medium text-notion-text">
                       {income.name}
+                      {income.active === false && (
+                        <span className="ml-1.5 rounded-full bg-amber-100 px-1.5 py-0.5 text-xs font-medium text-amber-800">
+                          Off
+                        </span>
+                      )}
                       {editedIds.has(income.id) && (
                         <span className="ml-1.5 text-slate-400" title="Edited from its usual schedule">
                           ✎
@@ -305,6 +311,7 @@ export function IncomeClient({
                       >
                         Edit
                       </button>
+                      <ActiveToggle kind="recurring" id={income.id} active={income.active !== false} />
                       <button
                         type="button"
                         onClick={() => setConfirmingDeleteId(income.id)}

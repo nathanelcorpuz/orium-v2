@@ -26,6 +26,8 @@ export type BillRow = {
   occurrence_count: number | null;
   comments: string | null;
   balance_id: string | null;
+  // T175: false = temporarily switched off.
+  active?: boolean;
 };
 
 // T71: options for the optional "connected account" dropdown.

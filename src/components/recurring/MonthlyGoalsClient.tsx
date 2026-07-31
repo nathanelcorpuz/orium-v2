@@ -14,6 +14,7 @@ import { MultiSelectChips } from "@/components/MultiSelectChips";
 import { ProgressBar } from "@/components/ProgressBar";
 import { ReorderButtons } from "@/components/ReorderButtons";
 import { SubmitButton } from "@/components/SubmitButton";
+import { ActiveToggle } from "@/components/ActiveToggle";
 import type { ForecastRow, RecurrenceUnit } from "@/lib/engine/types";
 import type { RecurringItemActionState } from "@/lib/recurringItem";
 import { useOrderedList } from "@/lib/useOrderedList";
@@ -266,7 +267,7 @@ export function MonthlyGoalsClient({
               return (
                 <li
                   key={item.id}
-                  className="flex items-center justify-between rounded-lg border border-notion-hairline bg-white p-4"
+                  className={`flex items-center justify-between rounded-lg border border-notion-hairline bg-white p-4 ${item.active === false ? "opacity-60" : ""}`}
                 >
                   {canReorder && (
                     <ReorderButtons
@@ -298,6 +299,11 @@ export function MonthlyGoalsClient({
                     <div className="flex flex-wrap items-center gap-1.5">
                       <p className="font-medium text-notion-text">
                         {item.name}
+                        {item.active === false && (
+                          <span className="ml-1.5 rounded-full bg-amber-100 px-1.5 py-0.5 text-xs font-medium text-amber-800">
+                            Off
+                          </span>
+                        )}
                         {editedIds.has(item.id) && (
                           <span className="ml-1.5 text-slate-400" title="Edited from its usual schedule">
                             ✎
@@ -349,6 +355,7 @@ export function MonthlyGoalsClient({
                         >
                           Edit
                         </button>
+                        <ActiveToggle kind="recurring" id={item.id} active={item.active !== false} />
                         <button
                           type="button"
                           onClick={() => setConfirmingDeleteId(item.id)}

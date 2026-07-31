@@ -10,6 +10,9 @@ export type BudgetRow = {
   monthly_allocation: number;
   allocation: number;
   created_at: string;
+  // T175: undefined for callers that do not select it; the engine treats
+  // anything other than an explicit false as active.
+  active?: boolean;
   linked_income_id: string | null;
   // Phase 11 (T58): a budget's own replenish schedule ("replenish every"),
   // set only when linked_income_id is null - see engine/types.ts Budget.
@@ -41,6 +44,7 @@ export function toEngineBudget(budget: BudgetRow): Budget {
     name: budget.name,
     allocation: budget.allocation,
     createdAt: budget.created_at.slice(0, 10),
+    active: budget.active,
     linkedIncomeId: budget.linked_income_id,
     startDate: budget.start_date,
     interval: budget.interval,

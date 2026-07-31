@@ -10,6 +10,7 @@ import { MultiSelectChips } from "@/components/MultiSelectChips";
 import { AmountSortControl, sortByAmount, type SortOrder } from "@/components/AmountSortControl";
 import { ReorderButtons } from "@/components/ReorderButtons";
 import { SubmitButton } from "@/components/SubmitButton";
+import { ActiveToggle } from "@/components/ActiveToggle";
 import { useOrderedList } from "@/lib/useOrderedList";
 import { deleteExtra } from "./actions";
 import { ExtraModal, type BalanceOption, type ExtraRow } from "./ExtraModal";
@@ -184,7 +185,7 @@ export function ExtraClient({ extras, balances }: { extras: ExtraRow[]; balances
             {sortedExtras.map((extra, index) => (
               <li
                 key={extra.id}
-                className="flex items-center justify-between rounded-lg border border-notion-hairline bg-white p-4"
+                className={`flex items-center justify-between rounded-lg border border-notion-hairline bg-white p-4 ${extra.active === false ? "opacity-60" : ""}`}
               >
                 {canReorder && (
                   <ReorderButtons
@@ -197,6 +198,11 @@ export function ExtraClient({ extras, balances }: { extras: ExtraRow[]; balances
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-1.5">
                     <p className="font-medium text-notion-text">{extra.name}</p>
+                    {extra.active === false && (
+                      <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-xs font-medium text-amber-800">
+                        Off
+                      </span>
+                    )}
                     {extra.balance_id && (
                       <span className="rounded-full bg-notion-hover px-2 py-0.5 text-xs font-medium text-slate-500">
                         {balanceNameById.get(extra.balance_id) ?? "-"}
@@ -237,6 +243,7 @@ export function ExtraClient({ extras, balances }: { extras: ExtraRow[]; balances
                       >
                         Edit
                       </button>
+                      <ActiveToggle kind="one_off" id={extra.id} active={extra.active !== false} />
                       <button
                         type="button"
                         onClick={() => setConfirmingDeleteId(extra.id)}

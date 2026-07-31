@@ -61,7 +61,19 @@ export function generateForecast(input: GenerateForecastInput): ForecastRow[] {
   // already keys the income's own occurrence_overrides.
   const incomeEffectiveOccurrences = new Map<string, { originalDate: string; effectiveDate: string }[]>();
 
-  for (const item of recurringItems) {
+  // T175: a disabled item is excluded at the very top of expansion, before
+  // recurrence, overrides, budget replenishment or the running balance run.
+  // Filtering here rather than at each downstream calculation means every one
+  // of them - Peaks and Drops, lowest balance, past-due, and the replenish
+  // dates a budget borrows from its linked income - stays automatically
+  // consistent, with no separate exclusion logic to keep in sync.
+  //
+  // Compared against `false` explicitly rather than tested for falsiness, so
+  // an undefined value (older fixtures, and the DB default) means active.
+  const activeRecurringItems = recurringItems.filter((item) => item.active !== false);
+  const activeOneOffs = oneOffs.filter((oneOff) => oneOff.active !== false);
+
+  for (const item of activeRecurringItems) {
     // T150 (Bug #11): expand from the rule's own start date, not from today.
     // Occurrences before today used to be dropped on the assumption that
     // anything in the past had already been settled - production use showed
@@ -104,7 +116,7 @@ export function generateForecast(input: GenerateForecastInput): ForecastRow[] {
     }
   }
 
-  for (const oneOff of oneOffs) {
+  for (const oneOff of activeOneOffs) {
     // T150 (Bug #11): past-dated one-offs are kept too. This is the exact
     // case the user reported - a Jul 29 Misc payment that vanished on Jul 30,
     // taking a real Sep 1 negative balance with it. Settling a one-off
@@ -133,7 +145,11 @@ export function generateForecast(input: GenerateForecastInput): ForecastRow[] {
   // outgoing. Phase 11 adds one more kind of row above the ledger-entry
   // loop: a *projected* future replenish deduction, for whichever
   // occurrences haven't been settled/skipped yet (budget_replenish_overrides).
-  for (const budget of budgets) {
+  // T175: a disabled budget contributes nothing to the forecast - neither
+  // projected replenishments nor future-dated ledger entries. Its own running
+  // total on the Budgets page is deliberately untouched: that is a record of
+  // money already moved, not a projection, so hiding it would misstate history.
+  for (const budget of budgets.filter((b) => b.active !== false)) {
     // Phase 11 (T59): a real projected deduction on every future,
     // not-yet-settled/skipped replenish occurrence - a bill-like row, not
     // the old cycle model's soft reservation. Income-linked budgets use the

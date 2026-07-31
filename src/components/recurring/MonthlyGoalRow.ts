@@ -16,4 +16,6 @@ export type MonthlyGoalRow = {
   occurrence_count: number | null;
   comments: string | null;
   balance_id: string | null;
+  // T175: false = temporarily switched off.
+  active?: boolean;
 };

@@ -6,7 +6,7 @@ export default async function ExtraPage() {
   const [{ data: extras, error }, balancesRes] = await Promise.all([
     supabase
       .from("one_off_items")
-      .select("id, name, amount, due_date, comments, balance_id")
+      .select("id, name, amount, due_date, comments, balance_id, active")
       .order("due_date", { ascending: true }),
     // T71: options for the optional "connected account" dropdown.
     supabase.from("balances").select("id, name").order("name", { ascending: true }),

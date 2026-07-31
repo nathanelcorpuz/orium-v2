@@ -11,6 +11,7 @@ import { MultiSelectChips } from "@/components/MultiSelectChips";
 import { PreviewModeBar } from "@/components/PreviewModeBar";
 import { ReorderButtons } from "@/components/ReorderButtons";
 import { SubmitButton } from "@/components/SubmitButton";
+import { ActiveToggle } from "@/components/ActiveToggle";
 import type { RecurrenceUnit } from "@/lib/engine/types";
 import { useOrderedList } from "@/lib/useOrderedList";
 import { deleteBill } from "./actions";
@@ -226,7 +227,7 @@ export function BillsClient({
               return (
               <li
                 key={bill.id}
-                className="flex items-center justify-between rounded-lg border border-notion-hairline bg-white p-4"
+                className={`flex items-center justify-between rounded-lg border border-notion-hairline bg-white p-4 ${bill.active === false ? "opacity-60" : ""}`}
               >
                 {!previewMode && canReorder && (
                   <ReorderButtons
@@ -245,6 +246,11 @@ export function BillsClient({
                   <div className="flex flex-wrap items-center gap-1.5">
                     <p className="font-medium text-notion-text">
                       {bill.name}
+                      {bill.active === false && (
+                        <span className="ml-1.5 rounded-full bg-amber-100 px-1.5 py-0.5 text-xs font-medium text-amber-800">
+                          Off
+                        </span>
+                      )}
                       {editedIds.has(bill.id) && (
                         <span className="ml-1.5 text-slate-400" title="Edited from its usual schedule">
                           ✎
@@ -292,6 +298,7 @@ export function BillsClient({
                       >
                         Edit
                       </button>
+                      <ActiveToggle kind="recurring" id={bill.id} active={bill.active !== false} />
                       <button
                         type="button"
                         onClick={() => setConfirmingDeleteId(bill.id)}

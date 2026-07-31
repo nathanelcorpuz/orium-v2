@@ -11,7 +11,7 @@ export default async function DebtPage() {
     supabase
       .from("recurring_items")
       .select(
-        "id, name, amount, start_date, interval, unit, weekdays, days_of_month, ordinal, ordinal_weekday, ends_type, end_date, occurrence_count, comments, balance_id",
+        "id, name, amount, start_date, interval, unit, weekdays, days_of_month, ordinal, ordinal_weekday, ends_type, end_date, occurrence_count, comments, balance_id, active",
       )
       .eq("type", "debt")
       .order("end_date", { ascending: true }),

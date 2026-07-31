@@ -1091,3 +1091,121 @@ describe("generateForecast dueToday (T173)", () => {
     expect(rows.every((row) => row.dueToday === undefined)).toBe(true);
   });
 });
+
+// T175 (SPEC.md Phase 22): temporarily disabling a record hides it from the
+// forecast without deleting it, so the user can see the impact of dropping a
+// bill without losing its history. Filtered at the top of expansion, so the
+// interesting assertions are about everything downstream staying consistent.
+describe("generateForecast disabled records (T175)", () => {
+  it("excludes a disabled recurring item and its effect on the running balance", () => {
+    const active = monthlyItem({ id: "bill-1", name: "Rent", amount: -300000, daysOfMonth: [5] });
+    const disabled = monthlyItem({
+      id: "bill-2",
+      name: "Gym",
+      amount: -100000,
+      daysOfMonth: [5],
+      active: false,
+    });
+
+    const result = generateForecast({
+      balances: [{ id: "bal-1", name: "Cash", amount: 1000000 }],
+      recurringItems: [active, disabled],
+      overrides: [],
+      oneOffs: [],
+      today: "2026-01-01",
+      horizon: "2026-01-31",
+    });
+
+    expect(result.map((row) => row.name)).toEqual(["Rent"]);
+    // The disabled item leaves no trace in the balance either.
+    expect(result[0].runningBalance).toBe(700000);
+  });
+
+  it("excludes a disabled one-off", () => {
+    const result = generateForecast({
+      balances: [],
+      recurringItems: [],
+      overrides: [],
+      oneOffs: [
+        { id: "a", name: "Kept", amount: -100, dueDate: "2026-01-10", balanceId: null },
+        { id: "b", name: "Disabled", amount: -999, dueDate: "2026-01-11", balanceId: null, active: false },
+      ],
+      today: "2026-01-01",
+      horizon: "2026-01-31",
+    });
+
+    expect(result.map((row) => row.name)).toEqual(["Kept"]);
+  });
+
+  it("treats undefined active as active, so existing data is unaffected", () => {
+    const result = generateForecast({
+      balances: [],
+      recurringItems: [monthlyItem({ id: "bill-1", name: "Rent", daysOfMonth: [5] })],
+      overrides: [],
+      oneOffs: [{ id: "a", name: "Extra", amount: -100, dueDate: "2026-01-10", balanceId: null }],
+      today: "2026-01-01",
+      horizon: "2026-01-31",
+    });
+
+    expect(result.map((row) => row.name)).toEqual(["Rent", "Extra"]);
+  });
+
+  it("disabling an income also stops its linked budget replenishing", () => {
+    // The linked budget borrows its replenish dates from the income's own
+    // occurrences, so filtering the income at the top of expansion has to
+    // take the budget's projected rows with it - the whole point of
+    // filtering there rather than per-calculation.
+    const income = monthlyItem({
+      id: "income-1",
+      name: "Salary",
+      type: "income",
+      amount: 5000000,
+      daysOfMonth: [5],
+      active: false,
+    });
+    const budget = testBudget({ id: "budget-1", name: "Groceries", linkedIncomeId: "income-1" });
+
+    const result = generateForecast({
+      balances: [],
+      recurringItems: [income],
+      overrides: [],
+      oneOffs: [],
+      budgets: [budget],
+      budgetEntries: [],
+      budgetReplenishOverrides: [],
+      today: "2026-01-01",
+      horizon: "2026-01-31",
+    });
+
+    expect(result).toEqual([]);
+  });
+
+  it("excludes a disabled budget's projected replenishments", () => {
+    const budget = testBudget({
+      id: "budget-1",
+      name: "Groceries",
+      allocation: 500000,
+      linkedIncomeId: null,
+      startDate: "2026-01-05",
+      interval: 1,
+      unit: "month",
+      daysOfMonth: [5],
+      endsType: "never",
+      active: false,
+    });
+
+    const result = generateForecast({
+      balances: [],
+      recurringItems: [],
+      overrides: [],
+      oneOffs: [],
+      budgets: [budget],
+      budgetEntries: [],
+      budgetReplenishOverrides: [],
+      today: "2026-01-01",
+      horizon: "2026-02-28",
+    });
+
+    expect(result).toEqual([]);
+  });
+});

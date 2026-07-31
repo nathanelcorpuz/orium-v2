@@ -12,7 +12,8 @@ import {
 import { toEngineBudget } from "@/lib/budgetView";
 import { ProgressBar } from "@/components/ProgressBar";
 import { SubmitButton } from "@/components/SubmitButton";
-import { CheckIcon, CloseIcon, DeleteIcon, EditIcon } from "@/components/navIcons";
+import { CheckIcon, CloseIcon, DeleteIcon, EditIcon, EyeIcon, EyeOffIcon } from "@/components/navIcons";
+import { toggleRecordActive } from "@/app/(app)/toggleActive";
 import { summarizeRecurrence } from "@/lib/recurrenceSummary";
 import type { BudgetEntry, RecurrenceEndsType, RecurrenceUnit } from "@/lib/engine/types";
 import type { BudgetRow } from "@/lib/budgetView";
@@ -131,9 +132,11 @@ export function BudgetCard({
   // countdown), so this is just showing what was there. Skipped for
   // schedule-mode budgets, whose pill *is* the frequency summary already.
   const frequencyLabel = incomeName && rule ? summarizeRecurrence(rule) : null;
+  // T175: undefined (older rows, or a fixture that never set it) means active.
+  const isActive = budget.active !== false;
 
   return (
-    <div className="rounded-lg border border-notion-hairline bg-white p-4">
+    <div className={`rounded-lg border border-notion-hairline bg-white p-4 ${isActive ? "" : "opacity-60"}`}>
       <div className="mb-3 flex items-start justify-between">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
@@ -203,6 +206,27 @@ export function BudgetCard({
             </>
           ) : (
             <>
+              {/* T175: matches this card's existing icon-button language
+                  (T112) rather than the text-button ActiveToggle used on the
+                  four recurring-item pages and Misc, which have no icon
+                  buttons to match. */}
+              <form action={toggleRecordActive}>
+                <input type="hidden" name="kind" value="budget" />
+                <input type="hidden" name="id" value={budget.id} />
+                <input type="hidden" name="active" value={isActive ? "false" : "true"} />
+                <SubmitButton
+                  title={
+                    isActive
+                      ? "Temporarily switch off - excludes it from the forecast without deleting it"
+                      : "Switch back on"
+                  }
+                  aria-label={isActive ? "Switch budget off" : "Switch budget on"}
+                  className={`rounded p-1 hover:bg-notion-hover ${isActive ? "text-slate-400 hover:text-notion-text" : "text-amber-600 hover:text-amber-700"}`}
+                  spinnerClassName="h-3.5 w-3.5"
+                >
+                  {isActive ? <EyeIcon className="h-3.5 w-3.5" /> : <EyeOffIcon className="h-3.5 w-3.5" />}
+                </SubmitButton>
+              </form>
               <button
                 type="button"
                 onClick={onEdit}
