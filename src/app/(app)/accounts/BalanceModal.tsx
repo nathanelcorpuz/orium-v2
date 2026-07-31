@@ -7,6 +7,26 @@ import { FormTip } from "@/components/FormTip";
 import { centavosToPesosString, formatCentavos } from "@/lib/money";
 import { createBalance, updateBalance, disconnectItem, type BalanceActionState } from "./actions";
 import type { ConnectedItem } from "@/lib/connectedItems";
+import { TYPE_COLOR, TYPE_LABEL } from "@/lib/forecastLabels";
+
+// T179: connected items grouped by type rather than one flat list, in this
+// fixed order (matches the sidebar's own Bills/Income/Debt/Savings/Misc
+// order) - a "which of my bills point here?" question reads faster grouped
+// than scanning a mixed list for the right label. Budgets never appear here
+// (T71 only ever links recurring_items/one_off_items to a balance).
+const GROUP_ORDER: ConnectedItem["type"][] = ["bill", "income", "debt", "savings", "extra"];
+
+function groupConnectedItems(items: ConnectedItem[]) {
+  const byType = new Map<string, ConnectedItem[]>();
+  for (const item of items) {
+    const list = byType.get(item.type) ?? [];
+    list.push(item);
+    byType.set(item.type, list);
+  }
+  return GROUP_ORDER.map((type) => ({ type, items: byType.get(type) ?? [] })).filter(
+    (group) => group.items.length > 0,
+  );
+}
 
 export type BalanceRow = {
   id: string;
@@ -166,35 +186,51 @@ export function BalanceModal({
 
       {isEdit && (
         <div className="mt-6 border-t border-notion-hairline pt-4">
-          <p className="mb-2 text-sm font-medium text-notion-text">Connected items</p>
+          <p className="mb-2 text-sm font-medium text-notion-text">
+            Connected items
+            {connectedItems.length > 0 && (
+              <span className="ml-1 font-normal text-slate-400">({connectedItems.length})</span>
+            )}
+          </p>
           {connectedItems.length === 0 ? (
             <p className="text-sm text-slate-400">No bills, income, debt, savings, or extras point here.</p>
           ) : (
-            <ul className="space-y-1">
-              {connectedItems.map((item) => (
-                <li
-                  key={`${item.sourceType}-${item.id}`}
-                  className="flex items-center justify-between text-sm text-notion-text"
-                >
-                  <span>
-                    {item.name}{" "}
-                    <span className="text-slate-400">
-                      ({item.type}, {formatCentavos(Math.abs(item.amount))})
-                    </span>
-                  </span>
-                  <form action={disconnectItem}>
-                    <input type="hidden" name="sourceType" value={item.sourceType} />
-                    <input type="hidden" name="id" value={item.id} />
-                    <SubmitButton
-                      className="text-xs text-red-600 underline hover:text-red-700 disabled:opacity-50"
-                      spinnerClassName="h-3 w-3"
-                    >
-                      Disconnect
-                    </SubmitButton>
-                  </form>
-                </li>
-              ))}
-            </ul>
+            <div className="space-y-3">
+              {groupConnectedItems(connectedItems).map((group) => {
+                const colorClass = TYPE_COLOR[group.type as keyof typeof TYPE_COLOR] ?? "text-notion-text";
+                const label = TYPE_LABEL[group.type as keyof typeof TYPE_LABEL] ?? group.type;
+                return (
+                  <div key={group.type}>
+                    <p className={`mb-1 text-xs font-semibold capitalize ${colorClass}`}>
+                      {label} ({group.items.length})
+                    </p>
+                    <ul className="space-y-1 border-l-2 border-notion-hairline pl-2">
+                      {group.items.map((item) => (
+                        <li
+                          key={`${item.sourceType}-${item.id}`}
+                          className="flex items-center justify-between gap-2 text-sm text-notion-text"
+                        >
+                          <span className="min-w-0 truncate">{item.name}</span>
+                          <span className={`shrink-0 ${colorClass}`}>
+                            {formatCentavos(Math.abs(item.amount))}
+                          </span>
+                          <form action={disconnectItem} className="shrink-0">
+                            <input type="hidden" name="sourceType" value={item.sourceType} />
+                            <input type="hidden" name="id" value={item.id} />
+                            <SubmitButton
+                              className="text-xs text-red-600 underline hover:text-red-700 disabled:opacity-50"
+                              spinnerClassName="h-3 w-3"
+                            >
+                              Disconnect
+                            </SubmitButton>
+                          </form>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                );
+              })}
+            </div>
           )}
         </div>
       )}
