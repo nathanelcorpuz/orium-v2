@@ -2,6 +2,8 @@ import { createClient } from "@/lib/supabase/server";
 import { getSampleFixtureData } from "@/lib/sampleFixture";
 import { connectedItemsFromFixture } from "@/lib/connectedItems";
 import { loadConnectedItems } from "@/lib/connectedItemsData";
+import { loadForecast } from "@/lib/forecastData";
+import { findAccountLowestPoints } from "@/lib/engine/accountBalances";
 import { BalancesClient } from "./BalancesClient";
 
 export default async function BalancesPage({
@@ -29,7 +31,7 @@ export default async function BalancesPage({
   const supabase = await createClient();
   // T71's connected-items queries moved into `loadConnectedItems` (T152) so
   // the Forecast page can build the same data for the same modal.
-  const [{ data: balances, error }, connectedItems, transactionsRes] = await Promise.all([
+  const [{ data: balances, error }, connectedItems, transactionsRes, forecastData] = await Promise.all([
     supabase
       .from("balances")
       .select("id, name, amount, comments, transaction_fee_centavos")
@@ -41,6 +43,10 @@ export default async function BalancesPage({
       .from("balance_transactions")
       .select("id, balance_id, entry_date, amount, direction, note, created_at")
       .order("created_at", { ascending: false }),
+    // T180 follow-up (user feedback: the Forecast page's hover-only tooltip
+    // was too easy to miss): the same per-account "lowest projected
+    // balance" stat, shown directly and visibly on this page instead.
+    loadForecast(),
   ]);
 
   if (error) {
@@ -54,11 +60,20 @@ export default async function BalancesPage({
     transactionsByBalanceId.set(row.balance_id, list);
   }
 
+  const lowestPointByBalanceId = findAccountLowestPoints(
+    forecastData.forecast,
+    forecastData.balances,
+    forecastData.today,
+  );
+
   return (
     <BalancesClient
       balances={balances ?? []}
       connectedItems={connectedItems}
       transactionsByBalanceId={transactionsByBalanceId}
+      lowestPointByBalanceId={lowestPointByBalanceId}
+      currency={forecastData.currency}
+      today={forecastData.today}
     />
   );
 }

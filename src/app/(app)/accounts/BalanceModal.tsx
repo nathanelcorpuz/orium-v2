@@ -4,7 +4,7 @@ import { useActionState, useEffect, useRef, useState } from "react";
 import { Modal } from "@/components/Modal";
 import { SubmitButton } from "@/components/SubmitButton";
 import { FormTip } from "@/components/FormTip";
-import { ChevronIcon } from "@/components/navIcons";
+import { ChevronIcon, CloseIcon } from "@/components/navIcons";
 import { centavosToPesosString, formatCentavos } from "@/lib/money";
 import { createBalance, updateBalance, disconnectItem, type BalanceActionState } from "./actions";
 import type { ConnectedItem } from "@/lib/connectedItems";
@@ -84,6 +84,11 @@ export function BalanceModal({
   // persisted anywhere since it's a transient per-open preference on a
   // modal that closes and forgets its own state anyway.
   const [connectedItemsOpen, setConnectedItemsOpen] = useState(true);
+  // User feedback: disconnecting needs a confirm step, matching the
+  // inline-confirm pattern every Delete button in this app already uses
+  // (e.g. BillsClient's own confirmingDeleteId), rather than a bare,
+  // always-visible "Disconnect" link one accidental click away.
+  const [confirmingDisconnectKey, setConfirmingDisconnectKey] = useState<string | null>(null);
 
   useEffect(() => {
     if (submitted.current && !pending && !state.error) {
@@ -236,28 +241,51 @@ export function BalanceModal({
                     <p className={`mb-1 text-xs font-semibold capitalize ${colorClass}`}>
                       {label} ({group.items.length})
                     </p>
-                    <ul className="space-y-1 border-l-2 border-notion-hairline pl-2">
-                      {group.items.map((item) => (
-                        <li
-                          key={`${item.sourceType}-${item.id}`}
-                          className="flex items-center justify-between gap-2 text-sm text-notion-text"
-                        >
-                          <span className="min-w-0 truncate">{item.name}</span>
-                          <span className={`shrink-0 ${colorClass}`}>
-                            {formatCentavos(Math.abs(item.amount))}
-                          </span>
-                          <form action={disconnectItem} className="shrink-0">
-                            <input type="hidden" name="sourceType" value={item.sourceType} />
-                            <input type="hidden" name="id" value={item.id} />
-                            <SubmitButton
-                              className="text-xs text-red-600 underline hover:text-red-700 disabled:opacity-50"
-                              spinnerClassName="h-3 w-3"
-                            >
-                              Disconnect
-                            </SubmitButton>
-                          </form>
-                        </li>
-                      ))}
+                    <ul className="divide-y divide-notion-hairline border-l-2 border-notion-hairline pl-2">
+                      {group.items.map((item) => {
+                        const key = `${item.sourceType}-${item.id}`;
+                        const confirming = confirmingDisconnectKey === key;
+                        return (
+                          <li key={key} className="flex items-center gap-2 py-1.5 text-sm text-notion-text">
+                            <span className="min-w-0 flex-1 truncate">{item.name}</span>
+                            <span className={`w-24 shrink-0 text-right tabular-nums ${colorClass}`}>
+                              {formatCentavos(Math.abs(item.amount))}
+                            </span>
+                            {confirming ? (
+                              <div className="flex shrink-0 items-center gap-1">
+                                <span className="text-xs text-slate-500">Disconnect?</span>
+                                <form action={disconnectItem}>
+                                  <input type="hidden" name="sourceType" value={item.sourceType} />
+                                  <input type="hidden" name="id" value={item.id} />
+                                  <SubmitButton
+                                    className="rounded px-1.5 py-0.5 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-50"
+                                    spinnerClassName="h-3 w-3"
+                                  >
+                                    Yes
+                                  </SubmitButton>
+                                </form>
+                                <button
+                                  type="button"
+                                  onClick={() => setConfirmingDisconnectKey(null)}
+                                  className="rounded px-1.5 py-0.5 text-xs text-slate-400 hover:bg-notion-hover hover:text-notion-text"
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => setConfirmingDisconnectKey(key)}
+                                title="Disconnect from this account"
+                                aria-label="Disconnect from this account"
+                                className="shrink-0 rounded p-1 text-slate-300 hover:bg-red-50 hover:text-red-600"
+                              >
+                                <CloseIcon className="h-3.5 w-3.5" />
+                              </button>
+                            )}
+                          </li>
+                        );
+                      })}
                     </ul>
                   </div>
                 );

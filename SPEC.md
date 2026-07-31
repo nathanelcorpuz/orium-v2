@@ -32,6 +32,7 @@ v1 (shipped) rebuilt the original Orium (github.com/nathanelcorpuz/orium) on a c
 4. **The forecast engine is pure TypeScript** in `src/lib/engine/` — no database or network calls, fully unit-tested.
 5. **Every table has `user_id`** with owner-only RLS.
 6. **Make sure any edge cases are handled properly when fixing bugs or adding/editing new features.**
+7. **Always keep UI and UX clean on any changes made, responsive on all devices.**
 
 ## Data model (Postgres — migrations in `supabase/migrations/`)
 
@@ -450,6 +451,10 @@ Full build write-ups live in **ARCHIVE.md**, in this same order. This index exis
 - **T186.** Add/Take/Move funds for accounts, replacing blind balance edits.
 - **T187.** Updates stays unread until explicit action; its own filters and lazy loading.
 - **T188.** View and edit a finance item's modified future transactions from its own page.
+
+**Phase 24 — Accounts page UX pass (done 2026-08-01)**
+
+- **T189.** Connected-items redesign (icon-based disconnect + confirm step), decluttered account row (icon buttons for History/Edit/Delete), and the per-account forecast stat surfaced visibly here too, not just on Forecast's hover tooltip.
 
 ### Out of scope
 Payments/subscriptions, mobile app, notifications, bank sync, multi-user families.
