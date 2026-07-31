@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { expandRecurrenceOccurrences } from "./recurrence";
+import { addYears, MAX_TRACKING_YEARS } from "./date-utils";
 import type { RecurrenceRule } from "./types";
 
 // Shared defaults so each test only overrides what it's testing.
@@ -325,6 +326,29 @@ describe("expandRecurrenceOccurrences - day and year units", () => {
       "2028-12-31",
     );
     expect(dates).toEqual(["2024-02-29", "2025-02-28", "2026-02-28", "2027-02-28", "2028-02-29"]);
+  });
+
+  // T171 (2026-07-31): the tracking horizon rose from 5 to 50 years, and
+  // recurrence.ts's own MAX_PERIODS backstop is what makes a daily rule
+  // actually able to reach that far - unit="day" is the one case where
+  // periodIndex counts individual days one-for-one, so it needs the most
+  // periods of any unit for a given horizon. A flat, unrelated MAX_PERIODS
+  // would silently truncate the rule partway with no error - this proves it
+  // doesn't, for exactly the horizon the app now promises.
+  it("day: reaches the full MAX_TRACKING_YEARS horizon without silently truncating", () => {
+    const today = "2026-01-01";
+    const horizon = addYears(today, MAX_TRACKING_YEARS);
+
+    const dates = expandRecurrenceOccurrences(
+      rule({ unit: "day", interval: 1, startDate: today, endsType: "never", endDate: null }),
+      today,
+      horizon,
+    );
+
+    expect(dates[dates.length - 1]).toBe(horizon);
+    // Every calendar day in the window, not merely reaching the last one -
+    // rules out an off-by-something that happens to land on the final date.
+    expect(dates.length).toBe(365 * MAX_TRACKING_YEARS + Math.floor(MAX_TRACKING_YEARS / 4) + 1);
   });
 });
 

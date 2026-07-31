@@ -20,12 +20,16 @@ export function addYears(dateStr: string, years: number): string {
   return formatDate(date.getUTCFullYear(), date.getUTCMonth() + 1, date.getUTCDate());
 }
 
-// T85 (SPEC.md): the free-tier cap on how far into the future anything can
-// be tracked or scheduled - shared by the forecast horizon
-// (forecastData.ts) and recurrence/one-off end-date validation
-// (recurrenceForm.ts, extra/actions.ts) so both stay in sync. Raising this
-// for a future paid tier (10/15/20 years) is a one-line change here.
-export const MAX_TRACKING_YEARS = 5;
+// T85 (SPEC.md), raised 5 -> 50 by T171 (user's own final decision,
+// 2026-07-31, superseding T146's "keep 5" and the unscoped "raise to 25"
+// discussion that preceded it - see SPEC.md's Roadmap): the cap on how far
+// into the future anything can be tracked or scheduled - shared by the
+// forecast horizon (forecastData.ts) and recurrence/one-off end-date
+// validation (recurrenceForm.ts, misc/actions.ts) so both stay in sync.
+// `recurrence.ts`'s MAX_PERIODS is derived from this constant specifically
+// so a daily-recurring rule can still reach the full horizon rather than
+// silently truncating partway - see that file's comment.
+export const MAX_TRACKING_YEARS = 50;
 
 export function daysBetween(a: string, b: string): number {
   const toUTC = (s: string) => {

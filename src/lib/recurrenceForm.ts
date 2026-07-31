@@ -68,10 +68,10 @@ export function readRecurrenceRuleForm(
     return { error: "Choose a day of the month or a weekday pattern." };
   }
 
-  // T85: the free-tier tracking cap, anchored to today (not to this rule's
-  // own start date) - "5 years from present day" per the user's own
-  // framing. Applies to the rule's start, an explicit on_date end, and an
-  // after_count rule's resolved last occurrence alike.
+  // T85, raised 5 -> 50 by T171: the tracking cap, anchored to today (not to
+  // this rule's own start date) - "N years from present day" per the user's
+  // own framing. Applies to the rule's start, an explicit on_date end, and
+  // an after_count rule's resolved last occurrence alike.
   const today = todayInManila();
   const maxTrackingDate = addYears(today, MAX_TRACKING_YEARS);
   if (startDate && startDate > maxTrackingDate) {

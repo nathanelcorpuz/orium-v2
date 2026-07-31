@@ -1,11 +1,22 @@
 import type { RecurrenceRule } from "./types";
-import { addDays, clampDayOfMonth, daysInMonth, formatDate } from "./date-utils";
+import { addDays, clampDayOfMonth, daysInMonth, formatDate, MAX_TRACKING_YEARS } from "./date-utils";
 
-// Defensive upper bound on periods scanned (weeks/months/years/day-steps).
-// Never expected to bind for realistic schedules: even a daily item over a
-// century is ~36,500 periods... this caps far short of that on purpose, as
-// a backstop against a runaway loop from a future bug, not a real limit.
-const MAX_PERIODS = 10000;
+// Upper bound on periods scanned (weeks/months/years/day-steps) - meant as a
+// defensive backstop against a runaway loop, not a real limit, so it has to
+// stay comfortably above whatever a legitimate rule could need.
+//
+// T171 (2026-07-31): this used to be a flat 10000, which quietly broke once
+// MAX_TRACKING_YEARS rose from 5 to 50 - the tightest case is a daily rule
+// (unit="day"), where periodIndex counts individual days one-for-one, so
+// reaching a 50-year horizon needs roughly 50 x 366 ~= 18,300 periods. A flat
+// 10000 would have silently truncated any daily-recurring bill/income/debt/
+// savings item at ~27 years instead of the full 50 the app now promises - no
+// error, just a forecast that quietly stops early. Deriving this from
+// MAX_TRACKING_YEARS means the two constants can never drift back out of
+// sync the same way if the horizon changes again. Every other unit needs far
+// fewer periods (week: ~52/yr, month: 12/yr, year: 1/yr), so the day-unit
+// worst case is what sizes this for all of them.
+const MAX_PERIODS = (MAX_TRACKING_YEARS + 5) * 366;
 
 function dowOf(year: number, month: number, day: number): number {
   return new Date(Date.UTC(year, month - 1, day)).getUTCDay(); // 0=Sun..6=Sat
