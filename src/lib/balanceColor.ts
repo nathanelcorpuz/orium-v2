@@ -59,3 +59,20 @@ export function lowestBalanceLabel(balance: number, ranges: number[], customLabe
   const labels = customLabels && customLabels.length === TIER_ORDER.length ? customLabels : DEFAULT_TIER_LABELS;
   return labels[index];
 }
+
+// T153 (Bug #13): the companion "first crossing" stat on the Dashboard and
+// Forecast header. `findFirstDangerPoint` finds where the balance first
+// crosses the user's *danger threshold* (balance_ranges[0]), which equals
+// zero only for someone who left it at the default - so the hardcoded
+// "First goes negative" was simply wrong for anyone with a positive floor,
+// telling a user with a ₱5,000 danger threshold that a ₱3,000 balance was
+// negative. Both call sites also render the figure through Math.abs(), so
+// the wording is the only thing distinguishing a genuine deficit from a
+// low-but-positive balance.
+//
+// Deliberately not reusing the user-editable tier labels above: those read
+// as complete phrases for the "lowest balance" stat ("⚠ Goes negative by"),
+// and "First ⚠ Goes negative by:" is not a sentence.
+export function firstDangerLabel(balance: number): string {
+  return balance < 0 ? "First goes negative:" : "First hits danger:";
+}

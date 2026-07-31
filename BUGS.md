@@ -11,20 +11,6 @@ Format per bug: steps to reproduce → what happened → what was expected. Clau
 - **Root cause (identified, not yet fixed)**: this is current engine behavior, not an accident. `src/lib/engine/forecast.ts:92` does `if (oneOff.dueDate < today) continue;` for one-offs, and every recurring rule is expanded from `today` forward via `expandRecurrenceOccurrences(rule, today, horizon)` (same file, line 65). SPEC.md's engine section states the intent explicitly: *"Occurrences strictly before `today` are excluded (they belong in settlements)."* The assumption was that anything in the past has either been settled or is no longer real. Production use disproved that: the gap between "due" and "settled" is exactly where a cash-flow app earns its keep.
 - **Why this needs a spec decision first**: fixing it changes what "running balance" means (the forecast would open with a backlog rather than at today's balance), and it interacts with how far back to look (all history, or a bounded window?). Scoped as **T150** in SPEC.md Phase 20, which carries the decision.
 
-### Bug #12 - Forecast's balance chips open an account without its connected finances
-- **Reproduce**: on `/forecast`, click a balance chip at the top to edit that account. Compare against opening the same account from `/accounts`. Reported by the user 2026-07-30.
-- **What happened**: the Forecast's version of the modal has no "connected items" section at all, so the bills/income/debt/savings/extras linked to that account (T71) are invisible there. From `/accounts` the same modal lists them and offers Disconnect.
-- **Expected**: the same account shows the same information from either entry point.
-- **Root cause (identified, not yet fixed)**: a deliberate omission that has outlived its reasoning. `BalanceModal.tsx` defaults `connectedItems = []` with a comment explaining the Forecast page opens it "without fetching connected-items data - the section below simply doesn't render there." `BalancesClient.tsx:121` passes the real filtered list; `ForecastClient.tsx:642` passes nothing. The fix is to fetch and thread that data through the Forecast page too, not to change the modal.
-- Scoped as **T152** in SPEC.md Phase 20.
-
-### Bug #13 - "First goes negative" is the wrong label when the danger threshold is not zero
-- **Reproduce**: in Settings, set the lowest balance range (danger) to something above zero, e.g. ₱5,000. Then view the Dashboard and Forecast "First goes negative" line. Reported by the user 2026-07-30.
-- **What happened**: the label always reads "First goes negative" even when the balance being flagged never actually goes below zero - it only crosses the user's own danger threshold.
-- **Expected**: say "First goes negative" only when the figure is genuinely below zero; otherwise say something threshold-accurate, e.g. "First hits danger". The user proposed both the general rename and the conditional version, and preferred the conditional one.
-- **Root cause (identified, not yet fixed)**: hardcoded copy in two places - `src/app/(app)/forecast/ForecastClient.tsx:405` and `src/app/(app)/page.tsx:274`. Both render `findFirstDangerPoint(forecast, totalBalance, balanceRanges[0], today)`, which by its own name finds the first crossing of the user's **danger threshold**, not zero - the label was simply never updated to match the function. The display also runs the figure through `Math.abs()`, so a positive danger balance like ₱3,000 prints as "₱3,000.00" under the word "negative" with nothing to signal it is actually above zero. The tier machinery to phrase this properly already exists from T76/T80 (`balanceRangeTier` plus the user-editable tier labels in `src/lib/balanceColor.ts`), so this is wiring existing logic into a label, not new logic.
-- Scoped as **T153** in SPEC.md Phase 20.
-
 ### Bug #14 - Settling an income linked to a budget double-counts the allocation (real money, live data)
 - **Reproduce**: link a budget with an allocation (e.g. ₱1,000) to an income (e.g. ₱20,000). Settle one occurrence of that income with an account selected. Check the account balance and the budget's running total. Found 2026-07-31 while scoping the user's "20,000 income minus 1,000 budget = 19,000" request, which turns out to describe this bug rather than a missing feature.
 - **What happened (traced in code, not yet confirmed against live data)**: the full ₱20,000 lands in the cash account *and* ₱1,000 lands in the budget ledger. The same ₱1,000 is now counted twice. Meanwhile the Forecast had already projected the ₱1,000 as a real deduction before settling (T59), so settling makes the actual balance land ₱1,000 *above* what the forecast promised - the opposite direction from Bug #11, and equally misleading.
@@ -34,6 +20,18 @@ Format per bug: steps to reproduce → what happened → what was expected. Clau
 - Scoped as **T151** in SPEC.md Phase 20.
 
 ## Fixed
+
+### Bug #13 - "First goes negative" is the wrong label when the danger threshold is not zero
+- **Reproduce**: in Settings, set the lowest balance range (danger) to something above zero, e.g. ₱5,000. Then view the Dashboard and Forecast "First goes negative" line. Reported by the user 2026-07-30.
+- **What happened**: the label always read "First goes negative" even when the balance being flagged never actually went below zero - it only crossed the user's own danger threshold. The figure was also passed through `Math.abs()`, so a positive ₱3,000 danger balance printed as "₱3,000.00" directly under the word "negative".
+- **Expected**: say "First goes negative" only when the figure is genuinely below zero; otherwise something threshold-accurate. The user proposed both a blanket rename and a conditional version, and preferred the conditional one.
+- **Fixed by**: **T153** in SPEC.md Phase 20 - new `firstDangerLabel()` in `src/lib/balanceColor.ts`, wired into both call sites. The label had simply never been updated to match `findFirstDangerPoint`, which by its own name reports a danger-threshold crossing rather than a zero crossing. See T153's write-up, including why T80's user-editable tier labels were deliberately not reused here.
+
+### Bug #12 - Forecast's balance chips open an account without its connected finances
+- **Reproduce**: on `/forecast`, click a balance chip at the top to edit that account. Compare against opening the same account from `/accounts`. Reported by the user 2026-07-30.
+- **What happened**: the Forecast's version of the modal had no "connected items" section at all, so the bills/income/debt/savings/extras linked to that account (T71) were invisible there. From `/accounts` the same modal lists them and offers Disconnect.
+- **Expected**: the same account shows the same information from either entry point.
+- **Fixed by**: **T152** in SPEC.md Phase 20. The real cause was duplication rather than an oversight - the queries were inlined in `accounts/page.tsx` and the type lived in `accounts/BalancesClient.tsx`, so the Forecast page had nothing shared to call, and `BalanceModal`'s `connectedItems = []` default absorbed the gap silently. Fixed by extracting `src/lib/connectedItems.ts` (pure) and `src/lib/connectedItemsData.ts` (the Supabase query) and having both pages call the same code. See T152's write-up for the split's reasoning and for what could not be browser-verified this session.
 
 ### Bug #10 - Deleting a future budget entry from Forecast closed the modal before the delete finished
 - **Reproduce**: log a spend/add funds on a manual budget dated in the future, open it from the Forecast table, click "Delete this entry." Flagged as a known gap in T133 (2026-07-27), confirmed and fixed during the T134 mobile stress-test pass (2026-07-28).

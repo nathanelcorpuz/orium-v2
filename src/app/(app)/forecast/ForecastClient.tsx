@@ -3,7 +3,7 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { formatCentavos } from "@/lib/money";
 import { formatFullDate } from "@/lib/date";
-import { balanceRangeColorClass, balanceRangeTier, lowestBalanceLabel } from "@/lib/balanceColor";
+import { balanceRangeColorClass, balanceRangeTier, firstDangerLabel, lowestBalanceLabel } from "@/lib/balanceColor";
 import { BalanceModal, type BalanceRow } from "@/app/(app)/accounts/BalanceModal";
 import { AmountRangeFilter, matchesAmountFilter, type ComparisonOp } from "@/components/AmountRangeFilter";
 import { MultiSelectChips } from "@/components/MultiSelectChips";
@@ -12,6 +12,7 @@ import { DatePicker } from "@/components/DatePicker";
 import { ChevronIcon } from "@/components/navIcons";
 import { PreviewModeBar } from "@/components/PreviewModeBar";
 import type { ForecastRow } from "@/lib/engine/types";
+import type { ConnectedItem } from "@/lib/connectedItems";
 import type { LowestBalancePoint } from "@/lib/engine/lowestBalance";
 import { EditSettleModal } from "./EditSettleModal";
 import { RemindersPanel, type ReminderRow } from "./RemindersPanel";
@@ -132,6 +133,7 @@ export function ForecastClient({
   balanceRanges,
   tierLabels,
   reminders,
+  connectedItems,
   lowestBalance,
   firstDanger,
   previewMode = false,
@@ -142,6 +144,10 @@ export function ForecastClient({
   balanceRanges: number[];
   tierLabels: string[];
   reminders: ReminderRow[];
+  // T152 (Bug #12): passed straight through to `BalanceModal` so an account
+  // opened from a balance chip here shows the same connected bills/income/
+  // debt/savings/extras it shows when opened from the Balances page.
+  connectedItems: ConnectedItem[];
   lowestBalance: LowestBalancePoint;
   firstDanger: LowestBalancePoint | null;
   // T103: opt-in sample-data preview - real financial data isn't touched by
@@ -402,7 +408,7 @@ export function ForecastClient({
                     date than the lowest point above. */}
                 {firstDanger && firstDanger.date !== lowestBalance.date && (
                   <p className="text-sm text-slate-500">
-                    First goes negative:{" "}
+                    {firstDangerLabel(firstDanger.balance)}{" "}
                     <span className="inline-block rounded bg-slate-900 px-1.5 py-0.5 text-white">
                       {formatCentavos(Math.abs(firstDanger.balance), currency)}
                     </span>{" "}
@@ -639,7 +645,11 @@ export function ForecastClient({
       </div>
 
       {editingBalance && (
-        <BalanceModal balance={editingBalance} onClose={() => setEditingBalance(null)} />
+        <BalanceModal
+          balance={editingBalance}
+          connectedItems={connectedItems.filter((item) => item.balanceId === editingBalance.id)}
+          onClose={() => setEditingBalance(null)}
+        />
       )}
 
       {selectedRow && (

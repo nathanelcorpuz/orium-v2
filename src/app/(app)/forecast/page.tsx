@@ -2,6 +2,8 @@ import { createClient } from "@/lib/supabase/server";
 import { loadForecast } from "@/lib/forecastData";
 import { findFirstDangerPoint, findLowestBalancePoint } from "@/lib/engine/lowestBalance";
 import { getSampleFixtureData, SAMPLE_FIXTURE_REMINDERS } from "@/lib/sampleFixture";
+import { connectedItemsFromFixture, type ConnectedItem } from "@/lib/connectedItems";
+import { loadConnectedItems } from "@/lib/connectedItemsData";
 import { ForecastClient } from "./ForecastClient";
 
 export default async function ForecastPage({
@@ -16,17 +18,24 @@ export default async function ForecastPage({
 
   let forecastData;
   let reminders;
+  // T152 (Bug #12): the balance chips below open the Balances page's own
+  // `BalanceModal`, so this page has to supply the same connected-items data
+  // that page does - without it the modal silently renders no connections.
+  let connectedItems: ConnectedItem[];
   if (preview) {
     forecastData = getSampleFixtureData();
     reminders = SAMPLE_FIXTURE_REMINDERS;
+    connectedItems = connectedItemsFromFixture(forecastData.recurringItems);
   } else {
     const supabase = await createClient();
-    const [data, remindersRes] = await Promise.all([
+    const [data, remindersRes, connected] = await Promise.all([
       loadForecast(),
       supabase.from("reminders").select("id, text, completed").order("created_at", { ascending: true }),
+      loadConnectedItems(),
     ]);
     forecastData = data;
     reminders = remindersRes.data ?? [];
+    connectedItems = connected;
   }
 
   const { forecast, balances, currency, balanceRanges, tierLabels, today } = forecastData;
@@ -42,6 +51,7 @@ export default async function ForecastPage({
       balanceRanges={balanceRanges}
       tierLabels={tierLabels}
       reminders={reminders}
+      connectedItems={connectedItems}
       lowestBalance={lowestBalance}
       firstDanger={firstDanger}
       previewMode={preview}

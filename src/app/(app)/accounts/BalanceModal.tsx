@@ -6,7 +6,7 @@ import { SubmitButton } from "@/components/SubmitButton";
 import { FormTip } from "@/components/FormTip";
 import { centavosToPesosString, formatCentavos } from "@/lib/money";
 import { createBalance, updateBalance, disconnectItem, type BalanceActionState } from "./actions";
-import type { ConnectedItem } from "./BalancesClient";
+import type { ConnectedItem } from "@/lib/connectedItems";
 
 export type BalanceRow = {
   id: string;
@@ -19,10 +19,11 @@ const initialState: BalanceActionState = { error: null };
 
 export function BalanceModal({
   balance,
-  // Optional: the Forecast page also opens this modal (for a quick balance
-  // edit from its balance chips) without fetching connected-items data -
-  // the section below simply doesn't render there. The Balances page always
-  // passes the real list.
+  // Both pages that open this modal now pass a real list: the Balances page
+  // and, since T152 (Bug #12), the Forecast page's balance chips. The Forecast
+  // page used to omit it, which meant an account opened from there silently
+  // showed no connections at all. The default stays only so an account with
+  // genuinely nothing linked renders the same as before.
   connectedItems = [],
   onClose,
   // T115: fired only on a genuine successful save, distinct from onClose

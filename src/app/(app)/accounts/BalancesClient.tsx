@@ -6,18 +6,13 @@ import { PreviewModeBar } from "@/components/PreviewModeBar";
 import { SubmitButton } from "@/components/SubmitButton";
 import { deleteBalance } from "./actions";
 import { BalanceModal, type BalanceRow } from "./BalanceModal";
+import type { ConnectedItem } from "@/lib/connectedItems";
 
-// T71 (SPEC.md Phase 12): a bill/income/debt/savings/extra currently linked
-// to an account, for the "connected items" view in that account's own edit
-// modal.
-export type ConnectedItem = {
-  id: string;
-  name: string;
-  amount: number;
-  balanceId: string;
-  sourceType: "recurring" | "one_off";
-  type: string;
-};
+// T152: `ConnectedItem` moved to `@/lib/connectedItems` so the Forecast page
+// can build the same data (see Bug #12). Re-exported here because this is
+// where every existing import points, and a type-only re-export is erased at
+// compile time - no server code reaches the client bundle through it.
+export type { ConnectedItem };
 
 export function BalancesClient({
   balances,

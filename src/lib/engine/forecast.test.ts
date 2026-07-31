@@ -572,3 +572,101 @@ describe("generateForecast start/end date bounds", () => {
     expect(result.map((row) => row.dueDate)).toEqual(["2026-02-15"]);
   });
 });
+
+// T154 (SPEC.md Phase 20): coverage for the same-day ordering rule T148
+// shipped without. The rule is small but it changes a number the user acts
+// on - without it, a salary and a bill landing on the same day could show a
+// dip that never really happens, because the bill was deducted first.
+describe("generateForecast same-day ordering (T148)", () => {
+  const onThe5th = (overrides: Partial<RecurringItem>): RecurringItem =>
+    monthlyItem({ daysOfMonth: [5], endDate: "2026-01-31", ...overrides });
+
+  it("puts income before deductions on a shared due date", () => {
+    const result = generateForecast({
+      balances: [],
+      // Deliberately listed bill-first, so insertion order alone would put
+      // the deduction ahead of the income if the sort didn't intervene.
+      recurringItems: [
+        onThe5th({ id: "bill-1", name: "Rent", type: "bill", amount: -3000000 }),
+        onThe5th({ id: "income-1", name: "Salary", type: "income", amount: 5000000 }),
+      ],
+      overrides: [],
+      oneOffs: [],
+      today: "2026-01-01",
+      horizon: "2026-01-31",
+    });
+
+    expect(result.map((row) => row.name)).toEqual(["Salary", "Rent"]);
+    // The point of the rule: the running balance never dips negative, because
+    // the money arrives before it goes out.
+    expect(result.map((row) => row.runningBalance)).toEqual([5000000, 2000000]);
+  });
+
+  it("orders by date first, and only then by sign", () => {
+    const result = generateForecast({
+      balances: [],
+      recurringItems: [
+        onThe5th({ id: "income-1", name: "Salary", type: "income", amount: 5000000 }),
+        monthlyItem({
+          id: "bill-1",
+          name: "Earlier bill",
+          type: "bill",
+          amount: -100000,
+          daysOfMonth: [3],
+          endDate: "2026-01-31",
+        }),
+      ],
+      overrides: [],
+      oneOffs: [],
+      today: "2026-01-01",
+      horizon: "2026-01-31",
+    });
+
+    // Jan 3's outgoing row still comes before Jan 5's incoming one - the sign
+    // rule applies within a date, never across dates.
+    expect(result.map((row) => [row.dueDate, row.name])).toEqual([
+      ["2026-01-03", "Earlier bill"],
+      ["2026-01-05", "Salary"],
+    ]);
+  });
+
+  it("keeps insertion order for same-day rows with the same sign", () => {
+    const result = generateForecast({
+      balances: [],
+      recurringItems: [
+        onThe5th({ id: "bill-1", name: "First bill", type: "bill", amount: -100000 }),
+        onThe5th({ id: "bill-2", name: "Second bill", type: "bill", amount: -200000 }),
+      ],
+      overrides: [],
+      oneOffs: [],
+      today: "2026-01-01",
+      horizon: "2026-01-31",
+    });
+
+    expect(result.map((row) => row.name)).toEqual(["First bill", "Second bill"]);
+  });
+
+  it("applies the rule across sources, not just within recurring items", () => {
+    const oneOffIncome: OneOffItem = {
+      id: "extra-1",
+      name: "Refund",
+      amount: 400000,
+      dueDate: "2026-01-05",
+      balanceId: null,
+    };
+
+    const result = generateForecast({
+      balances: [],
+      recurringItems: [onThe5th({ id: "bill-1", name: "Rent", type: "bill", amount: -300000 })],
+      overrides: [],
+      // One-offs are merged after recurring items, so without the sign rule
+      // the refund would land second purely because of merge order.
+      oneOffs: [oneOffIncome],
+      today: "2026-01-01",
+      horizon: "2026-01-31",
+    });
+
+    expect(result.map((row) => row.name)).toEqual(["Refund", "Rent"]);
+    expect(result.map((row) => row.runningBalance)).toEqual([400000, 100000]);
+  });
+});

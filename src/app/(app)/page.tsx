@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { loadForecast } from "@/lib/forecastData";
 import { formatCentavos } from "@/lib/money";
 import { formatFullDate } from "@/lib/date";
-import { balanceRangeColorClass, balanceRangeTier, lowestBalanceLabel } from "@/lib/balanceColor";
+import { balanceRangeColorClass, balanceRangeTier, firstDangerLabel, lowestBalanceLabel } from "@/lib/balanceColor";
 import { displayName } from "@/lib/displayName";
 import { monthlyEquivalent } from "@/lib/engine/monthlyTotals";
 import { remainingTotal, ruleEndDate } from "@/lib/engine/remaining";
@@ -271,7 +271,7 @@ export default async function Home({
               {firstDanger && firstDanger.date !== lowestBalance.date && (
                 <div className="mt-4">
                   <p className="text-lg font-semibold text-notion-text">
-                    First goes negative:{" "}
+                    {firstDangerLabel(firstDanger.balance)}{" "}
                     <span className="inline-block rounded bg-slate-900 px-1.5 py-0.5 text-white">
                       {formatCentavos(Math.abs(firstDanger.balance), currency)}
                     </span>
