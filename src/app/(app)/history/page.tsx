@@ -39,7 +39,17 @@ export default async function HistoryPage() {
 
   return (
     <div className="p-4 md:p-8">
-      <div className="mx-auto max-w-4xl">
+      {/* T176 (SPEC.md Phase 22, user report "the history view is too small
+          in desktop view"): `max-w-4xl` (896px) was a one-off value used
+          nowhere else in the app. This table has 7 columns of
+          `whitespace-nowrap` content - comparable to the Forecast table's 6 -
+          but Forecast's own wide-table container is `max-w-6xl` (1152px).
+          History was simply narrower than the app's own established
+          convention for a wide multi-column table, forcing more of it into
+          the horizontal-scroll fallback than necessary on an ordinary
+          desktop viewport. Matched to Forecast's width rather than invented
+          fresh. */}
+      <div className="mx-auto max-w-6xl">
         <h1 className="mb-6 text-xl font-semibold text-notion-text">History</h1>
 
         {rows.length === 0 ? (
