@@ -6,6 +6,7 @@ import { PreviewModeBar } from "@/components/PreviewModeBar";
 import { SubmitButton } from "@/components/SubmitButton";
 import { deleteBalance } from "./actions";
 import { BalanceModal, type BalanceRow } from "./BalanceModal";
+import { AccountFundsModal } from "./AccountFundsModal";
 import type { ConnectedItem } from "@/lib/connectedItems";
 
 // T152: `ConnectedItem` moved to `@/lib/connectedItems` so the Forecast page
@@ -28,6 +29,7 @@ export function BalancesClient({
 }) {
   const [modalState, setModalState] = useState<null | "new" | BalanceRow>(null);
   const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null);
+  const [fundsModal, setFundsModal] = useState<null | { mode: "add" | "take" | "move"; balance: BalanceRow }>(null);
 
   const total = balances.reduce((sum, balance) => sum + balance.amount, 0);
 
@@ -68,7 +70,7 @@ export function BalancesClient({
                     <p className="text-sm text-slate-400">{balance.comments}</p>
                   )}
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center justify-end gap-2">
                   {previewMode ? null : confirmingDeleteId === balance.id ? (
                     <>
                       <span className="text-sm text-slate-600">Delete?</span>
@@ -88,6 +90,32 @@ export function BalancesClient({
                     </>
                   ) : (
                     <>
+                      {/* T186: Add/Take/Move funds - the logged, commentable
+                          replacement for directly editing the amount above,
+                          mirroring the Budget page's own button row (T75). */}
+                      <button
+                        type="button"
+                        onClick={() => setFundsModal({ mode: "add", balance })}
+                        className="rounded border border-notion-hairline px-3 py-1 text-sm text-green-700 hover:bg-notion-hover"
+                      >
+                        Add funds
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setFundsModal({ mode: "take", balance })}
+                        className="rounded border border-notion-hairline px-3 py-1 text-sm text-red-600 hover:bg-notion-hover"
+                      >
+                        Take funds
+                      </button>
+                      {balances.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => setFundsModal({ mode: "move", balance })}
+                          className="rounded border border-notion-hairline px-3 py-1 text-sm text-notion-accent hover:bg-notion-hover"
+                        >
+                          Move funds
+                        </button>
+                      )}
                       <button
                         type="button"
                         onClick={() => setModalState(balance)}
@@ -117,6 +145,15 @@ export function BalancesClient({
               modalState === "new" ? [] : connectedItems.filter((item) => item.balanceId === modalState.id)
             }
             onClose={() => setModalState(null)}
+          />
+        )}
+
+        {fundsModal && (
+          <AccountFundsModal
+            mode={fundsModal.mode}
+            balance={fundsModal.balance}
+            balances={balances}
+            onClose={() => setFundsModal(null)}
           />
         )}
       </div>

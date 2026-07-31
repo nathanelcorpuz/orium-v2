@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { parseCentavos } from "@/lib/money";
+import { formatCentavos, parseCentavos } from "@/lib/money";
 import { logActivity } from "@/lib/activityLog";
 
 export type BalanceActionState = { error: string | null };
@@ -56,18 +56,24 @@ export async function createBalance(
   return { error: null };
 }
 
+// T186: no longer touches `amount` at all - editing an existing account's
+// name/comments/fee is metadata, but the balance itself is now only ever
+// changed through the logged addAccountFunds/takeAccountFunds/
+// moveAccountFunds actions below, exactly what this task asked to stop
+// being possible ("not just blindly update balances, so they are logged").
+// `createBalance` above is untouched: setting an account's *starting*
+// balance when it's first created isn't "updating" anything, so it isn't
+// part of what needed to move onto the ledger.
 export async function updateBalance(
   _prevState: BalanceActionState,
   formData: FormData,
 ): Promise<BalanceActionState> {
   const id = formData.get("id") as string;
   const name = (formData.get("name") as string).trim();
-  const amount = parseCentavos(formData.get("amountPesos") as string);
   const comments = ((formData.get("comments") as string) || "").trim() || null;
   const feeFields = readTransactionFeeForm(formData);
 
   if (!name) return { error: "Name is required." };
-  if (amount === null) return { error: "Enter a valid amount." };
   if (feeFields.error) return { error: feeFields.error };
 
   const supabase = await createClient();
@@ -76,11 +82,188 @@ export async function updateBalance(
   } = await supabase.auth.getUser();
   const { error } = await supabase
     .from("balances")
-    .update({ name, amount, comments, transaction_fee_centavos: feeFields.fee })
+    .update({ name, comments, transaction_fee_centavos: feeFields.fee })
     .eq("id", id);
   if (error) return { error: error.message };
 
   if (user) await logActivity(supabase, user.id, { action: "update", entityType: "account", entityName: name });
+
+  revalidatePath("/accounts");
+  revalidatePath("/forecast");
+  revalidatePath("/");
+  return { error: null };
+}
+
+// T186: Add funds / Take funds / Move funds - the logged replacement for
+// directly editing an account's amount. Read-then-write, same style
+// `applyToBalance` (forecast/actions.ts) already uses for settlements -
+// acceptable non-transactional risk in this single-user/family app, same
+// precedent.
+function readFundsForm(formData: FormData) {
+  const amount = parseCentavos(formData.get("amountPesos") as string);
+  const entryDate = formData.get("entryDate") as string;
+  const note = ((formData.get("note") as string) || "").trim() || null;
+  if (amount === null || amount <= 0) return { error: "Enter a valid amount." } as const;
+  if (!entryDate) return { error: "Date is required." } as const;
+  return { error: null, amount, entryDate, note } as const;
+}
+
+async function adjustBalance(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  balanceId: string,
+  delta: number,
+): Promise<string | null> {
+  const { data: balance, error: fetchError } = await supabase
+    .from("balances")
+    .select("amount")
+    .eq("id", balanceId)
+    .single();
+  if (fetchError) return fetchError.message;
+
+  const { error: updateError } = await supabase
+    .from("balances")
+    .update({ amount: balance.amount + delta })
+    .eq("id", balanceId);
+  return updateError?.message ?? null;
+}
+
+export async function addAccountFunds(
+  _prevState: BalanceActionState,
+  formData: FormData,
+): Promise<BalanceActionState> {
+  const balanceId = formData.get("balanceId") as string;
+  const balanceName = formData.get("balanceName") as string;
+  const fields = readFundsForm(formData);
+  if (fields.error) return { error: fields.error };
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Not signed in." };
+
+  const balanceError = await adjustBalance(supabase, balanceId, fields.amount);
+  if (balanceError) return { error: balanceError };
+
+  const { error } = await supabase.from("balance_transactions").insert({
+    user_id: user.id,
+    balance_id: balanceId,
+    entry_date: fields.entryDate,
+    amount: fields.amount,
+    direction: "incoming",
+    note: fields.note,
+  });
+  if (error) return { error: error.message };
+
+  await logActivity(supabase, user.id, {
+    action: "update",
+    entityType: "account",
+    entityName: balanceName,
+    detail: `Added funds: ${formatCentavos(fields.amount)}${fields.note ? ` (${fields.note})` : ""}`,
+  });
+
+  revalidatePath("/accounts");
+  revalidatePath("/forecast");
+  revalidatePath("/");
+  return { error: null };
+}
+
+export async function takeAccountFunds(
+  _prevState: BalanceActionState,
+  formData: FormData,
+): Promise<BalanceActionState> {
+  const balanceId = formData.get("balanceId") as string;
+  const balanceName = formData.get("balanceName") as string;
+  const fields = readFundsForm(formData);
+  if (fields.error) return { error: fields.error };
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Not signed in." };
+
+  const balanceError = await adjustBalance(supabase, balanceId, -fields.amount);
+  if (balanceError) return { error: balanceError };
+
+  const { error } = await supabase.from("balance_transactions").insert({
+    user_id: user.id,
+    balance_id: balanceId,
+    entry_date: fields.entryDate,
+    amount: fields.amount,
+    direction: "outgoing",
+    note: fields.note,
+  });
+  if (error) return { error: error.message };
+
+  await logActivity(supabase, user.id, {
+    action: "update",
+    entityType: "account",
+    entityName: balanceName,
+    detail: `Took funds: ${formatCentavos(fields.amount)}${fields.note ? ` (${fields.note})` : ""}`,
+  });
+
+  revalidatePath("/accounts");
+  revalidatePath("/forecast");
+  revalidatePath("/");
+  return { error: null };
+}
+
+// Two ledger rows, not a third "transfer" direction - each leg is a
+// complete, independently-meaningful entry on its own account, the same
+// way a transfer between two real bank accounts shows up as two separate
+// lines on two separate statements.
+export async function moveAccountFunds(
+  _prevState: BalanceActionState,
+  formData: FormData,
+): Promise<BalanceActionState> {
+  const fromId = formData.get("fromBalanceId") as string;
+  const toId = formData.get("toBalanceId") as string;
+  const fromName = formData.get("fromBalanceName") as string;
+  const toName = formData.get("toBalanceName") as string;
+  const fields = readFundsForm(formData);
+  if (fields.error) return { error: fields.error };
+  if (!toId) return { error: "Choose an account to move funds to." };
+  if (fromId === toId) return { error: "Choose two different accounts." };
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Not signed in." };
+
+  const fromError = await adjustBalance(supabase, fromId, -fields.amount);
+  if (fromError) return { error: fromError };
+  const toError = await adjustBalance(supabase, toId, fields.amount);
+  if (toError) return { error: toError };
+
+  const noteSuffix = fields.note ? ` (${fields.note})` : "";
+  const { error: outError } = await supabase.from("balance_transactions").insert({
+    user_id: user.id,
+    balance_id: fromId,
+    entry_date: fields.entryDate,
+    amount: fields.amount,
+    direction: "outgoing",
+    note: fields.note ?? `Moved to ${toName}`,
+  });
+  if (outError) return { error: outError.message };
+
+  const { error: inError } = await supabase.from("balance_transactions").insert({
+    user_id: user.id,
+    balance_id: toId,
+    entry_date: fields.entryDate,
+    amount: fields.amount,
+    direction: "incoming",
+    note: fields.note ?? `Moved from ${fromName}`,
+  });
+  if (inError) return { error: inError.message };
+
+  await logActivity(supabase, user.id, {
+    action: "update",
+    entityType: "account",
+    entityName: fromName,
+    detail: `Moved ${formatCentavos(fields.amount)} to ${toName}${noteSuffix}`,
+  });
 
   revalidatePath("/accounts");
   revalidatePath("/forecast");

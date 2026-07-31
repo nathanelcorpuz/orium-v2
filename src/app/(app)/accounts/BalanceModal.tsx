@@ -115,24 +115,39 @@ export function BalanceModal({
             className="mt-1 w-full rounded border border-notion-hairline p-2 text-notion-text focus:border-notion-accent focus:outline-none"
           />
         </div>
-        <div>
-          <label className="block text-sm text-slate-600" htmlFor="amountPesos">
-            Amount (₱)
-          </label>
-          <input
-            id="amountPesos"
-            name="amountPesos"
-            type="number"
-            step="0.01"
-            required
-            defaultValue={balance ? centavosToPesosString(balance.amount) : undefined}
-            className="mt-1 w-full rounded border border-notion-hairline p-2 text-notion-text focus:border-notion-accent focus:outline-none"
-          />
-          <FormTip tipKey="account-amount">
-            What&rsquo;s in it right now. From here on Orium keeps it up to date for you each time
-            you settle a bill or income connected to this account.
-          </FormTip>
-        </div>
+        {isEdit ? (
+          // T186: no longer an editable field here - changing an existing
+          // account's balance now always goes through Add/Take/Move funds
+          // (their own buttons on the Balances page), so every change is
+          // logged with a date and an optional comment instead of silently
+          // overwritten.
+          <div>
+            <p className="block text-sm text-slate-600">Amount</p>
+            <p className="mt-1 text-notion-text">{formatCentavos(balance.amount)}</p>
+            <FormTip tipKey="account-amount">
+              Use Add funds, Take funds, or Move funds on the Balances page to change this - each
+              one keeps a dated, commentable record instead of silently overwriting it.
+            </FormTip>
+          </div>
+        ) : (
+          <div>
+            <label className="block text-sm text-slate-600" htmlFor="amountPesos">
+              Amount (₱)
+            </label>
+            <input
+              id="amountPesos"
+              name="amountPesos"
+              type="number"
+              step="0.01"
+              required
+              className="mt-1 w-full rounded border border-notion-hairline p-2 text-notion-text focus:border-notion-accent focus:outline-none"
+            />
+            <FormTip tipKey="account-amount">
+              What&rsquo;s in it right now. From here on, use Add/Take/Move funds on the Balances
+              page to keep it up to date - each one keeps a dated, commentable record.
+            </FormTip>
+          </div>
+        )}
         <div>
           <label className="block text-sm text-slate-600" htmlFor="transactionFeePesos">
             Transaction fee (₱, optional)
