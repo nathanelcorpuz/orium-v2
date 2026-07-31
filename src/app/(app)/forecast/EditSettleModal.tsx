@@ -6,6 +6,7 @@ import { DatePicker } from "@/components/DatePicker";
 import { SegmentedControl } from "@/components/SegmentedControl";
 import { blockNegativeKey, centavosToPesosString } from "@/lib/money";
 import { formatFullDate, todayInManila } from "@/lib/date";
+import { TYPE_COLOR, TYPE_LABEL } from "@/lib/forecastLabels";
 import type { ForecastRow } from "@/lib/engine/types";
 import { deleteBudgetEntry, updateBudgetEntry, type BudgetActionState } from "@/app/(app)/budgets/actions";
 import {
@@ -62,6 +63,8 @@ export function EditSettleModal({
   // (no fixed direction), so it's the one type that keeps manual sign entry.
   const isExtra = row.type === "extra";
   const [mode, setMode] = useState<"edit" | "settle">("edit");
+  // T158: the "See more" detail panel, collapsed by default.
+  const [detailsOpen, setDetailsOpen] = useState(false);
   const editAction = row.sourceType === "recurring" ? editRecurringOccurrence : editOneOff;
   const [editState, editFormAction, editPending] = useActionState(editAction, initialState);
   const [settleState, settleFormAction, settlePending] = useActionState(
@@ -139,6 +142,60 @@ export function EditSettleModal({
 
   return (
     <Modal title={row.name} onClose={onClose}>
+      {/* T158: the table shows only name and amount, so everything else about
+          a row required opening the underlying record on another page.
+          Collapsed by default - this is reference detail, not the reason the
+          modal was opened, and expanding it by default would push the actual
+          Edit/Settle form below the fold. */}
+      <div className="mb-4">
+        <button
+          type="button"
+          onClick={() => setDetailsOpen((open) => !open)}
+          aria-expanded={detailsOpen}
+          className="flex items-center gap-1 text-xs text-slate-500 hover:text-notion-text"
+        >
+          {detailsOpen ? "Hide details" : "See more"}
+          <span aria-hidden="true">{detailsOpen ? "▾" : "▸"}</span>
+        </button>
+        {detailsOpen && (
+          <dl className="mt-2 space-y-1 rounded border border-notion-hairline bg-notion-hover/40 p-3 text-xs">
+            <div className="flex justify-between gap-4">
+              <dt className="text-slate-500">Type</dt>
+              <dd className={TYPE_COLOR[row.type]}>{TYPE_LABEL[row.type]}</dd>
+            </div>
+            <div className="flex justify-between gap-4">
+              <dt className="text-slate-500">Date</dt>
+              <dd className="text-notion-text">{formatFullDate(row.dueDate)}</dd>
+            </div>
+            <div className="flex justify-between gap-4">
+              <dt className="text-slate-500">Amount</dt>
+              <dd className="text-notion-text">
+                {centavosToPesosString(Math.abs(row.amount))} {currency}
+              </dd>
+            </div>
+            <div className="flex justify-between gap-4">
+              <dt className="text-slate-500">Account</dt>
+              <dd className="text-notion-text">
+                {row.balanceId ? (balances.find((b) => b.id === row.balanceId)?.name ?? "-") : "-"}
+              </dd>
+            </div>
+            <div className="flex justify-between gap-4">
+              <dt className="text-slate-500">Forecasted balance</dt>
+              <dd className="text-notion-text">
+                {centavosToPesosString(row.runningBalance)} {currency}
+              </dd>
+            </div>
+            {/* T155 threaded this through from the underlying record; without
+                it there would be nothing to show here. */}
+            {row.comment && (
+              <div className="border-t border-notion-hairline pt-1">
+                <dt className="text-slate-500">Comment</dt>
+                <dd className="mt-0.5 italic text-notion-text">{row.comment}</dd>
+              </div>
+            )}
+          </dl>
+        )}
+      </div>
       {/* T168: budget_replenish rows get the toggle too, but only when the
           row is genuinely settleable here. An income-linked one shows the
           Edit form alone - offering a Settle tab that refuses to work would

@@ -11,6 +11,7 @@ import { Modal } from "@/components/Modal";
 import { DatePicker } from "@/components/DatePicker";
 import { ChevronIcon } from "@/components/navIcons";
 import { PreviewModeBar } from "@/components/PreviewModeBar";
+import { TYPE_COLOR, TYPE_LABEL } from "@/lib/forecastLabels";
 import type { ForecastRow } from "@/lib/engine/types";
 import type { ConnectedItem } from "@/lib/connectedItems";
 import type { LowestBalancePoint } from "@/lib/engine/lowestBalance";
@@ -31,28 +32,8 @@ const ROWS_PER_BATCH = 50;
 // column, so no user_id/RLS needed.
 const INSIGHTS_COLLAPSED_STORAGE_KEY = "orium.forecastInsightsCollapsed";
 
-const TYPE_COLOR: Record<ForecastRow["type"], string> = {
-  income: "text-green-700",
-  debt: "text-orange-700",
-  savings: "text-blue-700",
-  extra: "text-purple-700",
-  bill: "text-notion-text",
-  budget: "text-notion-budget",
-};
-
-// T106: user-facing display only - the underlying `type: "extra"` value
-// (schema, engine, filter state) is unchanged, so this is the one place
-// that needs to map it to "misc" for display in the table's Type column,
-// which otherwise renders `row.type` directly.
-const TYPE_LABEL: Record<ForecastRow["type"], string> = {
-  income: "income",
-  debt: "debt",
-  savings: "savings",
-  extra: "misc",
-  bill: "bill",
-  budget: "budget",
-};
-
+// T158: TYPE_COLOR/TYPE_LABEL moved to @/lib/forecastLabels so EditSettleModal
+// can reuse them without a circular import (this file imports that modal).
 const TYPE_OPTIONS: { value: ForecastRow["type"]; label: string }[] = [
   { value: "income", label: "Income" },
   { value: "bill", label: "Bill" },
