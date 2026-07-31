@@ -1,5 +1,6 @@
 import type { RecurrenceUnit } from "./engine/types";
 import { daysInMonth } from "./engine/date-utils";
+import { MONTH_ABBR } from "./date";
 import { ordinalSuffix } from "./recurrenceSummary";
 
 // Contextual recurrence presets (SPEC.md T35), computed from the chosen
@@ -61,7 +62,7 @@ function ordinalPreset(startDate: string): RecurrencePreset {
 }
 
 export function computeRecurrencePresets(startDate: string): RecurrencePreset[] {
-  const [, , day] = startDate.split("-").map(Number);
+  const [, month, day] = startDate.split("-").map(Number);
   const weekday = dowOf(startDate);
   const weekdayName = WEEKDAY_NAMES[weekday];
 
@@ -87,6 +88,17 @@ export function computeRecurrencePresets(startDate: string): RecurrencePreset[] 
       rule: { interval: 1, unit: "month", weekdays: null, daysOfMonth: [15, 30], ordinal: null, ordinalWeekday: null },
     },
     ordinalPreset(startDate),
+    // T157: `unit: "year"` has been fully supported by the engine since
+    // Phase 6A and reachable through the Custom panel all along - this is
+    // purely the discoverability gap T144 identified for two-day-a-month
+    // rules, applied to yearly. No new capability, just a one-click route to
+    // it. Labelled with the start date's own month and day, matching how
+    // `summarizeRecurrence` renders a yearly rule ("Yearly on Jan 5").
+    {
+      id: "yearly",
+      label: `Yearly on ${MONTH_ABBR[month - 1]} ${day}`,
+      rule: { interval: 1, unit: "year", weekdays: null, daysOfMonth: null, ordinal: null, ordinalWeekday: null },
+    },
   ];
 }
 

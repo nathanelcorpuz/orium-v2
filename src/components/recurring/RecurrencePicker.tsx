@@ -69,8 +69,26 @@ export function RecurrencePicker({
   const presets = useMemo(() => computeRecurrencePresets(startDate), [startDate]);
   const endsOptions = allowNever ? ENDS_OPTIONS : ENDS_OPTIONS.filter((opt) => opt.value !== "never");
 
+  // T157: "Never" is now the default Ends option wherever it's offered at all.
+  // Keyed off `allowNever` rather than a second prop, since that flag already
+  // encodes exactly the right distinction: Debt/Savings (allowNever={false})
+  // must have a finite end for their occurrence-count progress bars, and
+  // everything else shouldn't be forced to invent an end date for a bill that
+  // genuinely just continues.
+  //
+  // The user asked for this for Bills and Income; Budgets get it too, since
+  // they share the picker and the same reasoning applies to a replenish
+  // schedule. That is a real improvement there rather than a side effect -
+  // the old "on_date" default started with `endDate: null`, which
+  // `recurrenceForm.ts` rejects with "Choose an end date", so every budget
+  // schedule previously had to have an end picked by hand.
   const [value, setValue] = useState<RecurrenceValue>(() =>
-    initialValue ?? { ...presets[0].rule, endsType: "on_date", endDate: null, occurrenceCount: null },
+    initialValue ?? {
+      ...presets[0].rule,
+      endsType: allowNever ? "never" : "on_date",
+      endDate: null,
+      occurrenceCount: null,
+    },
   );
   const [selectedPresetId, setSelectedPresetId] = useState<string>(() => {
     if (!initialValue) return presets[0].id;

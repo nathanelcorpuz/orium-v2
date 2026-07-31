@@ -11,7 +11,30 @@ describe("computeRecurrencePresets", () => {
       "Every 2 weeks on Tuesday",
       "Every 15th and 30th",
       "Monthly on the third Tuesday",
+      // T157 appended the yearly preset - the engine has supported
+      // `unit: "year"` since Phase 6A, this just makes it one click.
+      "Yearly on Jan 20",
     ]);
+  });
+
+  // T157: the preset is a shortcut to an existing engine capability, so the
+  // shape it produces matters as much as the label.
+  it("yearly preset produces a plain interval-1 year rule", () => {
+    const yearly = computeRecurrencePresets("2026-01-20").find((p) => p.id === "yearly");
+    expect(yearly?.rule).toEqual({
+      interval: 1,
+      unit: "year",
+      weekdays: null,
+      daysOfMonth: null,
+      ordinal: null,
+      ordinalWeekday: null,
+    });
+  });
+
+  it("yearly preset label tracks the start date's own month and day", () => {
+    expect(computeRecurrencePresets("2026-03-09").find((p) => p.id === "yearly")?.label).toBe(
+      "Yearly on Mar 9",
+    );
   });
 
   it("ordinal preset offers 'last' when start_date is the month's final occurrence of that weekday", () => {
