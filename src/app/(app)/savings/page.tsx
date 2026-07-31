@@ -7,7 +7,7 @@ import { createSavings, updateSavings, deleteSavings } from "./actions";
 
 export default async function SavingsPage() {
   const supabase = await createClient();
-  const [{ data: items, error }, overridesRes, balancesRes, settlementsRes, { forecast }] = await Promise.all([
+  const [{ data: items, error }, overridesRes, balancesRes, settlementsRes, { forecast, currency }] = await Promise.all([
     supabase
       .from("recurring_items")
       .select(
@@ -64,6 +64,7 @@ export default async function SavingsPage() {
       balances={balancesRes.data ?? []}
       upcomingByItemId={upcomingByItemId}
       paidByItemId={paidByItemId}
+      currency={currency}
     />
   );
 }

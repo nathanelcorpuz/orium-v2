@@ -65,6 +65,7 @@ export function MonthlyGoalsClient({
   balances,
   upcomingByItemId,
   paidByItemId,
+  currency,
 }: {
   items: MonthlyGoalRow[];
   pageTitle: string;
@@ -78,6 +79,9 @@ export function MonthlyGoalsClient({
   balances: BalanceOption[];
   upcomingByItemId: Map<string, ForecastRow[]>;
   paidByItemId: Map<string, SettlementRow[]>;
+  // T188: threaded through to `ItemTransactionsModal` so an upcoming row can
+  // open the real `EditSettleModal`, which needs it for display.
+  currency: string;
 }) {
   const [modalState, setModalState] = useState<null | "new" | MonthlyGoalRow>(null);
   const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null);
@@ -579,6 +583,8 @@ export function MonthlyGoalsClient({
             name={viewingItem.name}
             upcoming={upcomingByItemId.get(viewingItem.id) ?? []}
             paid={paidByItemId.get(viewingItem.id) ?? []}
+            currency={currency}
+            balances={balances}
             onClose={() => setViewingItem(null)}
           />
         )}

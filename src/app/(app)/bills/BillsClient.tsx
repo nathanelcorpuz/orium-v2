@@ -13,8 +13,9 @@ import { PreviewModeBar } from "@/components/PreviewModeBar";
 import { ReorderButtons } from "@/components/ReorderButtons";
 import { SubmitButton } from "@/components/SubmitButton";
 import { ActiveToggle } from "@/components/ActiveToggle";
-import type { RecurrenceUnit } from "@/lib/engine/types";
+import type { ForecastRow, RecurrenceUnit } from "@/lib/engine/types";
 import { useOrderedList } from "@/lib/useOrderedList";
+import { ItemTransactionsModal, type SettlementRow } from "@/components/recurring/ItemTransactionsModal";
 import { deleteBill } from "./actions";
 import { BillModal, type BalanceOption, type BillRow } from "./BillModal";
 
@@ -44,6 +45,9 @@ export function BillsClient({
   bills,
   editedIds,
   balances,
+  upcomingByItemId,
+  paidByItemId,
+  currency,
   // T120: `?preview=1` renders a read-only sample fixture (see page.tsx) -
   // every mutating control is hidden so a tour/preview session can never
   // write to (or 404 against) the real account behind it.
@@ -52,10 +56,18 @@ export function BillsClient({
   bills: BillRow[];
   editedIds: Set<string>;
   balances: BalanceOption[];
+  // T188: same "view its upcoming/paid transactions" detail Debt/Savings
+  // already had (MonthlyGoalsClient) - Bills gets it too, so a bill with the
+  // ✎ "edited from schedule" mark has somewhere to actually change that
+  // occurrence from, not just see that it happened.
+  upcomingByItemId: Map<string, ForecastRow[]>;
+  paidByItemId: Map<string, SettlementRow[]>;
+  currency: string;
   previewMode?: boolean;
 }) {
   const [modalState, setModalState] = useState<null | "new" | BillRow>(null);
   const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null);
+  const [viewingItem, setViewingItem] = useState<BillRow | null>(null);
 
   // T52: Bills filter bar (name, amount range, recurrence unit) - client-side
   // only, same pattern as T50's Forecast filters, reusing the same shared
@@ -278,7 +290,22 @@ export function BillsClient({
                     isLast={index === sortedBills.length - 1}
                   />
                 )}
-                <div className="min-w-0 flex-1">
+                <div
+                  role={previewMode ? undefined : "button"}
+                  tabIndex={previewMode ? undefined : 0}
+                  onClick={previewMode ? undefined : () => setViewingItem(bill)}
+                  onKeyDown={
+                    previewMode
+                      ? undefined
+                      : (event) => {
+                          if (event.key === "Enter" || event.key === " ") {
+                            event.preventDefault();
+                            setViewingItem(bill);
+                          }
+                        }
+                  }
+                  className={`min-w-0 flex-1 ${previewMode ? "" : "cursor-pointer hover:opacity-80"}`}
+                >
                   {/* T71 follow-up: the connected account moved from a
                       run-on text line into its own pill badge next to the
                       name (matching the Budgets page's "Connected to
@@ -361,6 +388,17 @@ export function BillsClient({
             bill={modalState === "new" ? null : modalState}
             balances={balances}
             onClose={() => setModalState(null)}
+          />
+        )}
+
+        {viewingItem && (
+          <ItemTransactionsModal
+            name={viewingItem.name}
+            upcoming={upcomingByItemId.get(viewingItem.id) ?? []}
+            paid={paidByItemId.get(viewingItem.id) ?? []}
+            currency={currency}
+            balances={balances}
+            onClose={() => setViewingItem(null)}
           />
         )}
       </div>

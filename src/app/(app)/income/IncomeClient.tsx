@@ -12,8 +12,9 @@ import { MultiSelectChips } from "@/components/MultiSelectChips";
 import { ReorderButtons } from "@/components/ReorderButtons";
 import { SubmitButton } from "@/components/SubmitButton";
 import { ActiveToggle } from "@/components/ActiveToggle";
-import type { RecurrenceUnit } from "@/lib/engine/types";
+import type { ForecastRow, RecurrenceUnit } from "@/lib/engine/types";
 import { useOrderedList } from "@/lib/useOrderedList";
+import { ItemTransactionsModal, type SettlementRow } from "@/components/recurring/ItemTransactionsModal";
 import { deleteIncome } from "./actions";
 import { IncomeModal, type BalanceOption, type IncomeRow } from "./IncomeModal";
 
@@ -48,14 +49,23 @@ export function IncomeClient({
   editedIds,
   balances,
   linkedBudgets,
+  upcomingByItemId,
+  paidByItemId,
+  currency,
 }: {
   incomes: IncomeRow[];
   editedIds: Set<string>;
   balances: BalanceOption[];
   linkedBudgets: LinkedBudget[];
+  // T188: same "view its upcoming/paid transactions" detail Debt/Savings
+  // already had (MonthlyGoalsClient).
+  upcomingByItemId: Map<string, ForecastRow[]>;
+  paidByItemId: Map<string, SettlementRow[]>;
+  currency: string;
 }) {
   const [modalState, setModalState] = useState<null | "new" | IncomeRow>(null);
   const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null);
+  const [viewingItem, setViewingItem] = useState<IncomeRow | null>(null);
 
   // T52: Income filter bar (name, amount range, recurrence unit) - mirrors
   // Bills' filter bar exactly, reusing the same shared components.
@@ -283,7 +293,18 @@ export function IncomeClient({
                     isLast={index === sortedIncomes.length - 1}
                   />
                 )}
-                <div className="min-w-0 flex-1">
+                <div
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => setViewingItem(income)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
+                      setViewingItem(income);
+                    }
+                  }}
+                  className="min-w-0 flex-1 cursor-pointer hover:opacity-80"
+                >
                   {/* T71 follow-up: connected account + linked budgets moved
                       from a run-on text line into pill badges next to the
                       name (matching the Budgets page's "Connected to
@@ -374,6 +395,17 @@ export function IncomeClient({
             income={modalState === "new" ? null : modalState}
             balances={balances}
             onClose={() => setModalState(null)}
+          />
+        )}
+
+        {viewingItem && (
+          <ItemTransactionsModal
+            name={viewingItem.name}
+            upcoming={upcomingByItemId.get(viewingItem.id) ?? []}
+            paid={paidByItemId.get(viewingItem.id) ?? []}
+            currency={currency}
+            balances={balances}
+            onClose={() => setViewingItem(null)}
           />
         )}
       </div>

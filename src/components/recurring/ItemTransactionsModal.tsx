@@ -5,6 +5,7 @@ import { Modal } from "@/components/Modal";
 import { SegmentedControl } from "@/components/SegmentedControl";
 import { formatCentavos } from "@/lib/money";
 import { formatFullDate } from "@/lib/date";
+import { EditSettleModal } from "@/app/(app)/forecast/EditSettleModal";
 import type { ForecastRow } from "@/lib/engine/types";
 
 export type SettlementRow = {
@@ -20,18 +21,39 @@ export type SettlementRow = {
 // its upcoming (still-forecasted) occurrences and its paid (settled)
 // transactions - "upcoming" reuses the already-computed, override-aware
 // forecast rows for this item; "paid" reads directly from `settlements`.
+//
+// T188 (user request): a row with the "edited from its usual schedule" mark
+// (✎) needed a way to actually change that occurrence from here, not just
+// see that it was changed - clicking an upcoming row now opens the exact
+// same `EditSettleModal` the Forecast/Calendar pages already use, rather
+// than a second edit surface for the same occurrence_overrides row.
 export function ItemTransactionsModal({
   name,
   upcoming,
   paid,
+  currency,
+  balances,
   onClose,
 }: {
   name: string;
   upcoming: ForecastRow[];
   paid: SettlementRow[];
+  currency: string;
+  balances: { id: string; name: string }[];
   onClose: () => void;
 }) {
   const [tab, setTab] = useState<"upcoming" | "paid">("upcoming");
+  const [editingRow, setEditingRow] = useState<ForecastRow | null>(null);
+
+  // T174: a scenario-sourced row's sourceId belongs to scenario_recurring_items,
+  // not recurring_items - EditSettleModal's actions would write against an id
+  // that doesn't exist in the tables they actually know about. Same guard
+  // ForecastClient/CalendarClient already apply.
+  if (editingRow) {
+    return (
+      <EditSettleModal row={editingRow} currency={currency} balances={balances} onClose={() => setEditingRow(null)} />
+    );
+  }
 
   return (
     <Modal title={`${name} - Transactions`} onClose={onClose}>
@@ -51,22 +73,40 @@ export function ItemTransactionsModal({
           <p className="text-sm text-slate-500">No upcoming occurrences.</p>
         ) : (
           <ul className="max-h-72 divide-y divide-notion-hairline overflow-y-auto">
-            {upcoming.map((row, index) => (
-              <li
-                key={`${row.originalDate}-${index}`}
-                className="flex items-center justify-between py-2 text-sm first:pt-0"
-              >
-                <span className="text-notion-text">
-                  {formatFullDate(row.dueDate)}
-                  {row.edited && (
-                    <span className="ml-1.5 text-slate-400" title="Edited from its usual schedule">
-                      ✎
-                    </span>
-                  )}
-                </span>
-                <span className="font-medium text-notion-text">{formatCentavos(Math.abs(row.amount))}</span>
-              </li>
-            ))}
+            {upcoming.map((row, index) => {
+              const clickable = !row.fromScenario;
+              return (
+                <li
+                  key={`${row.originalDate}-${index}`}
+                  role={clickable ? "button" : undefined}
+                  tabIndex={clickable ? 0 : undefined}
+                  onClick={clickable ? () => setEditingRow(row) : undefined}
+                  onKeyDown={
+                    clickable
+                      ? (event) => {
+                          if (event.key === "Enter" || event.key === " ") {
+                            event.preventDefault();
+                            setEditingRow(row);
+                          }
+                        }
+                      : undefined
+                  }
+                  className={`flex items-center justify-between py-2 text-sm first:pt-0 ${
+                    clickable ? "cursor-pointer hover:opacity-70" : ""
+                  }`}
+                >
+                  <span className="text-notion-text">
+                    {formatFullDate(row.dueDate)}
+                    {row.edited && (
+                      <span className="ml-1.5 text-slate-400" title="Edited from its usual schedule">
+                        ✎
+                      </span>
+                    )}
+                  </span>
+                  <span className="font-medium text-notion-text">{formatCentavos(Math.abs(row.amount))}</span>
+                </li>
+              );
+            })}
           </ul>
         )
       ) : paid.length === 0 ? (
