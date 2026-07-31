@@ -4,6 +4,16 @@ import { parseCentavos } from "@/lib/money";
 import type { RecurringItemType } from "@/lib/engine/types";
 import { readRecurrenceRuleForm } from "@/lib/recurrenceForm";
 import { deleteStaleOverrides } from "@/lib/staleOverrides";
+import { logActivity, type ActivityEntityType } from "@/lib/activityLog";
+
+// createMonthlyGoal already receives `type` ("debt" | "savings"), which
+// doubles as the ActivityEntityType. update/delete only receive `path`
+// ("/debt" or "/savings") - deriving the same value from that rather than
+// adding a redundant parameter to both call sites in debt/actions.ts and
+// savings/actions.ts.
+function entityTypeFromPath(path: string): ActivityEntityType {
+  return path === "/savings" ? "savings" : "debt";
+}
 
 export type RecurringItemActionState = { error: string | null };
 
@@ -77,6 +87,8 @@ export async function createMonthlyGoal(
   });
   if (error) return { error: error.message };
 
+  await logActivity(supabase, user.id, { action: "create", entityType: type, entityName: fields.name });
+
   revalidatePath(path);
   revalidatePath("/forecast");
   revalidatePath("/");
@@ -92,6 +104,9 @@ export async function updateMonthlyGoal(
   if (fields.error !== null) return { error: fields.error };
 
   const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   const { error } = await supabase
     .from("recurring_items")
     .update({
@@ -112,6 +127,14 @@ export async function updateMonthlyGoal(
     })
     .eq("id", id);
   if (error) return { error: error.message };
+
+  if (user) {
+    await logActivity(supabase, user.id, {
+      action: "update",
+      entityType: entityTypeFromPath(path),
+      entityName: fields.name,
+    });
+  }
 
   await deleteStaleOverrides(supabase, id, {
     startDate: fields.startDate,
@@ -135,7 +158,17 @@ export async function updateMonthlyGoal(
 export async function deleteMonthlyGoal(path: string, formData: FormData) {
   const id = formData.get("id") as string;
   const supabase = await createClient();
-  await supabase.from("recurring_items").delete().eq("id", id);
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  const { data: deleted } = await supabase.from("recurring_items").delete().eq("id", id).select("name").single();
+  if (user && deleted) {
+    await logActivity(supabase, user.id, {
+      action: "delete",
+      entityType: entityTypeFromPath(path),
+      entityName: deleted.name,
+    });
+  }
   revalidatePath(path);
   revalidatePath("/forecast");
   revalidatePath("/");

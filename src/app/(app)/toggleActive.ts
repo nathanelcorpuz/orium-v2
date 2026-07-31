@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { logActivity, type ActivityEntityType } from "@/lib/activityLog";
 
 // T175 (SPEC.md Phase 22): one shared action for temporarily switching any
 // financial record off, instead of six near-identical copies across each
@@ -50,7 +51,41 @@ export async function toggleRecordActive(formData: FormData) {
   const active = formData.get("active") === "true";
 
   const supabase = await createClient();
-  await supabase.from(table).update({ active }).eq("id", id);
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  // T162: only `recurring_items` carries `type` (bill/income/debt/savings) -
+  // one_off_items and budgets are each a single, already-known kind. `.select()`
+  // returns the updated row in the same round trip (Postgres RETURNING), same
+  // trick the delete actions elsewhere in this app use to avoid an extra query.
+  // Two separate literal `.select()` calls rather than one built from a
+  // variable - Supabase's client parses the select string's shape at the type
+  // level, which a runtime-computed string defeats.
+  if (kind === "recurring") {
+    const { data: updated } = await supabase
+      .from(table)
+      .update({ active })
+      .eq("id", id)
+      .select("name, type")
+      .single();
+    if (user && updated) {
+      await logActivity(supabase, user.id, {
+        action: active ? "toggle_on" : "toggle_off",
+        entityType: updated.type as ActivityEntityType,
+        entityName: updated.name,
+      });
+    }
+  } else {
+    const { data: updated } = await supabase.from(table).update({ active }).eq("id", id).select("name").single();
+    if (user && updated) {
+      await logActivity(supabase, user.id, {
+        action: active ? "toggle_on" : "toggle_off",
+        entityType: kind === "one_off" ? "misc" : "budget",
+        entityName: updated.name,
+      });
+    }
+  }
 
   for (const path of AFFECTED_PATHS) revalidatePath(path);
 }

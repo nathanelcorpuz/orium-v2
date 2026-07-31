@@ -3,7 +3,8 @@
 import { revalidatePath } from "next/cache";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
-import { parseCentavos } from "@/lib/money";
+import { formatCentavos, parseCentavos } from "@/lib/money";
+import { logActivity } from "@/lib/activityLog";
 import { todayInManila } from "@/lib/date";
 import { readRecurrenceRuleForm } from "@/lib/recurrenceForm";
 import { expandRecurrenceOccurrences } from "@/lib/engine/recurrence";
@@ -155,6 +156,8 @@ export async function createBudget(
   });
   if (error) return { error: error.message };
 
+  await logActivity(supabase, user.id, { action: "create", entityType: "budget", entityName: fields.name });
+
   revalidatePath("/budgets");
   revalidatePath("/forecast");
   revalidatePath("/");
@@ -170,6 +173,9 @@ export async function updateBudget(
   if (fields.error !== null) return { error: fields.error };
 
   const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   const { error } = await supabase
     .from("budgets")
     .update({
@@ -190,6 +196,8 @@ export async function updateBudget(
     })
     .eq("id", id);
   if (error) return { error: error.message };
+
+  if (user) await logActivity(supabase, user.id, { action: "update", entityType: "budget", entityName: fields.name });
 
   if (fields.startDate !== null) {
     await deleteStaleBudgetReplenishOverrides(supabase, id, {
@@ -215,7 +223,13 @@ export async function updateBudget(
 export async function deleteBudget(formData: FormData) {
   const id = formData.get("id") as string;
   const supabase = await createClient();
-  await supabase.from("budgets").delete().eq("id", id);
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  const { data: deleted } = await supabase.from("budgets").delete().eq("id", id).select("name").single();
+  if (user && deleted) {
+    await logActivity(supabase, user.id, { action: "delete", entityType: "budget", entityName: deleted.name });
+  }
   revalidatePath("/budgets");
   revalidatePath("/forecast");
   revalidatePath("/");
@@ -279,6 +293,15 @@ async function writeLedgerEntry(
   });
   if (settlementError) return { error: settlementError.message };
 
+  await logActivity(supabase, user.id, {
+    action: "create",
+    entityType: "budget_entry",
+    entityName: budgetName,
+    detail: fields.note
+      ? `${defaultLabel}: ${formatCentavos(fields.amount)} - ${fields.note}`
+      : `${defaultLabel}: ${formatCentavos(fields.amount)}`,
+  });
+
   revalidatePath("/budgets");
   revalidatePath("/history");
   revalidatePath("/forecast");
@@ -318,6 +341,9 @@ export async function updateBudgetEntry(
   if (fields.error) return { error: fields.error };
 
   const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
   const { data: oldEntry } = await supabase
     .from("budget_entries")
@@ -330,6 +356,15 @@ export async function updateBudgetEntry(
     .update({ entry_date: fields.entryDate, amount: fields.amount, note: fields.note })
     .eq("id", id);
   if (entryError) return { error: entryError.message };
+
+  if (user) {
+    await logActivity(supabase, user.id, {
+      action: "update",
+      entityType: "budget_entry",
+      entityName: budgetName,
+      detail: `${formatCentavos(fields.amount)}${fields.note ? ` - ${fields.note}` : ""}`,
+    });
+  }
 
   if (oldEntry) {
     const sign = oldEntry.direction === "incoming" ? 1 : -1;
@@ -371,15 +406,35 @@ export async function deleteBudgetEntry(
 ): Promise<BudgetActionState> {
   const id = formData.get("id") as string;
   const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
+  // Neither call site (BudgetEntriesModal, EditSettleModal) passes the
+  // budget's name as a hidden field the way updateBudgetEntry's does - only
+  // `id` - so it's pulled here via the same embedded-select Supabase already
+  // supports, rather than threading a new prop through two components just
+  // for a log line.
   const { data: entry } = await supabase
     .from("budget_entries")
-    .select("budget_id, entry_date, amount, direction")
+    .select("budget_id, entry_date, amount, direction, budgets(name)")
     .eq("id", id)
     .single();
 
   const { error: deleteError } = await supabase.from("budget_entries").delete().eq("id", id);
   if (deleteError) return { error: deleteError.message };
+
+  if (user && entry) {
+    await logActivity(supabase, user.id, {
+      action: "delete",
+      entityType: "budget_entry",
+      // Untyped Supabase client infers the embedded relation as an array
+      // (the safe default without generated types), even though budget_id is
+      // actually many-to-one.
+      entityName: entry.budgets[0]?.name ?? "Budget",
+      detail: formatCentavos(entry.amount),
+    });
+  }
 
   if (entry) {
     const sign = entry.direction === "incoming" ? 1 : -1;

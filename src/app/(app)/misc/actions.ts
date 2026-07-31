@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { parseCentavos } from "@/lib/money";
 import { todayInManila } from "@/lib/date";
 import { addYears, MAX_TRACKING_YEARS } from "@/lib/engine/date-utils";
+import { logActivity } from "@/lib/activityLog";
 
 export type ExtraActionState = { error: string | null };
 
@@ -68,6 +69,8 @@ export async function createExtra(
   });
   if (error) return { error: error.message };
 
+  await logActivity(supabase, user.id, { action: "create", entityType: "misc", entityName: fields.name });
+
   revalidatePath("/misc");
   revalidatePath("/");
   return { error: null };
@@ -82,6 +85,9 @@ export async function updateExtra(
   if (fields.error) return { error: fields.error };
 
   const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   const { error } = await supabase
     .from("one_off_items")
     .update({
@@ -94,6 +100,8 @@ export async function updateExtra(
     .eq("id", id);
   if (error) return { error: error.message };
 
+  if (user) await logActivity(supabase, user.id, { action: "update", entityType: "misc", entityName: fields.name });
+
   revalidatePath("/misc");
   revalidatePath("/");
   return { error: null };
@@ -102,7 +110,13 @@ export async function updateExtra(
 export async function deleteExtra(formData: FormData) {
   const id = formData.get("id") as string;
   const supabase = await createClient();
-  await supabase.from("one_off_items").delete().eq("id", id);
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  const { data: deleted } = await supabase.from("one_off_items").delete().eq("id", id).select("name").single();
+  if (user && deleted) {
+    await logActivity(supabase, user.id, { action: "delete", entityType: "misc", entityName: deleted.name });
+  }
   revalidatePath("/misc");
   revalidatePath("/");
 }

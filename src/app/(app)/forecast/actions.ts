@@ -2,8 +2,16 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { parseCentavos } from "@/lib/money";
-import { todayInManila } from "@/lib/date";
+import { formatCentavos, parseCentavos } from "@/lib/money";
+import { formatFullDate, todayInManila } from "@/lib/date";
+import { logActivity, type ActivityEntityType } from "@/lib/activityLog";
+
+// T162: maps a ForecastRow/settlement `type` ("bill"|"income"|"debt"|
+// "savings"|"extra") onto the activity log's vocabulary - only "extra" needs
+// translating, the same "misc" rename T106 already applies for display.
+function activityEntityType(type: string): ActivityEntityType {
+  return type === "extra" ? "misc" : (type as ActivityEntityType);
+}
 
 export type ForecastActionState = { error: string | null };
 
@@ -45,6 +53,7 @@ export async function editRecurringOccurrence(
 ): Promise<ForecastActionState> {
   const recurringItemId = formData.get("sourceId") as string;
   const originalDate = formData.get("originalDate") as string;
+  const type = formData.get("type") as string;
   const fields = readOccurrenceForm(formData);
   if (fields.error) return { error: fields.error };
 
@@ -68,6 +77,13 @@ export async function editRecurringOccurrence(
   );
   if (error) return { error: error.message };
 
+  await logActivity(supabase, user.id, {
+    action: "update",
+    entityType: activityEntityType(type),
+    entityName: fields.name,
+    detail: `Occurrence moved to ${formatFullDate(fields.date)}`,
+  });
+
   revalidatePath("/forecast");
   revalidatePath("/");
   return { error: null };
@@ -82,11 +98,23 @@ export async function editOneOff(
   if (fields.error) return { error: fields.error };
 
   const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   const { error } = await supabase
     .from("one_off_items")
     .update({ name: fields.name, amount: fields.amount, due_date: fields.date })
     .eq("id", id);
   if (error) return { error: error.message };
+
+  if (user) {
+    await logActivity(supabase, user.id, {
+      action: "update",
+      entityType: "misc",
+      entityName: fields.name,
+      detail: `Moved to ${formatFullDate(fields.date)}`,
+    });
+  }
 
   revalidatePath("/forecast");
   revalidatePath("/");
@@ -213,6 +241,13 @@ export async function settleOccurrence(
     if (balanceError) return { error: balanceError };
   }
 
+  await logActivity(supabase, user.id, {
+    action: "settle",
+    entityType: activityEntityType(type),
+    entityName: name,
+    detail: `${formatCentavos(actualAmount)} on ${formatFullDate(fields.actualDate)}`,
+  });
+
   if (sourceType === "recurring") {
     const { error } = await supabase.from("occurrence_overrides").upsert(
       {
@@ -283,6 +318,13 @@ export async function settleOccurrence(
           { onConflict: "budget_id,original_date" },
         );
         if (replenishOverrideError) return { error: replenishOverrideError.message };
+
+        await logActivity(supabase, user.id, {
+          action: "create",
+          entityType: "budget_entry",
+          entityName: linkedBudget.name,
+          detail: `Replenished: ${formatCentavos(linkedBudget.allocation)}`,
+        });
       }
       if (linkedBudgets.length > 0) revalidatePath("/budgets");
     }
@@ -315,6 +357,7 @@ export async function editBudgetReplenish(
   formData: FormData,
 ): Promise<ForecastActionState> {
   const budgetId = formData.get("budgetId") as string;
+  const budgetName = formData.get("budgetName") as string;
   const originalDate = formData.get("originalDate") as string;
   const amount = parseCentavos(formData.get("amountPesos") as string);
   const date = formData.get("date") as string;
@@ -346,6 +389,13 @@ export async function editBudgetReplenish(
   );
   if (error) return { error: error.message };
 
+  await logActivity(supabase, user.id, {
+    action: "update",
+    entityType: "budget",
+    entityName: budgetName,
+    detail: `Replenishment adjusted to ${formatCentavos(amount)} on ${formatFullDate(date)}`,
+  });
+
   revalidatePath("/forecast");
   revalidatePath("/budgets");
   revalidatePath("/");
@@ -361,6 +411,7 @@ export async function resetBudgetReplenish(
   formData: FormData,
 ): Promise<ForecastActionState> {
   const budgetId = formData.get("budgetId") as string;
+  const budgetName = formData.get("budgetName") as string;
   const originalDate = formData.get("originalDate") as string;
 
   const supabase = await createClient();
@@ -376,6 +427,13 @@ export async function resetBudgetReplenish(
     .eq("original_date", originalDate)
     .eq("skipped", false);
   if (error) return { error: error.message };
+
+  await logActivity(supabase, user.id, {
+    action: "update",
+    entityType: "budget",
+    entityName: budgetName,
+    detail: "Replenishment edit reset to its usual amount and date",
+  });
 
   revalidatePath("/forecast");
   revalidatePath("/budgets");
@@ -448,6 +506,13 @@ export async function settleBudgetReplenish(
     { onConflict: "budget_id,original_date" },
   );
   if (overrideError) return { error: overrideError.message };
+
+  await logActivity(supabase, user.id, {
+    action: "settle",
+    entityType: "budget",
+    entityName: budgetName,
+    detail: `Replenished: ${formatCentavos(fields.actualAmount)} on ${formatFullDate(fields.actualDate)}`,
+  });
 
   revalidatePath("/forecast");
   revalidatePath("/budgets");

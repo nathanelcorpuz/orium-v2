@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { parseCentavos } from "@/lib/money";
 import { readRecurrenceRuleForm } from "@/lib/recurrenceForm";
 import { deleteStaleOverrides } from "@/lib/staleOverrides";
+import { logActivity } from "@/lib/activityLog";
 
 export type IncomeActionState = { error: string | null };
 
@@ -68,6 +69,8 @@ export async function createIncome(
   });
   if (error) return { error: error.message };
 
+  await logActivity(supabase, user.id, { action: "create", entityType: "income", entityName: fields.name });
+
   revalidatePath("/income");
   revalidatePath("/forecast");
   revalidatePath("/");
@@ -83,6 +86,9 @@ export async function updateIncome(
   if (fields.error !== null) return { error: fields.error };
 
   const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   const { error } = await supabase
     .from("recurring_items")
     .update({
@@ -103,6 +109,8 @@ export async function updateIncome(
     })
     .eq("id", id);
   if (error) return { error: error.message };
+
+  if (user) await logActivity(supabase, user.id, { action: "update", entityType: "income", entityName: fields.name });
 
   await deleteStaleOverrides(supabase, id, {
     startDate: fields.startDate,
@@ -126,7 +134,13 @@ export async function updateIncome(
 export async function deleteIncome(formData: FormData) {
   const id = formData.get("id") as string;
   const supabase = await createClient();
-  await supabase.from("recurring_items").delete().eq("id", id);
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  const { data: deleted } = await supabase.from("recurring_items").delete().eq("id", id).select("name").single();
+  if (user && deleted) {
+    await logActivity(supabase, user.id, { action: "delete", entityType: "income", entityName: deleted.name });
+  }
   revalidatePath("/income");
   revalidatePath("/forecast");
   revalidatePath("/");

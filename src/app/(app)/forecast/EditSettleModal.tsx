@@ -223,6 +223,7 @@ export function EditSettleModal({
             className="space-y-4"
           >
             <input type="hidden" name="budgetId" value={row.budgetId} />
+            <input type="hidden" name="budgetName" value={row.budgetName} />
             <input type="hidden" name="originalDate" value={row.originalDate} />
             <p className="text-sm text-slate-500">
               Adjust this one replenishment. The budget&apos;s allocation and schedule stay as they
@@ -290,6 +291,7 @@ export function EditSettleModal({
               className="border-t border-notion-hairline pt-4"
             >
               <input type="hidden" name="budgetId" value={row.budgetId} />
+              <input type="hidden" name="budgetName" value={row.budgetName} />
               <input type="hidden" name="originalDate" value={row.originalDate} />
               {resetReplenishState.error && (
                 <p className="mb-2 text-sm text-red-600">{resetReplenishState.error}</p>
