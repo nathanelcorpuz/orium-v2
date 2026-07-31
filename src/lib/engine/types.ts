@@ -114,6 +114,9 @@ export interface Budget {
   // own running total on the Budgets page is unaffected, since that is a
   // record of money already moved rather than a projection.
   active?: boolean;
+  // T182: true when this budget was merged in from an active "what-if"
+  // scenario rather than being a real row - see RecurringItem.fromScenario.
+  fromScenario?: true;
 
   // Phase 11 (T58): a budget's own replenish schedule ("replenish every"),
   // set only when linkedIncomeId is null (DB-enforced mutual exclusivity -

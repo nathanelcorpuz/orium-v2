@@ -1392,4 +1392,29 @@ describe("generateForecast fromScenario pass-through (T174)", () => {
 
     expect(result[0].runningBalance).toBe(500000);
   });
+
+  it("marks a scenario budget's own budget_entry rows (T182)", () => {
+    const result = generateForecast({
+      balances: [],
+      recurringItems: [],
+      overrides: [],
+      oneOffs: [],
+      budgets: [
+        testBudget({ id: "real-budget", name: "Real budget" }),
+        testBudget({ id: "scenario-budget", name: "What-if fund", fromScenario: true }),
+      ],
+      budgetEntries: [
+        { id: "e1", budgetId: "real-budget", entryDate: "2026-01-15", amount: 100000, note: null, direction: "incoming" },
+        { id: "e2", budgetId: "scenario-budget", entryDate: "2026-01-20", amount: 200000, note: null, direction: "incoming" },
+      ],
+      today: "2026-01-01",
+      horizon: "2026-01-31",
+    });
+
+    const budgetRows = result.filter((row) => row.sourceType === "budget_entry");
+    expect(budgetRows.map((row) => ({ name: row.name, fromScenario: row.fromScenario ?? false }))).toEqual([
+      { name: "Real budget", fromScenario: false },
+      { name: "What-if fund", fromScenario: true },
+    ]);
+  });
 });

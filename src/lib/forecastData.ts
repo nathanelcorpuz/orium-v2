@@ -212,19 +212,28 @@ export async function loadForecast(): Promise<ForecastData> {
   let activeScenarioName: string | null = null;
 
   if (activeScenarioId) {
-    const [scenarioRes, scenarioRecurringRes, scenarioOneOffRes] = await Promise.all([
-      supabase.from("scenarios").select("name").eq("id", activeScenarioId).single(),
-      supabase
-        .from("scenario_recurring_items")
-        .select(
-          "id, name, type, amount, start_date, end_date, interval, unit, weekdays, days_of_month, ordinal, ordinal_weekday, ends_type, occurrence_count, balance_id, comments",
-        )
-        .eq("scenario_id", activeScenarioId),
-      supabase
-        .from("scenario_one_off_items")
-        .select("id, name, amount, due_date, balance_id, comments")
-        .eq("scenario_id", activeScenarioId),
-    ]);
+    const [scenarioRes, scenarioRecurringRes, scenarioOneOffRes, scenarioBudgetsRes, scenarioBudgetEntriesRes] =
+      await Promise.all([
+        supabase.from("scenarios").select("name").eq("id", activeScenarioId).single(),
+        supabase
+          .from("scenario_recurring_items")
+          .select(
+            "id, name, type, amount, start_date, end_date, interval, unit, weekdays, days_of_month, ordinal, ordinal_weekday, ends_type, occurrence_count, balance_id, comments",
+          )
+          .eq("scenario_id", activeScenarioId),
+        supabase
+          .from("scenario_one_off_items")
+          .select("id, name, amount, due_date, balance_id, comments")
+          .eq("scenario_id", activeScenarioId),
+        // T182: budgets in scenarios - see migration 0037's own comment for
+        // why this is a plain named "pot" rather than full replenish-
+        // schedule/income-link parity with a real budget.
+        supabase.from("scenario_budgets").select("id, name, created_at").eq("scenario_id", activeScenarioId),
+        supabase
+          .from("scenario_budget_entries")
+          .select("id, scenario_budget_id, entry_date, amount, note, direction")
+          .eq("scenario_id", activeScenarioId),
+      ]);
 
     // A scenario that no longer exists (e.g. deleted from another tab in
     // the same moment) just means scenario mode silently has nothing to
@@ -263,6 +272,43 @@ export async function loadForecast(): Promise<ForecastData> {
         balanceId: row.balance_id,
         comments: row.comments,
         fromScenario: true,
+      });
+    }
+
+    // T182: a scenario budget has no allocation/replenish schedule/linked
+    // income of its own (migration 0037's own comment explains why) - it's
+    // purely a named pot whose forecast effect comes entirely from its own
+    // future-dated entries below, the same way a real *manual* budget's
+    // future entries already work (futureBudgetLedgerEntries).
+    for (const row of scenarioBudgetsRes.data ?? []) {
+      budgets.push({
+        id: row.id,
+        name: row.name,
+        allocation: 0,
+        linkedIncomeId: null,
+        createdAt: row.created_at,
+        startDate: null,
+        interval: null,
+        unit: null,
+        weekdays: null,
+        daysOfMonth: null,
+        ordinal: null,
+        ordinalWeekday: null,
+        endsType: null,
+        endDate: null,
+        occurrenceCount: null,
+        fromScenario: true,
+      });
+    }
+
+    for (const row of scenarioBudgetEntriesRes.data ?? []) {
+      budgetEntries.push({
+        id: row.id,
+        budgetId: row.scenario_budget_id,
+        entryDate: row.entry_date,
+        amount: row.amount,
+        note: row.note,
+        direction: row.direction,
       });
     }
   }

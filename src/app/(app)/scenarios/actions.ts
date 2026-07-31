@@ -121,7 +121,7 @@ export async function activateScenarioPermanently(
   } = await supabase.auth.getUser();
   if (!user) return { error: "Not signed in." };
 
-  const [scenarioRes, recurringRes, oneOffRes] = await Promise.all([
+  const [scenarioRes, recurringRes, oneOffRes, scenarioBudgetsRes, scenarioBudgetEntriesRes] = await Promise.all([
     supabase.from("scenarios").select("name").eq("id", id).single(),
     supabase
       .from("scenario_recurring_items")
@@ -130,9 +130,17 @@ export async function activateScenarioPermanently(
       )
       .eq("scenario_id", id),
     supabase.from("scenario_one_off_items").select("name, amount, due_date, comments, balance_id").eq("scenario_id", id),
+    // T182
+    supabase.from("scenario_budgets").select("id, name").eq("scenario_id", id),
+    supabase
+      .from("scenario_budget_entries")
+      .select("scenario_budget_id, entry_date, amount, note, direction")
+      .eq("scenario_id", id),
   ]);
   if (recurringRes.error) return { error: recurringRes.error.message };
   if (oneOffRes.error) return { error: oneOffRes.error.message };
+  if (scenarioBudgetsRes.error) return { error: scenarioBudgetsRes.error.message };
+  if (scenarioBudgetEntriesRes.error) return { error: scenarioBudgetEntriesRes.error.message };
 
   const recurringToInsert = (recurringRes.data ?? []).map((row) => ({ ...row, user_id: user.id }));
   const oneOffsToInsert = (oneOffRes.data ?? []).map((row) => ({ ...row, user_id: user.id }));
@@ -146,20 +154,56 @@ export async function activateScenarioPermanently(
     if (error) return { error: error.message };
   }
 
+  // T182: budgets need their new real id captured before their entries can
+  // be inserted (entries reference budget_id) - one insert per budget
+  // rather than a bulk insert, so each old scenario_budgets id can be
+  // reliably paired with the new real budgets id it maps to.
+  const budgetIdMap = new Map<string, string>();
+  for (const scenarioBudget of scenarioBudgetsRes.data ?? []) {
+    const { data: inserted, error } = await supabase
+      .from("budgets")
+      .insert({ user_id: user.id, name: scenarioBudget.name, allocation: 0, monthly_allocation: 0 })
+      .select("id")
+      .single();
+    if (error) return { error: error.message };
+    budgetIdMap.set(scenarioBudget.id, inserted.id);
+  }
+
+  const budgetEntriesToInsert = (scenarioBudgetEntriesRes.data ?? [])
+    .map((row) => ({
+      user_id: user.id,
+      budget_id: budgetIdMap.get(row.scenario_budget_id),
+      entry_date: row.entry_date,
+      amount: row.amount,
+      note: row.note,
+      direction: row.direction,
+    }))
+    .filter((row): row is typeof row & { budget_id: string } => row.budget_id !== undefined);
+
+  if (budgetEntriesToInsert.length > 0) {
+    const { error } = await supabase.from("budget_entries").insert(budgetEntriesToInsert);
+    if (error) return { error: error.message };
+  }
+
   // Deleting the scenario cascades its own scenario_recurring_items/
-  // scenario_one_off_items rows away, and (ON DELETE SET NULL) turns off
-  // scenario mode if this was the active one.
+  // scenario_one_off_items/scenario_budgets/scenario_budget_entries rows
+  // away, and (ON DELETE SET NULL) turns off scenario mode if this was the
+  // active one.
   const { error: deleteError } = await supabase.from("scenarios").delete().eq("id", id);
   if (deleteError) return { error: deleteError.message };
 
+  const itemCount =
+    recurringToInsert.length + oneOffsToInsert.length + (scenarioBudgetsRes.data?.length ?? 0);
   await logActivity(supabase, user.id, {
     action: "update",
     entityType: "misc",
     entityName: `Scenario: ${scenarioRes.data?.name ?? "Untitled"}`,
-    detail: `Activated permanently - ${recurringToInsert.length + oneOffsToInsert.length} item(s) made real`,
+    detail: `Activated permanently - ${itemCount} item(s) made real`,
   });
 
-  for (const path of [...AFFECTED_PATHS, "/bills", "/income", "/debt", "/savings", "/misc"]) revalidatePath(path);
+  for (const path of [...AFFECTED_PATHS, "/bills", "/income", "/debt", "/savings", "/misc", "/budgets"]) {
+    revalidatePath(path);
+  }
   return { error: null };
 }
 
@@ -368,6 +412,146 @@ export async function deleteScenarioOneOff(formData: FormData) {
   const scenarioId = formData.get("scenarioId") as string;
   const supabase = await createClient();
   await supabase.from("scenario_one_off_items").delete().eq("id", id);
+  revalidatePath(`/scenarios/${scenarioId}`);
+  for (const path of AFFECTED_PATHS) revalidatePath(path);
+}
+
+// --- Scenario budgets (T182) ------------------------------------------------
+//
+// Deliberately a plain named pot, not a clone of the real Budgets page's
+// allocation/replenish-schedule/linked-income model - see migration 0037's
+// own comment. One creation modal (just a name) plus its own entries list,
+// the same "one modal per item type" shape scenario bills/misc already use.
+
+export async function createScenarioBudget(
+  _prevState: ScenarioActionState,
+  formData: FormData,
+): Promise<ScenarioActionState> {
+  const scenarioId = formData.get("scenarioId") as string;
+  const name = (formData.get("name") as string).trim();
+  if (!name) return { error: "Name is required." };
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Not signed in." };
+
+  const { error } = await supabase
+    .from("scenario_budgets")
+    .insert({ user_id: user.id, scenario_id: scenarioId, name });
+  if (error) return { error: error.message };
+
+  revalidatePath(`/scenarios/${scenarioId}`);
+  for (const path of AFFECTED_PATHS) revalidatePath(path);
+  return { error: null };
+}
+
+export async function renameScenarioBudget(
+  _prevState: ScenarioActionState,
+  formData: FormData,
+): Promise<ScenarioActionState> {
+  const id = formData.get("id") as string;
+  const scenarioId = formData.get("scenarioId") as string;
+  const name = (formData.get("name") as string).trim();
+  if (!name) return { error: "Name is required." };
+
+  const supabase = await createClient();
+  const { error } = await supabase.from("scenario_budgets").update({ name }).eq("id", id);
+  if (error) return { error: error.message };
+
+  revalidatePath(`/scenarios/${scenarioId}`);
+  for (const path of AFFECTED_PATHS) revalidatePath(path);
+  return { error: null };
+}
+
+export async function deleteScenarioBudget(formData: FormData) {
+  const id = formData.get("id") as string;
+  const scenarioId = formData.get("scenarioId") as string;
+  const supabase = await createClient();
+  // Cascades scenario_budget_entries away with it (migration 0037).
+  await supabase.from("scenario_budgets").delete().eq("id", id);
+  revalidatePath(`/scenarios/${scenarioId}`);
+  for (const path of AFFECTED_PATHS) revalidatePath(path);
+}
+
+function readScenarioBudgetEntryForm(formData: FormData) {
+  const magnitude = parseCentavos(formData.get("amountPesos") as string);
+  const direction = formData.get("direction") as string;
+  const entryDate = formData.get("entryDate") as string;
+  const note = ((formData.get("note") as string) || "").trim() || null;
+
+  if (magnitude === null || magnitude <= 0) return { error: "Enter a valid amount." } as const;
+  if (direction !== "incoming" && direction !== "outgoing") {
+    return { error: "Choose money in or money out." } as const;
+  }
+  if (!entryDate) return { error: "Date is required." } as const;
+
+  return { error: null, amount: magnitude, direction, entryDate, note } as const;
+}
+
+export async function createScenarioBudgetEntry(
+  _prevState: ScenarioActionState,
+  formData: FormData,
+): Promise<ScenarioActionState> {
+  const scenarioId = formData.get("scenarioId") as string;
+  const scenarioBudgetId = formData.get("scenarioBudgetId") as string;
+  const fields = readScenarioBudgetEntryForm(formData);
+  if (fields.error) return { error: fields.error };
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Not signed in." };
+
+  const { error } = await supabase.from("scenario_budget_entries").insert({
+    user_id: user.id,
+    scenario_id: scenarioId,
+    scenario_budget_id: scenarioBudgetId,
+    entry_date: fields.entryDate,
+    amount: fields.amount,
+    direction: fields.direction,
+    note: fields.note,
+  });
+  if (error) return { error: error.message };
+
+  revalidatePath(`/scenarios/${scenarioId}`);
+  for (const path of AFFECTED_PATHS) revalidatePath(path);
+  return { error: null };
+}
+
+export async function updateScenarioBudgetEntry(
+  _prevState: ScenarioActionState,
+  formData: FormData,
+): Promise<ScenarioActionState> {
+  const id = formData.get("id") as string;
+  const scenarioId = formData.get("scenarioId") as string;
+  const fields = readScenarioBudgetEntryForm(formData);
+  if (fields.error) return { error: fields.error };
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("scenario_budget_entries")
+    .update({
+      entry_date: fields.entryDate,
+      amount: fields.amount,
+      direction: fields.direction,
+      note: fields.note,
+    })
+    .eq("id", id);
+  if (error) return { error: error.message };
+
+  revalidatePath(`/scenarios/${scenarioId}`);
+  for (const path of AFFECTED_PATHS) revalidatePath(path);
+  return { error: null };
+}
+
+export async function deleteScenarioBudgetEntry(formData: FormData) {
+  const id = formData.get("id") as string;
+  const scenarioId = formData.get("scenarioId") as string;
+  const supabase = await createClient();
+  await supabase.from("scenario_budget_entries").delete().eq("id", id);
   revalidatePath(`/scenarios/${scenarioId}`);
   for (const path of AFFECTED_PATHS) revalidatePath(path);
 }
