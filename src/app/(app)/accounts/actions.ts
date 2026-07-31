@@ -127,6 +127,34 @@ async function adjustBalance(
   return updateError?.message ?? null;
 }
 
+// T186 follow-up: the account a move's funds leave FROM also pays its own
+// transaction fee (T172), same convention `applyToBalance` (forecast/
+// actions.ts) already uses for settlements - the fee is silently folded
+// into the real balance update, never shown as its own ledger line, so the
+// moved amount recorded in balance_transactions always matches what the
+// user actually typed. Only the source side of a move incurs this - Add/
+// Take funds and the destination side don't, per the user's own framing
+// ("the move FROM account should have a transaction fee").
+async function adjustBalanceWithOwnFee(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  balanceId: string,
+  delta: number,
+): Promise<string | null> {
+  const { data: balance, error: fetchError } = await supabase
+    .from("balances")
+    .select("amount, transaction_fee_centavos")
+    .eq("id", balanceId)
+    .single();
+  if (fetchError) return fetchError.message;
+
+  const fee = balance.transaction_fee_centavos ?? 0;
+  const { error: updateError } = await supabase
+    .from("balances")
+    .update({ amount: balance.amount + delta - fee })
+    .eq("id", balanceId);
+  return updateError?.message ?? null;
+}
+
 export async function addAccountFunds(
   _prevState: BalanceActionState,
   formData: FormData,
@@ -232,7 +260,7 @@ export async function moveAccountFunds(
   } = await supabase.auth.getUser();
   if (!user) return { error: "Not signed in." };
 
-  const fromError = await adjustBalance(supabase, fromId, -fields.amount);
+  const fromError = await adjustBalanceWithOwnFee(supabase, fromId, -fields.amount);
   if (fromError) return { error: fromError };
   const toError = await adjustBalance(supabase, toId, fields.amount);
   if (toError) return { error: toError };

@@ -7,6 +7,7 @@ import { SubmitButton } from "@/components/SubmitButton";
 import { deleteBalance } from "./actions";
 import { BalanceModal, type BalanceRow } from "./BalanceModal";
 import { AccountFundsModal } from "./AccountFundsModal";
+import { AccountHistoryModal, type BalanceTransactionRow } from "./AccountHistoryModal";
 import type { ConnectedItem } from "@/lib/connectedItems";
 
 // T152: `ConnectedItem` moved to `@/lib/connectedItems` so the Forecast page
@@ -18,6 +19,10 @@ export type { ConnectedItem };
 export function BalancesClient({
   balances,
   connectedItems,
+  // T186 follow-up: each account's own Add/Take/Move funds history, for the
+  // new "History" button below - defaults to empty for preview mode, which
+  // has no real transactions to show.
+  transactionsByBalanceId = new Map(),
   // T120: `?preview=1` renders a read-only sample fixture (see page.tsx) -
   // every mutating control is hidden so a tour/preview session can never
   // write to (or 404 against) the real account behind it.
@@ -25,11 +30,13 @@ export function BalancesClient({
 }: {
   balances: BalanceRow[];
   connectedItems: ConnectedItem[];
+  transactionsByBalanceId?: Map<string, BalanceTransactionRow[]>;
   previewMode?: boolean;
 }) {
   const [modalState, setModalState] = useState<null | "new" | BalanceRow>(null);
   const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null);
   const [fundsModal, setFundsModal] = useState<null | { mode: "add" | "take" | "move"; balance: BalanceRow }>(null);
+  const [historyBalance, setHistoryBalance] = useState<BalanceRow | null>(null);
 
   const total = balances.reduce((sum, balance) => sum + balance.amount, 0);
 
@@ -118,6 +125,13 @@ export function BalancesClient({
                       )}
                       <button
                         type="button"
+                        onClick={() => setHistoryBalance(balance)}
+                        className="rounded border border-notion-hairline px-3 py-1 text-sm text-notion-text hover:bg-notion-hover"
+                      >
+                        History
+                      </button>
+                      <button
+                        type="button"
                         onClick={() => setModalState(balance)}
                         className="rounded border border-notion-hairline px-3 py-1 text-sm text-notion-text hover:bg-notion-hover"
                       >
@@ -154,6 +168,14 @@ export function BalancesClient({
             balance={fundsModal.balance}
             balances={balances}
             onClose={() => setFundsModal(null)}
+          />
+        )}
+
+        {historyBalance && (
+          <AccountHistoryModal
+            balanceName={historyBalance.name}
+            transactions={transactionsByBalanceId.get(historyBalance.id) ?? []}
+            onClose={() => setHistoryBalance(null)}
           />
         )}
       </div>

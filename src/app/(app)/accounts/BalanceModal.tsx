@@ -1,9 +1,10 @@
 "use client";
 
-import { useActionState, useEffect, useRef } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 import { Modal } from "@/components/Modal";
 import { SubmitButton } from "@/components/SubmitButton";
 import { FormTip } from "@/components/FormTip";
+import { ChevronIcon } from "@/components/navIcons";
 import { centavosToPesosString, formatCentavos } from "@/lib/money";
 import { createBalance, updateBalance, disconnectItem, type BalanceActionState } from "./actions";
 import type { ConnectedItem } from "@/lib/connectedItems";
@@ -78,6 +79,11 @@ export function BalanceModal({
     initialState,
   );
   const submitted = useRef(false);
+  // Collapse toggle for the connected-items list below - expanded by
+  // default (this is why the modal was opened as often as not), and not
+  // persisted anywhere since it's a transient per-open preference on a
+  // modal that closes and forgets its own state anyway.
+  const [connectedItemsOpen, setConnectedItemsOpen] = useState(true);
 
   useEffect(() => {
     if (submitted.current && !pending && !state.error) {
@@ -201,15 +207,26 @@ export function BalanceModal({
 
       {isEdit && (
         <div className="mt-6 border-t border-notion-hairline pt-4">
-          <p className="mb-2 text-sm font-medium text-notion-text">
-            Connected items
-            {connectedItems.length > 0 && (
-              <span className="ml-1 font-normal text-slate-400">({connectedItems.length})</span>
-            )}
-          </p>
-          {connectedItems.length === 0 ? (
+          <button
+            type="button"
+            onClick={() => setConnectedItemsOpen((prev) => !prev)}
+            aria-expanded={connectedItemsOpen}
+            className="mb-2 flex w-full items-center justify-between text-sm font-medium text-notion-text hover:opacity-80"
+          >
+            <span>
+              Connected items
+              {connectedItems.length > 0 && (
+                <span className="ml-1 font-normal text-slate-400">({connectedItems.length})</span>
+              )}
+            </span>
+            <ChevronIcon
+              direction="right"
+              className={`h-3.5 w-3.5 text-slate-400 transition-transform ${connectedItemsOpen ? "rotate-90" : ""}`}
+            />
+          </button>
+          {connectedItemsOpen && connectedItems.length === 0 ? (
             <p className="text-sm text-slate-400">No bills, income, debt, savings, or extras point here.</p>
-          ) : (
+          ) : connectedItemsOpen ? (
             <div className="space-y-3">
               {groupConnectedItems(connectedItems).map((group) => {
                 const colorClass = TYPE_COLOR[group.type as keyof typeof TYPE_COLOR] ?? "text-notion-text";
@@ -246,7 +263,7 @@ export function BalanceModal({
                 );
               })}
             </div>
-          )}
+          ) : null}
         </div>
       )}
     </Modal>
