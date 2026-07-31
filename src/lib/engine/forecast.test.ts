@@ -1209,3 +1209,130 @@ describe("generateForecast disabled records (T175)", () => {
     expect(result).toEqual([]);
   });
 });
+
+// T172 (SPEC.md Phase 20): a per-account transaction fee, auto-deducted from
+// every forecasted transaction connected to that account - both directions,
+// per the user's own "all forecasted transactions" framing, not just
+// outflows. Shown as its own field rather than folded into `amount`, so a
+// bill's displayed amount always matches its real record.
+describe("generateForecast per-account transaction fee (T172)", () => {
+  it("subtracts the fee from an outgoing bill's connected account", () => {
+    const result = generateForecast({
+      balances: [{ id: "bal-1", name: "BDO", amount: 1000000, transactionFeeCentavos: 1000 }],
+      recurringItems: [
+        monthlyItem({ id: "bill-1", name: "Rent", amount: -300000, daysOfMonth: [5], balanceId: "bal-1" }),
+      ],
+      overrides: [],
+      oneOffs: [],
+      today: "2026-01-01",
+      horizon: "2026-01-31",
+    });
+
+    expect(result[0].feeAmount).toBe(1000);
+    // 1,000,000 - 300,000 (bill) - 1,000 (fee) = 699,000.
+    expect(result[0].runningBalance).toBe(699000);
+  });
+
+  it("also subtracts the fee from an incoming income's connected account", () => {
+    const result = generateForecast({
+      balances: [{ id: "bal-1", name: "BDO", amount: 1000000, transactionFeeCentavos: 1000 }],
+      recurringItems: [
+        monthlyItem({
+          id: "income-1",
+          name: "Salary",
+          type: "income",
+          amount: 500000,
+          daysOfMonth: [5],
+          balanceId: "bal-1",
+        }),
+      ],
+      overrides: [],
+      oneOffs: [],
+      today: "2026-01-01",
+      horizon: "2026-01-31",
+    });
+
+    expect(result[0].feeAmount).toBe(1000);
+    // 1,000,000 + 500,000 (income) - 1,000 (fee, a cost regardless of
+    // direction) = 1,499,000.
+    expect(result[0].runningBalance).toBe(1499000);
+  });
+
+  it("applies to a connected one-off too", () => {
+    const result = generateForecast({
+      balances: [{ id: "bal-1", name: "GCash", amount: 500000, transactionFeeCentavos: 500 }],
+      recurringItems: [],
+      overrides: [],
+      oneOffs: [{ id: "off-1", name: "Gift", amount: -100000, dueDate: "2026-01-10", balanceId: "bal-1" }],
+      today: "2026-01-01",
+      horizon: "2026-01-31",
+    });
+
+    expect(result[0].feeAmount).toBe(500);
+    expect(result[0].runningBalance).toBe(399500);
+  });
+
+  it("charges the fee independently on every occurrence, not just once", () => {
+    const result = generateForecast({
+      balances: [{ id: "bal-1", name: "BDO", amount: 1000000, transactionFeeCentavos: 1000 }],
+      recurringItems: [
+        monthlyItem({ id: "bill-1", name: "Rent", amount: -300000, daysOfMonth: [5], balanceId: "bal-1" }),
+      ],
+      overrides: [],
+      oneOffs: [],
+      today: "2026-01-01",
+      horizon: "2026-03-31",
+    });
+
+    expect(result.map((row) => row.feeAmount)).toEqual([1000, 1000, 1000]);
+    expect(result.map((row) => row.runningBalance)).toEqual([699000, 398000, 97000]);
+  });
+
+  it("charges no fee when the item has no connected account", () => {
+    const result = generateForecast({
+      balances: [{ id: "bal-1", name: "BDO", amount: 1000000, transactionFeeCentavos: 1000 }],
+      recurringItems: [
+        monthlyItem({ id: "bill-1", name: "Rent", amount: -300000, daysOfMonth: [5], balanceId: null }),
+      ],
+      overrides: [],
+      oneOffs: [],
+      today: "2026-01-01",
+      horizon: "2026-01-31",
+    });
+
+    expect(result[0].feeAmount).toBeUndefined();
+    expect(result[0].runningBalance).toBe(700000);
+  });
+
+  it("treats a zero fee the same as no fee at all", () => {
+    const result = generateForecast({
+      balances: [{ id: "bal-1", name: "BDO", amount: 1000000, transactionFeeCentavos: 0 }],
+      recurringItems: [
+        monthlyItem({ id: "bill-1", name: "Rent", amount: -300000, daysOfMonth: [5], balanceId: "bal-1" }),
+      ],
+      overrides: [],
+      oneOffs: [],
+      today: "2026-01-01",
+      horizon: "2026-01-31",
+    });
+
+    expect(result[0].feeAmount).toBeUndefined();
+    expect(result[0].runningBalance).toBe(700000);
+  });
+
+  it("charges nothing when the balances list omits transactionFeeCentavos entirely", () => {
+    const result = generateForecast({
+      balances: [{ id: "bal-1", name: "BDO", amount: 1000000 }],
+      recurringItems: [
+        monthlyItem({ id: "bill-1", name: "Rent", amount: -300000, daysOfMonth: [5], balanceId: "bal-1" }),
+      ],
+      overrides: [],
+      oneOffs: [],
+      today: "2026-01-01",
+      horizon: "2026-01-31",
+    });
+
+    expect(result[0].feeAmount).toBeUndefined();
+    expect(result[0].runningBalance).toBe(700000);
+  });
+});

@@ -621,7 +621,19 @@ export function ForecastClient({
                             <td className="hidden px-2 py-1.5 text-slate-500 md:table-cell">
                               {row.balanceId ? (balanceNameById.get(row.balanceId) ?? "-") : "-"}
                             </td>
-                            <td className="px-2 py-1.5 text-right">{formatCentavos(row.amount, currency)}</td>
+                            <td className="px-2 py-1.5 text-right">
+                              {formatCentavos(row.amount, currency)}
+                              {/* T172: a separate, visible line rather than
+                                  folding the fee into `amount` - that value
+                                  should always match the underlying bill/
+                                  income/misc record. The running balance
+                                  already accounts for it either way. */}
+                              {row.feeAmount ? (
+                                <span className="block text-xs text-slate-400">
+                                  - {formatCentavos(row.feeAmount, currency)} fee
+                                </span>
+                              ) : null}
+                            </td>
                             <td className="px-2 py-1.5 text-right font-medium">
                               <ForecastBalanceCell
                                 balance={row.runningBalance}

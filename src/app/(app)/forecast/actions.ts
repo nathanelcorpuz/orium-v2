@@ -145,6 +145,15 @@ function readSettleForm(formData: FormData) {
 // existing non-transactional multi-step-write style (e.g. the linked-budget
 // loop just below) - acceptable for a single-user/family app with no
 // concurrent-write risk in practice.
+//
+// T172: also deducts the account's own transaction fee, if it has one. This
+// is the one place real money moves for a settlement, so it's also the one
+// place the fee has to actually leave the account - the Forecast's
+// projected balance already included it (forecast.ts), and without this the
+// real settled balance would end up higher than the forecast promised,
+// exactly the kind of forecast-versus-reality drift T151/Bug #14 was about.
+// Folded into this shared helper rather than handled by its one caller, so
+// any future caller gets the same correctness for free.
 async function applyToBalance(
   supabase: Awaited<ReturnType<typeof createClient>>,
   balanceId: string,
@@ -152,14 +161,16 @@ async function applyToBalance(
 ): Promise<string | null> {
   const { data: balance, error: fetchError } = await supabase
     .from("balances")
-    .select("amount")
+    .select("amount, transaction_fee_centavos")
     .eq("id", balanceId)
     .single();
   if (fetchError) return fetchError.message;
 
+  const fee = balance.transaction_fee_centavos ?? 0;
+
   const { error: updateError } = await supabase
     .from("balances")
-    .update({ amount: balance.amount + delta })
+    .update({ amount: balance.amount + delta - fee })
     .eq("id", balanceId);
   return updateError?.message ?? null;
 }

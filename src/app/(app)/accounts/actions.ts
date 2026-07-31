@@ -7,6 +7,19 @@ import { logActivity } from "@/lib/activityLog";
 
 export type BalanceActionState = { error: string | null };
 
+// T172: the fee field is optional - a blank input means "no fee" (0), not
+// an error, unlike every other amount field in this app (which reads a
+// blank as invalid via parseCentavos returning null). A negative value is
+// still rejected, matching the DB's own `>= 0` check constraint.
+function readTransactionFeeForm(formData: FormData): { error: string | null; fee: number } {
+  const raw = ((formData.get("transactionFeePesos") as string) || "").trim();
+  if (raw === "") return { error: null, fee: 0 };
+
+  const parsed = parseCentavos(raw);
+  if (parsed === null || parsed < 0) return { error: "Enter a valid transaction fee, or leave it blank.", fee: 0 };
+  return { error: null, fee: parsed };
+}
+
 export async function createBalance(
   _prevState: BalanceActionState,
   formData: FormData,
@@ -14,9 +27,11 @@ export async function createBalance(
   const name = (formData.get("name") as string).trim();
   const amount = parseCentavos(formData.get("amountPesos") as string);
   const comments = ((formData.get("comments") as string) || "").trim() || null;
+  const feeFields = readTransactionFeeForm(formData);
 
   if (!name) return { error: "Name is required." };
   if (amount === null) return { error: "Enter a valid amount." };
+  if (feeFields.error) return { error: feeFields.error };
 
   const supabase = await createClient();
   const {
@@ -29,6 +44,7 @@ export async function createBalance(
     name,
     amount,
     comments,
+    transaction_fee_centavos: feeFields.fee,
   });
   if (error) return { error: error.message };
 
@@ -48,15 +64,20 @@ export async function updateBalance(
   const name = (formData.get("name") as string).trim();
   const amount = parseCentavos(formData.get("amountPesos") as string);
   const comments = ((formData.get("comments") as string) || "").trim() || null;
+  const feeFields = readTransactionFeeForm(formData);
 
   if (!name) return { error: "Name is required." };
   if (amount === null) return { error: "Enter a valid amount." };
+  if (feeFields.error) return { error: feeFields.error };
 
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  const { error } = await supabase.from("balances").update({ name, amount, comments }).eq("id", id);
+  const { error } = await supabase
+    .from("balances")
+    .update({ name, amount, comments, transaction_fee_centavos: feeFields.fee })
+    .eq("id", id);
   if (error) return { error: error.message };
 
   if (user) await logActivity(supabase, user.id, { action: "update", entityType: "account", entityName: name });

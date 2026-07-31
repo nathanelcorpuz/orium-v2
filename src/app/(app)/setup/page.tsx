@@ -28,7 +28,10 @@ export default async function SetupPage() {
         "id, name, type, amount, start_date, interval, unit, weekdays, days_of_month, ordinal, ordinal_weekday, ends_type, end_date, occurrence_count, comments, balance_id",
       )
       .order("start_date", { ascending: true }),
-    supabase.from("balances").select("id, name, amount, comments").order("name", { ascending: true }),
+    supabase
+      .from("balances")
+      .select("id, name, amount, comments, transaction_fee_centavos")
+      .order("name", { ascending: true }),
     supabase
       .from("budgets")
       .select(

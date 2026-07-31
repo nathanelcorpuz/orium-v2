@@ -13,6 +13,11 @@ export type BalanceRow = {
   name: string;
   amount: number;
   comments: string | null;
+  // T172: flat fee (centavos, >= 0) auto-deducted from every forecasted
+  // transaction connected to this account. Optional so a caller that hasn't
+  // fetched it (there are none left, but matching every other optional-DB-
+  // column convention in this app) doesn't need a literal 0 everywhere.
+  transaction_fee_centavos?: number;
 };
 
 const initialState: BalanceActionState = { error: null };
@@ -106,6 +111,27 @@ export function BalanceModal({
           <FormTip tipKey="account-amount">
             What&rsquo;s in it right now. From here on Orium keeps it up to date for you each time
             you settle a bill or income connected to this account.
+          </FormTip>
+        </div>
+        <div>
+          <label className="block text-sm text-slate-600" htmlFor="transactionFeePesos">
+            Transaction fee (₱, optional)
+          </label>
+          <input
+            id="transactionFeePesos"
+            name="transactionFeePesos"
+            type="number"
+            step="0.01"
+            min="0"
+            defaultValue={
+              balance?.transaction_fee_centavos ? centavosToPesosString(balance.transaction_fee_centavos) : ""
+            }
+            className="mt-1 w-full rounded border border-notion-hairline p-2 text-notion-text focus:border-notion-accent focus:outline-none"
+          />
+          <FormTip tipKey="account-fee">
+            A flat cost auto-deducted from every forecasted transaction connected to this
+            account, incoming or outgoing - e.g. a bank that charges a fee per transaction. Leave
+            blank for none.
           </FormTip>
         </div>
         <div>

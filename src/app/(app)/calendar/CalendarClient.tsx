@@ -192,7 +192,16 @@ export function CalendarClient({
                     <span className={`mr-1.5 text-xs ${TYPE_COLOR[row.type]}`}>{TYPE_LABEL[row.type]}</span>
                     {row.name}
                   </span>
-                  <span className="ml-2 shrink-0 text-sm text-slate-600">{formatCentavos(row.amount, currency)}</span>
+                  <span className="ml-2 shrink-0 text-right text-sm text-slate-600">
+                    {formatCentavos(row.amount, currency)}
+                    {/* T172: same "own line, not folded into amount" as the
+                        Forecast table. */}
+                    {row.feeAmount ? (
+                      <span className="block text-xs text-slate-400">
+                        - {formatCentavos(row.feeAmount, currency)} fee
+                      </span>
+                    ) : null}
+                  </span>
                 </button>
               </li>
             ))}

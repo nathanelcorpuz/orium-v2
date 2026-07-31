@@ -32,7 +32,7 @@ export default async function BalancesPage({
   const [{ data: balances, error }, connectedItems] = await Promise.all([
     supabase
       .from("balances")
-      .select("id, name, amount, comments")
+      .select("id, name, amount, comments, transaction_fee_centavos")
       .order("created_at", { ascending: true }),
     loadConnectedItems(),
   ]);

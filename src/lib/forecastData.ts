@@ -24,7 +24,10 @@ const DEFAULT_CURRENCY = "₱";
 
 // Balance plus `comments`, since the Forecast page reuses the Balances
 // page's edit modal (which needs it), unlike the engine's minimal Balance.
-export type ForecastBalance = Balance & { comments: string | null };
+// T172: also carries the snake_case `transaction_fee_centavos`, alongside
+// `Balance`'s own camelCase `transactionFeeCentavos` - see the mapping
+// below for why both are needed on the same object.
+export type ForecastBalance = Balance & { comments: string | null; transaction_fee_centavos?: number };
 
 export type ForecastData = {
   forecast: ForecastRow[];
@@ -61,7 +64,7 @@ export async function loadForecast(): Promise<ForecastData> {
     replenishOverridesRes,
     preferencesRes,
   ] = await Promise.all([
-    supabase.from("balances").select("id, name, amount, comments"),
+    supabase.from("balances").select("id, name, amount, comments, transaction_fee_centavos"),
     supabase
       .from("recurring_items")
       .select(
@@ -100,7 +103,26 @@ export async function loadForecast(): Promise<ForecastData> {
     throw new Error(`Failed to load forecast data: ${criticalError.message}`);
   }
 
-  const balances: ForecastBalance[] = balancesRes.data ?? [];
+  // T172: only place this row shape gets translated from snake_case - it
+  // used to be a direct passthrough since id/name/amount/comments all
+  // happened to already match; transaction_fee_centavos breaks that
+  // coincidence, so this is now an explicit mapping like every other table.
+  //
+  // Carries both the camelCase field (transactionFeeCentavos, what the
+  // engine's Balance type reads) and the snake_case one
+  // (transaction_fee_centavos, what BalanceModal.tsx's BalanceRow expects) -
+  // this exact array is used both as GenerateForecastInput.balances below
+  // and as ForecastData.balances, which ForecastClient.tsx threads straight
+  // into BalanceRow[]. One object satisfying both shapes is simpler than
+  // maintaining two separate arrays for the same rows.
+  const balances: ForecastBalance[] = (balancesRes.data ?? []).map((row) => ({
+    id: row.id,
+    name: row.name,
+    amount: row.amount,
+    comments: row.comments,
+    transactionFeeCentavos: row.transaction_fee_centavos,
+    transaction_fee_centavos: row.transaction_fee_centavos,
+  }));
 
   const recurringItems: RecurringItem[] = (recurringRes.data ?? []).map((row) => ({
     id: row.id,

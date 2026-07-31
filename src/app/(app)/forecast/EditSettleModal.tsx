@@ -558,6 +558,16 @@ export function EditSettleModal({
           <p className="text-sm text-slate-500">
             Forecasted: {formatFullDate(row.dueDate)}, {centavosToPesosString(row.amount)} {currency}
           </p>
+          {/* T172: the connected account's fee, shown for transparency - the
+              user's own request specifically asked for this to be visible
+              "in editing/settling a transaction." Already reflected in the
+              projected running balance; there is nothing to edit here, it's
+              a property of the account, not this occurrence. */}
+          {row.feeAmount ? (
+            <p className="text-sm text-slate-500">
+              Plus a {centavosToPesosString(row.feeAmount)} {currency} account fee
+            </p>
+          ) : null}
           <div>
             <label className="block text-sm text-slate-600" htmlFor="actualAmountPesos">
               Actual amount ({currency})

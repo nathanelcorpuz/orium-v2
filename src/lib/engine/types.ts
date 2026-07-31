@@ -9,6 +9,11 @@ export interface Balance {
   id: string;
   name: string;
   amount: number; // centavos
+  // T172: flat cost (centavos, >= 0) auto-deducted from every forecasted
+  // transaction connected to this account, both incoming and outgoing.
+  // Optional/undefined means no fee (0), matching the DB default - keeps
+  // every existing fixture and test constructor valid.
+  transactionFeeCentavos?: number;
 }
 
 export interface RecurringItem {
@@ -193,6 +198,13 @@ export interface ForecastRow {
   // pre-select it. Omitted (not null) when unset, same convention as
   // `edited`, so existing toEqual literals without it are unaffected.
   balanceId?: string;
+  // T172: the connected account's flat transaction fee, already folded into
+  // `runningBalance` but kept as its own field so the UI can show it as a
+  // visible line rather than silently altering `amount` (which should always
+  // match the underlying bill/income/misc record's real value). Omitted
+  // (not 0) when the row has no connected account or that account has no
+  // fee, same convention as every other optional flag here.
+  feeAmount?: number;
   // T155: the source item's own comment, for the Forecast's comment-bubble
   // indicator. Only ever set for "recurring"/"one_off" rows (budget rows use
   // `note` above), and omitted rather than null when the item has none, so a

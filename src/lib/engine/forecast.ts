@@ -38,6 +38,14 @@ export function generateForecast(input: GenerateForecastInput): ForecastRow[] {
   const budgetEntries = input.budgetEntries ?? [];
   const budgetReplenishOverrides = input.budgetReplenishOverrides ?? [];
 
+  // T172: looked up once per account rather than per row - a fee is a
+  // property of the account, not the transaction, and every row connected to
+  // the same account shares it.
+  const feeByBalanceId = new Map<string, number>();
+  for (const balance of balances) {
+    if (balance.transactionFeeCentavos) feeByBalanceId.set(balance.id, balance.transactionFeeCentavos);
+  }
+
   const overridesByKey = new Map<string, OccurrenceOverride>();
   for (const override of overrides) {
     overridesByKey.set(overrideKey(override.recurringItemId, override.originalDate), override);
@@ -106,6 +114,8 @@ export function generateForecast(input: GenerateForecastInput): ForecastRow[] {
         // collapse to undefined so a blank comment doesn't render an
         // indicator with nothing behind it.
         comment: item.comments?.trim() ? item.comments : undefined,
+        // T172: looked up from the connected account, if any.
+        feeAmount: item.balanceId ? feeByBalanceId.get(item.balanceId) : undefined,
       });
 
       if (item.type === "income") {
@@ -132,6 +142,7 @@ export function generateForecast(input: GenerateForecastInput): ForecastRow[] {
       type: "extra",
       balanceId: oneOff.balanceId ?? undefined,
       comment: oneOff.comments?.trim() ? oneOff.comments : undefined,
+      feeAmount: oneOff.balanceId ? feeByBalanceId.get(oneOff.balanceId) : undefined,
     });
   }
 
@@ -235,7 +246,11 @@ export function generateForecast(input: GenerateForecastInput): ForecastRow[] {
   let runningBalance = balances.reduce((sum, balance) => sum + balance.amount, 0);
 
   return rows.map((row) => {
-    runningBalance = Math.round(runningBalance + row.amount);
+    // T172: the fee is always a cost, subtracted regardless of the
+    // transaction's own direction - a fee credited back would be a
+    // different feature (already representable as its own bill/income/misc
+    // entry), not this one.
+    runningBalance = Math.round(runningBalance + row.amount - (row.feeAmount ?? 0));
     // T150 (Bug #11): past-due rows run through the same cumulative balance
     // as everything else, deliberately. The account balances the user
     // maintains are what they hold *now*, and an unsettled past obligation
