@@ -19,13 +19,16 @@ export type ActivityLogRow = {
 export default async function UpdatesPage() {
   const supabase = await createClient();
 
-  const [logRes, prefsRes] = await Promise.all([
+  const [logRes, prefsRes, dismissalsRes] = await Promise.all([
     supabase
       .from("activity_log")
       .select("id, created_at, action, entity_type, entity_name, detail")
       .order("created_at", { ascending: false })
       .limit(FEED_LIMIT),
     supabase.from("preferences").select("activity_log_seen_at").single(),
+    // T185: dismissed entries are filtered out here, server-side, so a
+    // hidden row is never even sent to the client rather than hidden by CSS.
+    supabase.from("activity_log_dismissals").select("activity_log_id"),
   ]);
 
   if (logRes.error) {
@@ -37,6 +40,8 @@ export default async function UpdatesPage() {
   // every entry would immediately count as already-seen and nothing would
   // ever visibly highlight as new.
   const seenAt = prefsRes.data?.activity_log_seen_at ?? null;
+  const dismissedIds = new Set((dismissalsRes.data ?? []).map((row) => row.activity_log_id));
+  const entries = (logRes.data ?? []).filter((entry) => !dismissedIds.has(entry.id));
 
-  return <UpdatesClient entries={logRes.data ?? []} seenAt={seenAt} />;
+  return <UpdatesClient entries={entries} seenAt={seenAt} />;
 }

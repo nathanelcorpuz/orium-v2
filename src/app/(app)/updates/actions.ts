@@ -24,3 +24,23 @@ export async function markUpdatesSeen() {
   // rendered in AppShell, one level up from this page.
   revalidatePath("/", "layout");
 }
+
+// T185: hides one entry from this user's own Updates view. Never touches
+// `activity_log` itself - that table is deliberately append-only, even to
+// its own owner (T162's own migration comment), so the underlying row
+// survives for bug-hunting/audit purposes. Recorded instead in the
+// insert-only `activity_log_dismissals` join table (migration 0034); no
+// "un-hide" exists, so nothing here ever needs to delete a dismissal row.
+export async function dismissUpdate(formData: FormData) {
+  const id = formData.get("id");
+  if (typeof id !== "string" || !id) return;
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return;
+
+  await supabase.from("activity_log_dismissals").insert({ user_id: user.id, activity_log_id: id });
+  revalidatePath("/updates");
+}
