@@ -114,6 +114,18 @@ export function HistoryIcon({ className }: IconProps) {
   );
 }
 
+// T164: a plain month-grid glyph for the Calendar nav item.
+export function CalendarIcon({ className }: IconProps) {
+  return (
+    <svg {...BASE} className={className}>
+      <rect x="3" y="4" width="14" height="13" rx="1" />
+      <line x1="3" y1="8" x2="17" y2="8" />
+      <line x1="7" y1="2" x2="7" y2="6" />
+      <line x1="13" y1="2" x2="13" y2="6" />
+    </svg>
+  );
+}
+
 // T163: a bell would collide visually with RemindersPanel's own BellIcon
 // (a different surface, but the same glyph reused for "Updates" in the
 // sidebar could read as if it were about reminders) - a simple pulse/
@@ -348,6 +360,7 @@ export const NAV_ICONS: Record<string, (props: IconProps) => React.JSX.Element> 
   "/misc": ExtrasIcon,
   "/forecast": ForecastIcon,
   "/history": HistoryIcon,
+  "/calendar": CalendarIcon,
   "/updates": UpdatesIcon,
   "/settings": SettingsIcon,
 };

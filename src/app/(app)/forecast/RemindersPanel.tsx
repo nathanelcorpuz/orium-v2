@@ -235,7 +235,12 @@ const COLLAPSED_STORAGE_KEY = "orium.remindersCollapsed";
 
 // The panel body shared between the desktop collapsible panel and the
 // mobile slide-over (T89): header + add form + active/completed lists.
-function RemindersContent({
+// T164: exported so the Calendar page can reuse the actual reminders
+// CRUD/rendering without RemindersPanel's own outer chrome (a full-height
+// `sticky` sidebar plus a floating mobile bell button) - that chrome is
+// built specifically for the Forecast page's own right-rail layout and
+// would render broken or duplicated inside a different page's flex layout.
+export function RemindersContent({
   activeReminders,
   completedReminders,
   showCompleted,
