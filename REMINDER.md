@@ -14,6 +14,16 @@ Scratchpad for things raised between sessions. Write anything here, in any shape
 
 ## Last triage
 
+**2026-08-01.** Eighteen items arrived in one message. One was a false alarm (see below); the rest became **SPEC.md Phase 23 (T177-T188)**.
+
+- Reminders draggable, the finance-page date-range gap, connected-items UX, History's own filters, greyer disabled items, hiding an Updates entry from view, the Updates read-state/filters/lazy-load rework, per-item override viewing, per-account forecasted balance, Add/Take/Move funds for accounts, budgets in scenarios, and unlimited simultaneous active scenarios with a redesigned Forecast toggle UI - all scoped as **T177-T188**, not yet built. Full scope notes for each are in SPEC.md Phase 23 rather than repeated here.
+- **"Leftover sample data in production" (originally flagged as T170)** - turned out to be a false alarm: an earlier investigation query hadn't filtered by `user_id` and silently mixed the real account together with two throwaway QA test accounts from this same session. Corrected directly in SPEC.md (T151's real figure was ₱2,000, not ₱26,000; T170 itself was retracted) rather than becoming a new task.
+- The Supabase service-role key ("secret key" in current Supabase terminology - they've moved away from calling it "service_role") for the new Orium Staging project was provided directly and saved to `.env.local`; not a task, just closing the one manual step STAGING.md's progress note had flagged.
+
+---
+
+## Prior triage
+
 **2026-07-31, second pass.** Six more items arrived after the first triage the same day. One (the tracking-horizon limit) was a direct follow-up to something already discussed, and got its own final answer from the user rather than staying a discussion point; the rest became **SPEC.md Phase 22**.
 
 - **Raise the hard limit to 50 years, "final decision".** Closed out immediately as **T171** - the user's own flat framing meant no further discussion or split between validation cap and forecast horizon; both just moved to 50. Surfaced and fixed one real edge case in the process: a daily-recurring rule would have silently stopped projecting around 27 years without it, since `recurrence.ts`'s own defensive period cap was sized for the old 5-year horizon.
