@@ -193,6 +193,10 @@ export interface ForecastRow {
   // balance. Omitted (not false) for ordinary rows, same convention as
   // `edited` and `balanceId` above.
   pastDue?: true;
+  // T173: the occurrence falls on today. Mutually exclusive with `pastDue`
+  // above - a row is one, the other, or neither. Omitted (not false) for
+  // ordinary future rows, same convention as every other flag here.
+  dueToday?: true;
 }
 
 export interface GenerateForecastInput {

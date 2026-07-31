@@ -1044,3 +1044,50 @@ describe("generateForecast budget replenish per-instance edits (T168)", () => {
     expect(rows.map((row) => row.dueDate)).toEqual(["2026-02-05"]);
   });
 });
+
+// T173 (SPEC.md Phase 22): a "due today" flag alongside T150's past-due one,
+// so the Forecast can mark today's rows amber. Mutually exclusive with
+// pastDue by construction - the interesting part is the boundary between them.
+describe("generateForecast dueToday (T173)", () => {
+  const run = (today: string) =>
+    generateForecast({
+      balances: [],
+      recurringItems: [],
+      overrides: [],
+      oneOffs: [
+        { id: "a", name: "Yesterday", amount: -100, dueDate: "2026-01-14", balanceId: null },
+        { id: "b", name: "Today", amount: -100, dueDate: "2026-01-15", balanceId: null },
+        { id: "c", name: "Tomorrow", amount: -100, dueDate: "2026-01-16", balanceId: null },
+      ],
+      today,
+      horizon: "2026-03-31",
+    });
+
+  it("flags only the row landing on today", () => {
+    expect(run("2026-01-15").map((row) => [row.name, row.pastDue ?? false, row.dueToday ?? false])).toEqual([
+      ["Yesterday", true, false],
+      ["Today", false, true],
+      ["Tomorrow", false, false],
+    ]);
+  });
+
+  it("never sets both flags on the same row", () => {
+    for (const row of run("2026-01-15")) {
+      expect(row.pastDue && row.dueToday).toBeFalsy();
+    }
+  });
+
+  it("moves the flag with today, so yesterday's due-today row is now past-due", () => {
+    const rows = run("2026-01-16");
+    expect(rows.map((row) => [row.name, row.pastDue ?? false, row.dueToday ?? false])).toEqual([
+      ["Yesterday", true, false],
+      ["Today", true, false],
+      ["Tomorrow", false, true],
+    ]);
+  });
+
+  it("leaves dueToday off entirely when nothing falls on today", () => {
+    const rows = run("2026-01-20");
+    expect(rows.every((row) => row.dueToday === undefined)).toBe(true);
+  });
+});

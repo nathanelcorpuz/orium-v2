@@ -575,7 +575,7 @@ export function ForecastClient({
                       <tr
                         key={`${row.sourceType}-${row.sourceId}-${row.originalDate}-${index}`}
                         {...forecastRowProps(row, isClickable, setSelectedRow)}
-                        className={`border-b border-notion-hairline text-notion-text last:border-0 ${isClickable ? "cursor-pointer hover:opacity-80" : ""} ${row.pastDue ? "bg-red-50" : ""}`}
+                        className={`border-b border-notion-hairline text-notion-text last:border-0 ${isClickable ? "cursor-pointer hover:opacity-80" : ""} ${row.pastDue ? "bg-red-50" : row.dueToday ? "bg-amber-50" : ""}`}
                       >
                         <td className="px-2 py-1.5">
                           {/* T150 (Bug #11): overdue rows are tinted and
@@ -585,6 +585,15 @@ export function ForecastClient({
                           {row.pastDue && (
                             <span className="mr-1.5 rounded bg-red-600 px-1 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">
                               Past due
+                            </span>
+                          )}
+                          {/* T173: the same treatment for today, in amber -
+                              a distinct "act on this now" state rather than a
+                              softer shade of overdue. Dark text because amber
+                              is too light to carry white legibly. */}
+                          {row.dueToday && (
+                            <span className="mr-1.5 rounded bg-amber-400 px-1 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-950">
+                              Due today
                             </span>
                           )}
                           {/* T155: bolded per user request - the date is the
@@ -642,13 +651,21 @@ export function ForecastClient({
                           className={`sticky top-[29px] z-10 border-b px-2 py-1 font-semibold ${
                             group.rows[0]?.row.pastDue
                               ? "border-red-200 bg-red-100 text-red-800"
-                              : "border-notion-hairline bg-slate-50 text-slate-600"
+                              : group.rows[0]?.row.dueToday
+                                ? "border-amber-200 bg-amber-100 text-amber-900"
+                                : "border-notion-hairline bg-slate-50 text-slate-600"
                           }`}
                         >
                           {formatFullDate(group.date)}
                           {group.rows[0]?.row.pastDue && (
                             <span className="ml-1.5 text-[10px] font-semibold uppercase tracking-wide">
                               Past due
+                            </span>
+                          )}
+                          {/* T173: same header treatment for today. */}
+                          {group.rows[0]?.row.dueToday && (
+                            <span className="ml-1.5 text-[10px] font-semibold uppercase tracking-wide">
+                              Due today
                             </span>
                           )}
                         </td>
@@ -661,7 +678,7 @@ export function ForecastClient({
                           <tr
                             key={`${row.sourceType}-${row.sourceId}-${row.originalDate}-${index}`}
                             {...forecastRowProps(row, isClickable, setSelectedRow)}
-                            className={`border-b border-notion-hairline text-notion-text last:border-0 ${isClickable ? "cursor-pointer hover:opacity-80" : ""} ${row.pastDue ? "bg-red-50" : ""}`}
+                            className={`border-b border-notion-hairline text-notion-text last:border-0 ${isClickable ? "cursor-pointer hover:opacity-80" : ""} ${row.pastDue ? "bg-red-50" : row.dueToday ? "bg-amber-50" : ""}`}
                           >
                             <td className="px-2 py-1.5">
                               <ForecastNameCell row={row} isAutoReplenish={isAutoReplenish} />

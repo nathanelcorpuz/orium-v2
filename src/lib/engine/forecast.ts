@@ -225,9 +225,13 @@ export function generateForecast(input: GenerateForecastInput): ForecastRow[] {
     // maintains are what they hold *now*, and an unsettled past obligation
     // hasn't left the account yet - so it has to come off the top before the
     // future is projected, exactly as if it were due today.
-    return row.dueDate < today
-      ? { ...row, runningBalance, pastDue: true as const }
-      : { ...row, runningBalance };
+    // T173: `dueToday` is a sibling flag, not a variant of past-due - a row
+    // is one, the other, or neither, never both. Kept as its own field rather
+    // than a shared "status" enum so existing `pastDue` checks and the many
+    // `toEqual` test literals that omit both stay valid.
+    if (row.dueDate < today) return { ...row, runningBalance, pastDue: true as const };
+    if (row.dueDate === today) return { ...row, runningBalance, dueToday: true as const };
+    return { ...row, runningBalance };
   });
 }
 
