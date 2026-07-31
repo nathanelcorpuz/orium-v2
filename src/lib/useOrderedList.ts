@@ -66,16 +66,27 @@ export function useOrderedList<T>(storageKey: string, items: T[], getId: (item: 
     persist(next);
   }
 
-  // T177: drag-and-drop reorder (Reminders) - moves id to sit at targetIndex
-  // in the current order, same persisted-order mechanism swap() already
-  // uses. A no-op if id isn't found or it's already at that index, so a
-  // drag hook can call this on every pointermove without guarding itself.
+  // T177: drag-and-drop reorder (Reminders) - `targetIndex` means "insert
+  // before whichever row currently sits at this index" (that's what the
+  // drag hook computes from the pointer's Y position against each row's
+  // current on-screen rect). A no-op if id isn't found or it's already at
+  // that index, so a drag hook can call this on every pointermove without
+  // guarding itself.
+  //
+  // Bug fix: removing the dragged item first (`splice(index, 1)`) shifts
+  // every later slot down by one - so when moving an item *forward* (to a
+  // later position), inserting at the raw `targetIndex` actually landed
+  // one slot past where the pointer was hovering (after, not before, the
+  // row the user was dragging over). Only moving backward needs no
+  // adjustment, since removing from a later position doesn't shift
+  // anything before it.
   function moveToIndex(id: string, targetIndex: number) {
     const index = effectiveOrder.indexOf(id);
     if (index === -1 || index === targetIndex) return;
     const next = [...effectiveOrder];
     const [moved] = next.splice(index, 1);
-    next.splice(Math.max(0, Math.min(targetIndex, next.length)), 0, moved);
+    const insertAt = index < targetIndex ? targetIndex - 1 : targetIndex;
+    next.splice(Math.max(0, Math.min(insertAt, next.length)), 0, moved);
     persist(next);
   }
 
