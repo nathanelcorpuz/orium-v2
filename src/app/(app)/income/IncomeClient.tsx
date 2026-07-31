@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { formatCentavos } from "@/lib/money";
 import { monthlyEquivalent } from "@/lib/engine/monthlyTotals";
-import { summarizeRecurrence } from "@/lib/recurrenceSummary";
+import { startDateLabel, summarizeRecurrence } from "@/lib/recurrenceSummary";
 import { AmountRangeFilter, matchesAmountFilter, type ComparisonOp } from "@/components/AmountRangeFilter";
 import { AmountSortControl, sortByAmount, type SortOrder } from "@/components/AmountSortControl";
 import { MultiSelectChips } from "@/components/MultiSelectChips";
@@ -247,7 +247,9 @@ export function IncomeClient({
                     )}
                   </div>
                   <p className="mt-1 text-sm text-green-700">{formatCentavos(income.amount)}</p>
-                  <p className="text-sm text-slate-400">{summarizeRecurrence(incomeRule(income))}</p>
+                  <p className="text-sm text-slate-400">
+                    {startDateLabel(incomeRule(income))} · {summarizeRecurrence(incomeRule(income))}
+                  </p>
                   {income.comments && (
                     <p className="mt-1 text-sm italic text-slate-400">{income.comments}</p>
                   )}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { summarizeRecurrence } from "./recurrenceSummary";
+import { startDateLabel, summarizeRecurrence } from "./recurrenceSummary";
 import type { RecurrenceRule } from "./engine/types";
 
 function rule(overrides: Partial<RecurrenceRule>): RecurrenceRule {
@@ -104,5 +104,17 @@ describe("summarizeRecurrence", () => {
     expect(
       summarizeRecurrence(rule({ endsType: "after_count", occurrenceCount: 6 })),
     ).toBe("Monthly on the 1st · 6 times");
+  });
+});
+
+// T156 (SPEC.md Phase 20): "Started {date}" prefix shown on Bills/Income/
+// Debt/Savings rows, next to the recurrence summary above.
+describe("startDateLabel", () => {
+  it("formats the rule's start date as a full human-readable date", () => {
+    expect(startDateLabel(rule({ startDate: "2026-01-05" }))).toBe("Started Jan 5, 2026");
+  });
+
+  it("reflects whatever start date the rule actually has, not today", () => {
+    expect(startDateLabel(rule({ startDate: "2023-12-25" }))).toBe("Started Dec 25, 2023");
   });
 });

@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { formatCentavos } from "@/lib/money";
 import { monthlyEquivalent } from "@/lib/engine/monthlyTotals";
-import { summarizeRecurrence } from "@/lib/recurrenceSummary";
+import { startDateLabel, summarizeRecurrence } from "@/lib/recurrenceSummary";
 import { AmountRangeFilter, matchesAmountFilter, type ComparisonOp } from "@/components/AmountRangeFilter";
 import { AmountSortControl, sortByAmount, type SortOrder } from "@/components/AmountSortControl";
 import { MultiSelectChips } from "@/components/MultiSelectChips";
@@ -232,7 +232,9 @@ export function BillsClient({
                     )}
                   </div>
                   <p className="mt-1 text-sm text-slate-600">{formatCentavos(Math.abs(bill.amount))}</p>
-                  <p className="text-sm text-slate-400">{summarizeRecurrence(billRule(bill))}</p>
+                  <p className="text-sm text-slate-400">
+                    {startDateLabel(billRule(bill))} · {summarizeRecurrence(billRule(bill))}
+                  </p>
                   {bill.comments && (
                     <p className="mt-1 text-sm italic text-slate-400">{bill.comments}</p>
                   )}

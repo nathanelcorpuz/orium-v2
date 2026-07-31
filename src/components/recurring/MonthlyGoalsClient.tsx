@@ -5,7 +5,7 @@ import { formatCentavos } from "@/lib/money";
 import { remainingTotal } from "@/lib/engine/remaining";
 import { monthlyEquivalent } from "@/lib/engine/monthlyTotals";
 import { goalProgress } from "@/lib/engine/goalProgress";
-import { summarizeRecurrence } from "@/lib/recurrenceSummary";
+import { startDateLabel, summarizeRecurrence } from "@/lib/recurrenceSummary";
 import { todayInManila } from "@/lib/date";
 import { AmountRangeFilter, matchesAmountFilter, type ComparisonOp } from "@/components/AmountRangeFilter";
 import { AmountSortControl, sortByAmount, type SortOrder } from "@/components/AmountSortControl";
@@ -232,7 +232,8 @@ export function MonthlyGoalsClient({
           <ul className="space-y-2">
             {sortedItems.map((item, index) => {
               const remaining = remainingTotal({ ...goalRule(item), amount: item.amount }, today);
-              const metaLine = `${summarizeRecurrence(goalRule(item))} · ${
+              // T156: start date prefixed the same way Bills/Income now show it.
+              const metaLine = `${startDateLabel(goalRule(item))} · ${summarizeRecurrence(goalRule(item))} · ${
                 remaining === null ? "Ongoing" : `${formatCentavos(remaining)} remaining`
               }`;
               // T72: debt/savings items always have a finite end (DB-enforced),

@@ -1,5 +1,5 @@
 import type { RecurrenceRule } from "./engine/types";
-import { MONTH_ABBR, formatMonthYear } from "./date";
+import { MONTH_ABBR, formatFullDate, formatMonthYear } from "./date";
 
 // Display formatting for a recurrence rule (e.g. "Every 2 weeks on Sat ·
 // until Apr 2030"), shown on each Bills/Income/Debt/Savings row (SPEC.md
@@ -48,6 +48,16 @@ function endsSuffix(rule: RecurrenceRule): string {
         ? ` · ${rule.occurrenceCount} time${rule.occurrenceCount === 1 ? "" : "s"}`
         : "";
   }
+}
+
+// T156 (SPEC.md Phase 20): "Started {date}" for a row's meta line, shown
+// alongside `summarizeRecurrence` on Bills/Income/Debt/Savings rows. A
+// separate function rather than folded into `summarizeRecurrence` itself,
+// since that function is also used for Budgets' compact pill/frequency
+// labels (BudgetCard.tsx), which weren't part of this request and have no
+// room for a second clause.
+export function startDateLabel(rule: RecurrenceRule): string {
+  return `Started ${formatFullDate(rule.startDate)}`;
 }
 
 export function summarizeRecurrence(rule: RecurrenceRule): string {
