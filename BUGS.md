@@ -4,6 +4,10 @@ Format per bug: steps to reproduce → what happened → what was expected. Clau
 
 ## Open
 
+(none currently)
+
+## Fixed
+
 ### Bug #14 - Settling an income linked to a budget double-counts the allocation (real money, live data)
 - **Reproduce**: link a budget with an allocation (e.g. ₱1,000) to an income (e.g. ₱20,000). Settle one occurrence of that income with an account selected. Check the account balance and the budget's running total. Found 2026-07-31 while scoping the user's "20,000 income minus 1,000 budget = 19,000" request, which turns out to describe this bug rather than a missing feature.
 - **What happened (traced in code, not yet confirmed against live data)**: the full ₱20,000 lands in the cash account *and* ₱1,000 lands in the budget ledger. The same ₱1,000 is now counted twice. Meanwhile the Forecast had already projected the ₱1,000 as a real deduction before settling (T59), so settling makes the actual balance land ₱1,000 *above* what the forecast promised - the opposite direction from Bug #11, and equally misleading.
@@ -11,10 +15,9 @@ Format per bug: steps to reproduce → what happened → what was expected. Clau
 - **Root cause (identified, not yet fixed)**: in `settleOccurrence` (`src/app/(app)/forecast/actions.ts`), the cash side is applied once, up front - `applyToBalance(supabase, fields.balanceId, actualAmount)` with the *full* income amount. The linked-budget loop further down (the `type === "income"` branch) then writes a `budget_entries` incoming row plus a `settlements` row carrying `actual_amount: -allocation`, and marks a `budget_replenish_overrides` skip - but it never calls `applyToBalance` again to take the allocation back out of the cash account. The settlement row records a cash effect that never actually happened. Dashboard/Forecast "Total Balance" is `balances.reduce(...)` over accounts only (budgets are deliberately not included), so nothing downstream corrects for it.
 - **Confirmed by a second pass (2026-07-31)**: `applyToBalance` has exactly one call site in the whole codebase (line 182), always with the unmodified `actualAmount`; the only other writes to `balances.amount` are the manual create/edit/delete on the Accounts page. There is no compensating deduction anywhere. On the forecast side, `forecast.ts` does project the replenishment as "a bill-like row" against the running balance for any occurrence not yet settled or skipped, so the projection genuinely does promise the net figure.
 - **Precision, in fairness to the report**: the cash account is only overstated when an account is actually selected at settle time (`fields.balanceId`). Settle with no account chosen and no balance moves at all, so nothing is double-counted there - but the forecast-versus-reality divergence still exists, because the projection assumed the allocation would leave. The user connects most items to accounts, so the first case is the likely one.
-- **Severity**: the user is running this in production with real data. Every linked-income settle made with an account selected, since T56/T59 shipped, has likely overstated their true cash position by that budget's allocation, cumulatively. Confirm against their live account before fixing, and decide whether existing balances need a one-time correction or only a forward fix.
-- Scoped as **T151** in SPEC.md Phase 20.
-
-## Fixed
+- **Measured against live production data** (read-only aggregates, 2026-07-31): 5 replenishment settlements between 2026-06-05 and 2026-07-29, totalling **₱26,000** overstated. Every linked income has an account set, so that is exact rather than an upper bound - GCash by ₱24,000 across 4 settles, BDO Tatay by ₱2,000 across 1.
+- **Fixed by**: **T151** in SPEC.md Phase 20 - `settleOccurrence` now resolves the linked budgets before touching cash and applies `actualAmount - totalAllocation` in a single write. Netting rather than a second `applyToBalance` call is deliberate; see T151's write-up.
+- **Historical balances were not corrected.** That means writing inferred amounts onto real money, so it stays the user's call - and roughly half the measured ₱26,000 turned out to be phantom, from leftover sample-data rows (**T170**) that need resolving first.
 
 ### Bug #11 - Forecast silently drops past-dated transactions that were never settled
 - **Reproduce**: log a Misc (one-off) item dated yesterday or earlier and never settle it, then open `/forecast` the next day. Same applies to any recurring occurrence whose date has passed unsettled. Reported by the user 2026-07-30 from real production data: a Jul 29 2026 Misc payment showed in the forecast on Jul 29, then vanished on Jul 30.

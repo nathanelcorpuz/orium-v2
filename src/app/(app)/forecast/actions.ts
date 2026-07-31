@@ -173,13 +173,43 @@ export async function settleOccurrence(
   });
   if (settlementError) return { error: settlementError.message };
 
+  // T151 (Bug #14): budgets linked to this income have to be known *before*
+  // the cash side is applied, because their allocations come out of the same
+  // account the income lands in. Fetched here rather than in the loop further
+  // down (which used to be the only place that knew about them) so the
+  // account can be moved once, by the net figure.
+  type LinkedBudget = { id: string; name: string; allocation: number };
+  let linkedBudgets: LinkedBudget[] = [];
+  if (sourceType === "recurring" && type === "income") {
+    const { data, error: linkedBudgetsError } = await supabase
+      .from("budgets")
+      .select("id, name, allocation")
+      .eq("linked_income_id", sourceId);
+    if (linkedBudgetsError) return { error: linkedBudgetsError.message };
+    linkedBudgets = data ?? [];
+  }
+  const totalAllocation = linkedBudgets.reduce((sum, budget) => sum + budget.allocation, 0);
+
   // T71 (SPEC.md Phase 12): if an account is selected (pre-filled from the
   // item's own linked balance, but overridable per-settlement), apply the
   // actual amount to it - this is the one moment money really moves, so it's
   // the only place a balance gets touched (editing/deleting a past
   // settlement deliberately does not retro-adjust it).
+  //
+  // T151 (Bug #14): net of any linked budget allocations. Settling a ₱20,000
+  // income that feeds a ₱1,000 budget used to put the full ₱20,000 in the
+  // account *and* ₱1,000 in the budget - the same ₱1,000 counted twice, and
+  // ₱1,000 more than the Forecast had projected, since T59 already shows the
+  // replenishment as a real deduction before it is settled. Applying the net
+  // in a single read-modify-write rather than an income credit followed by
+  // per-budget debits: `applyToBalance` reads then writes, so each extra call
+  // is another chance for two settles to interleave and lose an update.
+  //
+  // Deliberately allowed to go negative when allocations exceed the income -
+  // that matches both the projection and the ledger model, which lets a
+  // budget go negative rather than clamping.
   if (fields.balanceId) {
-    const balanceError = await applyToBalance(supabase, fields.balanceId, actualAmount);
+    const balanceError = await applyToBalance(supabase, fields.balanceId, actualAmount - totalAllocation);
     if (balanceError) return { error: balanceError };
   }
 
@@ -209,14 +239,14 @@ export async function settleOccurrence(
     // row) and marks the occurrence handled in budget_replenish_overrides so
     // it stops re-projecting - the same "skip after settling" pattern
     // occurrence_overrides already uses for the income itself, just above.
+    //
+    // T151 (Bug #14): `linkedBudgets` is now fetched further up, before the
+    // cash side is applied, so the account can be moved by the net figure in
+    // one write. The settlement row below records `actual_amount:
+    // -allocation`, which until T151 described a cash movement that never
+    // actually happened; it is now true.
     if (type === "income") {
-      const { data: linkedBudgets, error: linkedBudgetsError } = await supabase
-        .from("budgets")
-        .select("id, name, allocation")
-        .eq("linked_income_id", sourceId);
-      if (linkedBudgetsError) return { error: linkedBudgetsError.message };
-
-      for (const linkedBudget of linkedBudgets ?? []) {
+      for (const linkedBudget of linkedBudgets) {
         const replenishNote = `Replenished from ${name}`;
 
         const { error: entryError } = await supabase.from("budget_entries").insert({
@@ -254,7 +284,7 @@ export async function settleOccurrence(
         );
         if (replenishOverrideError) return { error: replenishOverrideError.message };
       }
-      if (linkedBudgets && linkedBudgets.length > 0) revalidatePath("/budgets");
+      if (linkedBudgets.length > 0) revalidatePath("/budgets");
     }
   } else {
     const { error } = await supabase.from("one_off_items").delete().eq("id", sourceId);
