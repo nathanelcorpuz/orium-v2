@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useRef, useState } from "react";
+import { useActionState, useEffect, useRef, useState, type PointerEvent } from "react";
 import {
   BellIcon,
   CheckIcon,
@@ -8,10 +8,12 @@ import {
   CloseIcon,
   DeleteIcon,
   EditIcon,
+  GripIcon,
   RestoreIcon,
 } from "@/components/navIcons";
 import { MobileDrawer } from "@/components/MobileDrawer";
 import { SubmitButton } from "@/components/SubmitButton";
+import { useOrderedList } from "@/lib/useOrderedList";
 import {
   createReminder,
   deleteReminder,
@@ -64,6 +66,51 @@ function AddReminderForm() {
       {state.error && <p className="mt-1 text-sm text-red-600">{state.error}</p>}
     </form>
   );
+}
+
+// T177: pointer-based drag reorder - no HTML5 native drag (no touch support)
+// and no drag library (CLAUDE.md's "no new dependencies" rule), so this
+// tracks the pointer directly via setPointerCapture, which keeps firing
+// move/up events on the handle even once the pointer leaves it. On every
+// move, it finds which sibling row the pointer's Y now sits above/below
+// (via each row's own ref) and reorders live through useOrderedList's
+// moveToIndex - the same persisted-order mechanism T145's up/down buttons
+// already use elsewhere, just driven by a drag instead of a click.
+function useDragReorder(orderedIds: string[], moveToIndex: (id: string, index: number) => void) {
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+  const rowRefs = useRef(new Map<string, HTMLLIElement>());
+
+  function registerRow(id: string, el: HTMLLIElement | null) {
+    if (el) rowRefs.current.set(id, el);
+    else rowRefs.current.delete(id);
+  }
+
+  function handlePointerDown(id: string, e: PointerEvent) {
+    e.currentTarget.setPointerCapture(e.pointerId);
+    setDraggingId(id);
+  }
+
+  function handlePointerMove(id: string, e: PointerEvent) {
+    if (draggingId !== id) return;
+    const y = e.clientY;
+    let targetIndex = orderedIds.length - 1;
+    for (let i = 0; i < orderedIds.length; i++) {
+      const row = rowRefs.current.get(orderedIds[i]);
+      if (!row) continue;
+      const rect = row.getBoundingClientRect();
+      if (y < rect.top + rect.height / 2) {
+        targetIndex = i;
+        break;
+      }
+    }
+    moveToIndex(id, targetIndex);
+  }
+
+  function handlePointerUp() {
+    setDraggingId(null);
+  }
+
+  return { draggingId, registerRow, handlePointerDown, handlePointerMove, handlePointerUp };
 }
 
 function ReminderItem({ reminder, readOnly }: { reminder: ReminderRow; readOnly?: boolean }) {
@@ -253,18 +300,54 @@ export function RemindersContent({
   setShowCompleted: (updater: (prev: boolean) => boolean) => void;
   readOnly?: boolean;
 }) {
+  // T177: order is a client-only display preference (same as every other
+  // list's useOrderedList, T145) - reordering never touches the DB, so
+  // there's nothing to sync across devices, matching that established
+  // precedent. Drag is only offered for the active list; reordering
+  // completed reminders has no real use.
+  const { orderedItems: orderedActive, moveToIndex } = useOrderedList(
+    "orium.remindersOrder",
+    activeReminders,
+    (r) => r.id,
+  );
+  const orderedIds = orderedActive.map((r) => r.id);
+  const drag = useDragReorder(orderedIds, moveToIndex);
+
   return (
     <div className="flex min-h-0 flex-1 flex-col p-4">
       <h2 className="mb-3 text-sm font-semibold text-notion-text">Reminders</h2>
       {!readOnly && <AddReminderForm />}
-      {activeReminders.length === 0 ? (
+      {orderedActive.length === 0 ? (
         <p className="text-sm text-slate-400">No reminders yet.</p>
       ) : (
         <div className="min-h-0 flex-1 overflow-y-auto pr-1">
           <ul className="divide-y divide-notion-hairline">
-            {activeReminders.map((reminder) => (
-              <li key={reminder.id} className="py-2 first:pt-0">
-                <ReminderItem reminder={reminder} readOnly={readOnly} />
+            {orderedActive.map((reminder) => (
+              <li
+                key={reminder.id}
+                ref={(el) => drag.registerRow(reminder.id, el)}
+                className={`flex items-start gap-1 py-2 first:pt-0 ${
+                  drag.draggingId === reminder.id ? "opacity-50" : ""
+                }`}
+              >
+                {!readOnly && (
+                  <button
+                    type="button"
+                    aria-label="Drag to reorder"
+                    title="Drag to reorder"
+                    onPointerDown={(e) => drag.handlePointerDown(reminder.id, e)}
+                    onPointerMove={(e) => drag.handlePointerMove(reminder.id, e)}
+                    onPointerUp={drag.handlePointerUp}
+                    onPointerCancel={drag.handlePointerUp}
+                    style={{ touchAction: "none" }}
+                    className="mt-0.5 shrink-0 cursor-grab rounded p-0.5 text-slate-300 hover:bg-notion-hover hover:text-slate-500 active:cursor-grabbing"
+                  >
+                    <GripIcon className="h-3.5 w-3.5" />
+                  </button>
+                )}
+                <div className="min-w-0 flex-1">
+                  <ReminderItem reminder={reminder} readOnly={readOnly} />
+                </div>
               </li>
             ))}
           </ul>

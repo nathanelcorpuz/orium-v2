@@ -66,9 +66,23 @@ export function useOrderedList<T>(storageKey: string, items: T[], getId: (item: 
     persist(next);
   }
 
+  // T177: drag-and-drop reorder (Reminders) - moves id to sit at targetIndex
+  // in the current order, same persisted-order mechanism swap() already
+  // uses. A no-op if id isn't found or it's already at that index, so a
+  // drag hook can call this on every pointermove without guarding itself.
+  function moveToIndex(id: string, targetIndex: number) {
+    const index = effectiveOrder.indexOf(id);
+    if (index === -1 || index === targetIndex) return;
+    const next = [...effectiveOrder];
+    const [moved] = next.splice(index, 1);
+    next.splice(Math.max(0, Math.min(targetIndex, next.length)), 0, moved);
+    persist(next);
+  }
+
   return {
     orderedItems,
     moveUp: (id: string) => swap(id, -1),
     moveDown: (id: string) => swap(id, 1),
+    moveToIndex,
   };
 }

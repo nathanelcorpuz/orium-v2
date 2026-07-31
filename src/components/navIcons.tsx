@@ -348,6 +348,20 @@ export function SlidersIcon({ className }: IconProps) {
   );
 }
 
+// T177: drag handle grip - six dots, the universal "drag me" affordance.
+export function GripIcon({ className }: IconProps) {
+  return (
+    <svg viewBox="0 0 20 20" fill="currentColor" className={className}>
+      <circle cx="7" cy="5" r="1.3" />
+      <circle cx="13" cy="5" r="1.3" />
+      <circle cx="7" cy="10" r="1.3" />
+      <circle cx="13" cy="10" r="1.3" />
+      <circle cx="7" cy="15" r="1.3" />
+      <circle cx="13" cy="15" r="1.3" />
+    </svg>
+  );
+}
+
 // T133: the spin animation itself is a plain Tailwind utility (`animate-spin`
 // on the caller's className) - this is just the ring shape. A partial-arc
 // stroke rather than a full circle so the rotation actually reads as motion
