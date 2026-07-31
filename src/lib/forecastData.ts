@@ -45,6 +45,12 @@ export type ForecastData = {
   // dataset (auto-seeded at signup or brought back via "Restore sample
   // data") - the Dashboard's sample-data banner keys off this.
   sampleDataSeededAt: string | null;
+  // T174: null when no scenario is currently toggled on. When set, `forecast`
+  // above already has that scenario's rows merged in - these two fields are
+  // only for the UI's own "you are viewing a scenario" banner, not for
+  // deciding whether to merge (that already happened).
+  activeScenarioId: string | null;
+  activeScenarioName: string | null;
   today: string;
   horizon: string;
 };
@@ -83,7 +89,7 @@ export async function loadForecast(): Promise<ForecastData> {
       .select("id, budget_id, original_date, skipped, new_date, new_amount"),
     supabase
       .from("preferences")
-      .select("currency, balance_ranges, balance_tier_labels, sample_data_seeded_at")
+      .select("currency, balance_ranges, balance_tier_labels, sample_data_seeded_at, active_scenario_id")
       .single(),
   ]);
 
@@ -193,6 +199,74 @@ export async function loadForecast(): Promise<ForecastData> {
     newAmount: row.new_amount,
   }));
 
+  // T174 ("run possible scenario"): if the user has an active scenario, its
+  // rows are merged into the *same* arrays the engine already consumes -
+  // additive to the queries above, not a change to any of them. This is the
+  // one integration point for the whole feature: every existing page/action
+  // querying `recurring_items`/`one_off_items` directly is completely
+  // unaware scenarios exist, since scenario rows live in their own separate
+  // tables (`scenario_recurring_items`/`scenario_one_off_items`) and are
+  // never returned by those queries. See migration 0033's own comment for
+  // why separate tables were chosen over a shared `scenario_id` tag column.
+  const activeScenarioId = preferencesRes.data?.active_scenario_id ?? null;
+  let activeScenarioName: string | null = null;
+
+  if (activeScenarioId) {
+    const [scenarioRes, scenarioRecurringRes, scenarioOneOffRes] = await Promise.all([
+      supabase.from("scenarios").select("name").eq("id", activeScenarioId).single(),
+      supabase
+        .from("scenario_recurring_items")
+        .select(
+          "id, name, type, amount, start_date, end_date, interval, unit, weekdays, days_of_month, ordinal, ordinal_weekday, ends_type, occurrence_count, balance_id, comments",
+        )
+        .eq("scenario_id", activeScenarioId),
+      supabase
+        .from("scenario_one_off_items")
+        .select("id, name, amount, due_date, balance_id, comments")
+        .eq("scenario_id", activeScenarioId),
+    ]);
+
+    // A scenario that no longer exists (e.g. deleted from another tab in
+    // the same moment) just means scenario mode silently has nothing to
+    // add this render - not a page-breaking error, since the preference FK
+    // is ON DELETE SET NULL and will catch up on the next load anyway.
+    activeScenarioName = scenarioRes.data?.name ?? null;
+
+    for (const row of scenarioRecurringRes.data ?? []) {
+      recurringItems.push({
+        id: row.id,
+        name: row.name,
+        type: row.type,
+        amount: row.amount,
+        startDate: row.start_date,
+        endDate: row.end_date,
+        interval: row.interval,
+        unit: row.unit,
+        weekdays: row.weekdays,
+        daysOfMonth: row.days_of_month,
+        ordinal: row.ordinal,
+        ordinalWeekday: row.ordinal_weekday,
+        endsType: row.ends_type,
+        occurrenceCount: row.occurrence_count,
+        balanceId: row.balance_id,
+        comments: row.comments,
+        fromScenario: true,
+      });
+    }
+
+    for (const row of scenarioOneOffRes.data ?? []) {
+      oneOffs.push({
+        id: row.id,
+        name: row.name,
+        amount: row.amount,
+        dueDate: row.due_date,
+        balanceId: row.balance_id,
+        comments: row.comments,
+        fromScenario: true,
+      });
+    }
+  }
+
   const input: GenerateForecastInput = {
     balances,
     recurringItems,
@@ -217,6 +291,8 @@ export async function loadForecast(): Promise<ForecastData> {
     balanceRanges: preferencesRes.data?.balance_ranges ?? DEFAULT_BALANCE_RANGES,
     tierLabels: preferencesRes.data?.balance_tier_labels ?? DEFAULT_TIER_LABELS,
     sampleDataSeededAt: preferencesRes.data?.sample_data_seeded_at ?? null,
+    activeScenarioId,
+    activeScenarioName,
     today,
     horizon,
   };

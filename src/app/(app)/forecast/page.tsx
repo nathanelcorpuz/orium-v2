@@ -39,7 +39,7 @@ export default async function ForecastPage({
     connectedItems = connected;
   }
 
-  const { forecast, balances, currency, balanceRanges, tierLabels, today } = forecastData;
+  const { forecast, balances, currency, balanceRanges, tierLabels, today, activeScenarioName } = forecastData;
   const totalBalance = balances.reduce((sum, balance) => sum + balance.amount, 0);
   // T150 (Bug #11): "lowest balance ahead" and "first hits danger" are both
   // forward-looking, so they read the upcoming rows only - but from a balance
@@ -65,6 +65,7 @@ export default async function ForecastPage({
       lowestBalance={lowestBalance}
       firstDanger={firstDanger}
       previewMode={preview}
+      activeScenarioName={activeScenarioName}
     />
   );
 }

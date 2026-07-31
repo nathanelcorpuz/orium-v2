@@ -11,6 +11,7 @@ import { Modal } from "@/components/Modal";
 import { DatePicker } from "@/components/DatePicker";
 import { ChevronIcon } from "@/components/navIcons";
 import { PreviewModeBar } from "@/components/PreviewModeBar";
+import { ScenarioModeBar } from "@/components/ScenarioModeBar";
 import { TYPE_COLOR, TYPE_LABEL } from "@/lib/forecastLabels";
 import type { ForecastRow } from "@/lib/engine/types";
 import type { ConnectedItem } from "@/lib/connectedItems";
@@ -103,6 +104,19 @@ function ForecastNameCell({ row, isAutoReplenish }: { row: ForecastRow; isAutoRe
           auto
         </span>
       )}
+      {/* T174: unmistakable - a hypothetical row must never read as a real
+          committed transaction. Deliberately not clickable here (see
+          `isClickable` below) - a scenario item's real id lives in a
+          separate table EditSettleModal's actions know nothing about, so
+          editing happens on /scenarios instead. */}
+      {row.fromScenario && (
+        <span
+          className="ml-1.5 rounded-full bg-amber-100 px-1.5 py-0.5 text-xs font-medium text-amber-800"
+          title="Part of an active scenario, not real data - manage it from Scenarios"
+        >
+          scenario
+        </span>
+      )}
     </>
   );
 }
@@ -137,6 +151,7 @@ export function ForecastClient({
   lowestBalance,
   firstDanger,
   previewMode = false,
+  activeScenarioName,
 }: {
   forecast: ForecastRow[];
   balances: BalanceRow[];
@@ -167,6 +182,9 @@ export function ForecastClient({
   // useful, and a reminder typed during preview would otherwise write a
   // real row tied to the account behind it.
   previewMode?: boolean;
+  // T174: null when no scenario is toggled on. `forecast` above already has
+  // that scenario's rows merged in when set - this is only for the banner.
+  activeScenarioName: string | null;
 }) {
   const [editingBalance, setEditingBalance] = useState<BalanceRow | null>(null);
   const [selectedRow, setSelectedRow] = useState<ForecastRow | null>(null);
@@ -340,6 +358,7 @@ export function ForecastClient({
   return (
     <div className="flex min-h-full flex-col">
       {previewMode && <PreviewModeBar />}
+      {activeScenarioName && <ScenarioModeBar scenarioName={activeScenarioName} />}
       <div data-tour="forecast-content" className="flex min-h-0 flex-1">
         <div className="min-w-0 flex-1 p-4 md:p-8">
         <div className="mx-auto max-w-6xl">
@@ -605,7 +624,14 @@ export function ForecastClient({
                       {group.rows.map(({ row, index }) => {
                         const isAutoReplenish =
                           row.sourceType === "budget_replenish" && row.budgetSettleable !== true;
-                        const isClickable = !previewMode;
+                        // T174: a scenario row's `sourceId` is a
+                        // scenario_recurring_items/scenario_one_off_items id,
+                        // not a real recurring_items/one_off_items one -
+                        // EditSettleModal's actions would write an override/
+                        // settlement referencing an id that doesn't exist in
+                        // the real tables. Must stay non-clickable here;
+                        // editing happens on /scenarios instead.
+                        const isClickable = !previewMode && !row.fromScenario;
                         return (
                           <tr
                             key={`${row.sourceType}-${row.sourceId}-${row.originalDate}-${index}`}

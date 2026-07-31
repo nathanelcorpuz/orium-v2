@@ -116,6 +116,8 @@ export function generateForecast(input: GenerateForecastInput): ForecastRow[] {
         comment: item.comments?.trim() ? item.comments : undefined,
         // T172: looked up from the connected account, if any.
         feeAmount: item.balanceId ? feeByBalanceId.get(item.balanceId) : undefined,
+        // T174: pass-through only, same as `comments`/`active` above.
+        fromScenario: item.fromScenario,
       });
 
       if (item.type === "income") {
@@ -143,6 +145,7 @@ export function generateForecast(input: GenerateForecastInput): ForecastRow[] {
       balanceId: oneOff.balanceId ?? undefined,
       comment: oneOff.comments?.trim() ? oneOff.comments : undefined,
       feeAmount: oneOff.balanceId ? feeByBalanceId.get(oneOff.balanceId) : undefined,
+      fromScenario: oneOff.fromScenario,
     });
   }
 

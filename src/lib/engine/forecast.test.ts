@@ -1336,3 +1336,60 @@ describe("generateForecast per-account transaction fee (T172)", () => {
     expect(result[0].runningBalance).toBe(700000);
   });
 });
+
+// T174 ("run possible scenario"): scenario-sourced items pass a `fromScenario`
+// flag through to their forecast rows unchanged, so the UI can badge them
+// distinctly from real data. The engine itself doesn't know or care where a
+// row came from - this is pure pass-through, mirroring how `active`/
+// `comments` already flow from item to row.
+describe("generateForecast fromScenario pass-through (T174)", () => {
+  it("marks a scenario recurring item's rows, and leaves a real item's rows unmarked", () => {
+    const result = generateForecast({
+      balances: [],
+      recurringItems: [
+        monthlyItem({ id: "real-1", name: "Real bill", daysOfMonth: [5] }),
+        monthlyItem({ id: "scenario-1", name: "What if", daysOfMonth: [10], fromScenario: true }),
+      ],
+      overrides: [],
+      oneOffs: [],
+      today: "2026-01-01",
+      horizon: "2026-01-31",
+    });
+
+    expect(result.map((row) => ({ name: row.name, fromScenario: row.fromScenario ?? false }))).toEqual([
+      { name: "Real bill", fromScenario: false },
+      { name: "What if", fromScenario: true },
+    ]);
+  });
+
+  it("marks a scenario one-off's row", () => {
+    const result = generateForecast({
+      balances: [],
+      recurringItems: [],
+      overrides: [],
+      oneOffs: [
+        { id: "a", name: "Real gift", amount: -100, dueDate: "2026-01-05", balanceId: null },
+        { id: "b", name: "What if we buy the car", amount: -500000, dueDate: "2026-01-10", balanceId: null, fromScenario: true },
+      ],
+      today: "2026-01-01",
+      horizon: "2026-01-31",
+    });
+
+    expect(result.map((row) => row.fromScenario ?? false)).toEqual([false, true]);
+  });
+
+  it("still counts a scenario row in the running balance - it has to, to preview real impact", () => {
+    const result = generateForecast({
+      balances: [{ id: "bal-1", name: "Cash", amount: 1000000 }],
+      recurringItems: [],
+      overrides: [],
+      oneOffs: [
+        { id: "b", name: "What if we buy the car", amount: -500000, dueDate: "2026-01-10", balanceId: null, fromScenario: true },
+      ],
+      today: "2026-01-01",
+      horizon: "2026-01-31",
+    });
+
+    expect(result[0].runningBalance).toBe(500000);
+  });
+});

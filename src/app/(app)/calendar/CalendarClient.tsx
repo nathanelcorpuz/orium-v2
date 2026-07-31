@@ -182,15 +182,32 @@ export function CalendarClient({
               <li key={`${row.sourceType}-${row.sourceId}-${index}`}>
                 <button
                   type="button"
+                  // T174: a scenario row's `sourceId` is a
+                  // scenario_recurring_items/scenario_one_off_items id, not a
+                  // real one - EditSettleModal's actions would write against
+                  // an id that doesn't exist in the real tables it knows
+                  // about. Same exclusion ForecastClient.tsx applies;
+                  // editing happens on /scenarios instead.
+                  disabled={row.fromScenario}
                   onClick={() => {
                     setOpenDay(null);
                     setSelectedRow(row);
                   }}
-                  className="flex w-full items-center justify-between rounded border border-notion-hairline p-2 text-left hover:bg-notion-hover"
+                  className={`flex w-full items-center justify-between rounded border border-notion-hairline p-2 text-left ${
+                    row.fromScenario ? "cursor-default" : "hover:bg-notion-hover"
+                  }`}
                 >
                   <span className="min-w-0 flex-1 truncate">
                     <span className={`mr-1.5 text-xs ${TYPE_COLOR[row.type]}`}>{TYPE_LABEL[row.type]}</span>
                     {row.name}
+                    {row.fromScenario && (
+                      <span
+                        className="ml-1.5 rounded-full bg-amber-100 px-1.5 py-0.5 text-xs font-medium text-amber-800"
+                        title="Part of an active scenario, not real data - manage it from Scenarios"
+                      >
+                        scenario
+                      </span>
+                    )}
                   </span>
                   <span className="ml-2 shrink-0 text-right text-sm text-slate-600">
                     {formatCentavos(row.amount, currency)}

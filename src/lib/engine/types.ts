@@ -30,6 +30,12 @@ export interface RecurringItem {
   // it. Optional so every existing fixture and test constructor stays valid;
   // undefined means active, matching the DB default.
   active?: boolean;
+  // T174: true when this item was merged in from an active "what-if"
+  // scenario rather than being a real row - lets the UI badge it distinctly
+  // so hypothetical numbers are never mistaken for real ones. Never set by
+  // the DB row itself (recurring_items has no such column); forecastData.ts
+  // stamps it onto scenario-sourced items when it builds this array.
+  fromScenario?: true;
   // T155: the user's own note on the item, carried through to the Forecast
   // row so it can be surfaced there. Optional rather than required-nullable
   // like balanceId above, deliberately: the engine never reads it, it is
@@ -88,6 +94,8 @@ export interface OneOffItem {
   comments?: string | null;
   // T175: see RecurringItem.active above.
   active?: boolean;
+  // T174: see RecurringItem.fromScenario above.
+  fromScenario?: true;
 }
 
 // Budgets v3 - a running ledger (SPEC.md Phase 10, T57 cutover). The old
@@ -205,6 +213,12 @@ export interface ForecastRow {
   // (not 0) when the row has no connected account or that account has no
   // fee, same convention as every other optional flag here.
   feeAmount?: number;
+  // T174: true when this row comes from an active "what-if" scenario rather
+  // than real data - only ever set for "recurring"/"one_off" rows, since
+  // scenarios don't cover budgets in v1. Omitted (not false) for real rows,
+  // same convention as every other flag here, so the UI can badge a
+  // scenario row unmistakably.
+  fromScenario?: true;
   // T155: the source item's own comment, for the Forecast's comment-bubble
   // indicator. Only ever set for "recurring"/"one_off" rows (budget rows use
   // `note` above), and omitted rather than null when the item has none, so a

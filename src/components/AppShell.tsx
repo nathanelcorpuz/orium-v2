@@ -40,6 +40,10 @@ const NAV_ITEMS = [
   { href: "/savings", label: "Savings", tourKey: "savings", financeGroup: true },
   { href: "/budgets", label: "Budgets", tourKey: "budgets", financeGroup: true },
   { href: "/misc", label: "Misc", tourKey: "misc", financeGroup: true },
+  // T174: sits right after the finance-entry group, not with the "look
+  // back" pages below - a scenario is about hypothetically *adding* to
+  // those same finance types, not reviewing what already happened.
+  { href: "/scenarios", label: "Scenarios", tourKey: "scenarios" },
   { href: "/history", label: "History", tourKey: "history" },
   // T164: sits next to History/Updates - all three are supporting views over
   // the same forecast/settlement data, not primary entry pages.

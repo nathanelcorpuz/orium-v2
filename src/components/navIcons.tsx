@@ -114,6 +114,20 @@ export function HistoryIcon({ className }: IconProps) {
   );
 }
 
+// T174: a branching-path glyph for "what if" scenarios - distinct from
+// every other nav icon here, none of which suggest a fork/alternative path.
+export function ScenariosIcon({ className }: IconProps) {
+  return (
+    <svg {...BASE} className={className}>
+      <circle cx="5" cy="10" r="2" />
+      <circle cx="15" cy="4" r="2" />
+      <circle cx="15" cy="16" r="2" />
+      <path d="M7 10 L13 5" />
+      <path d="M7 10 L13 15" />
+    </svg>
+  );
+}
+
 // T164: a plain month-grid glyph for the Calendar nav item.
 export function CalendarIcon({ className }: IconProps) {
   return (
@@ -358,6 +372,7 @@ export const NAV_ICONS: Record<string, (props: IconProps) => React.JSX.Element> 
   "/savings": SavingsIcon,
   "/budgets": BudgetsIcon,
   "/misc": ExtrasIcon,
+  "/scenarios": ScenariosIcon,
   "/forecast": ForecastIcon,
   "/history": HistoryIcon,
   "/calendar": CalendarIcon,
