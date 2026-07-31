@@ -8,6 +8,7 @@ import { goalProgress } from "@/lib/engine/goalProgress";
 import { startDateLabel, summarizeRecurrence } from "@/lib/recurrenceSummary";
 import { todayInManila } from "@/lib/date";
 import { AmountRangeFilter, matchesAmountFilter, type ComparisonOp } from "@/components/AmountRangeFilter";
+import { accountFilterOptions, matchesAccountFilter } from "@/lib/accountFilter";
 import { AmountSortControl, sortByAmount, type SortOrder } from "@/components/AmountSortControl";
 import { MultiSelectChips } from "@/components/MultiSelectChips";
 import { ProgressBar } from "@/components/ProgressBar";
@@ -87,6 +88,17 @@ export function MonthlyGoalsClient({
   const [amountValue1, setAmountValue1] = useState("");
   const [amountValue2, setAmountValue2] = useState("");
   const [sortOrder, setSortOrder] = useState<SortOrder>("none");
+  // T159: filter by connected account (T71 balance_id).
+  const [selectedAccounts, setSelectedAccounts] = useState<Set<string>>(new Set());
+
+  function toggleAccount(accountId: string) {
+    setSelectedAccounts((prev) => {
+      const next = new Set(prev);
+      if (next.has(accountId)) next.delete(accountId);
+      else next.add(accountId);
+      return next;
+    });
+  }
 
   function toggleUnit(unit: RecurrenceUnit) {
     setSelectedUnits((prev) => {
@@ -103,10 +115,11 @@ export function MonthlyGoalsClient({
     setAmountOp("any");
     setAmountValue1("");
     setAmountValue2("");
+    setSelectedAccounts(new Set());
   }
 
   const filtersActive =
-    nameFilter !== "" || selectedUnits.size > 0 || amountOp !== "any";
+    nameFilter !== "" || selectedUnits.size > 0 || amountOp !== "any" || selectedAccounts.size > 0;
 
   // T145: persisted custom row order (up/down buttons), keyed by pageTitle
   // ("Debt"/"Savings") since this one component serves both pages - only
@@ -128,9 +141,10 @@ export function MonthlyGoalsClient({
       if (name && !item.name.toLowerCase().includes(name)) return false;
       if (selectedUnits.size > 0 && !selectedUnits.has(item.unit)) return false;
       if (!matchesAmountFilter(item.amount, amountOp, amountValue1, amountValue2)) return false;
+      if (!matchesAccountFilter(item.balance_id, selectedAccounts)) return false;
       return true;
     });
-  }, [orderedGoalItems, nameFilter, selectedUnits, amountOp, amountValue1, amountValue2]);
+  }, [orderedGoalItems, nameFilter, selectedUnits, amountOp, amountValue1, amountValue2, selectedAccounts]);
 
   const sortedItems = useMemo(
     () => sortByAmount(filteredItems, sortOrder, (item) => item.amount),
@@ -196,6 +210,16 @@ export function MonthlyGoalsClient({
                 <label className="text-xs text-slate-500">Recurs</label>
                 <MultiSelectChips options={UNIT_OPTIONS} selected={selectedUnits} onToggle={toggleUnit} />
               </div>
+              {balances.length > 0 && (
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs text-slate-500">Account</label>
+                  <MultiSelectChips
+                    options={accountFilterOptions(balances)}
+                    selected={selectedAccounts}
+                    onToggle={toggleAccount}
+                  />
+                </div>
+              )}
               <AmountRangeFilter
                 label="Amount"
                 op={amountOp}

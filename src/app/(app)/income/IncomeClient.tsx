@@ -5,6 +5,7 @@ import { formatCentavos } from "@/lib/money";
 import { monthlyEquivalent } from "@/lib/engine/monthlyTotals";
 import { startDateLabel, summarizeRecurrence } from "@/lib/recurrenceSummary";
 import { AmountRangeFilter, matchesAmountFilter, type ComparisonOp } from "@/components/AmountRangeFilter";
+import { accountFilterOptions, matchesAccountFilter } from "@/lib/accountFilter";
 import { AmountSortControl, sortByAmount, type SortOrder } from "@/components/AmountSortControl";
 import { MultiSelectChips } from "@/components/MultiSelectChips";
 import { ReorderButtons } from "@/components/ReorderButtons";
@@ -62,6 +63,17 @@ export function IncomeClient({
   const [amountValue1, setAmountValue1] = useState("");
   const [amountValue2, setAmountValue2] = useState("");
   const [sortOrder, setSortOrder] = useState<SortOrder>("none");
+  // T159: filter by connected account (T71 balance_id).
+  const [selectedAccounts, setSelectedAccounts] = useState<Set<string>>(new Set());
+
+  function toggleAccount(accountId: string) {
+    setSelectedAccounts((prev) => {
+      const next = new Set(prev);
+      if (next.has(accountId)) next.delete(accountId);
+      else next.add(accountId);
+      return next;
+    });
+  }
 
   function toggleUnit(unit: RecurrenceUnit) {
     setSelectedUnits((prev) => {
@@ -78,10 +90,11 @@ export function IncomeClient({
     setAmountOp("any");
     setAmountValue1("");
     setAmountValue2("");
+    setSelectedAccounts(new Set());
   }
 
   const filtersActive =
-    nameFilter !== "" || selectedUnits.size > 0 || amountOp !== "any";
+    nameFilter !== "" || selectedUnits.size > 0 || amountOp !== "any" || selectedAccounts.size > 0;
 
   // T145: persisted custom row order (up/down buttons) - only meaningful
   // as the base ordering when nothing else is already imposing one.
@@ -112,9 +125,10 @@ export function IncomeClient({
       if (name && !income.name.toLowerCase().includes(name)) return false;
       if (selectedUnits.size > 0 && !selectedUnits.has(income.unit)) return false;
       if (!matchesAmountFilter(income.amount, amountOp, amountValue1, amountValue2)) return false;
+      if (!matchesAccountFilter(income.balance_id, selectedAccounts)) return false;
       return true;
     });
-  }, [orderedIncomes, nameFilter, selectedUnits, amountOp, amountValue1, amountValue2]);
+  }, [orderedIncomes, nameFilter, selectedUnits, amountOp, amountValue1, amountValue2, selectedAccounts]);
 
   const sortedIncomes = useMemo(
     () => sortByAmount(filteredIncomes, sortOrder, (income) => income.amount),
@@ -168,6 +182,16 @@ export function IncomeClient({
                 <label className="text-xs text-slate-500">Recurs</label>
                 <MultiSelectChips options={UNIT_OPTIONS} selected={selectedUnits} onToggle={toggleUnit} />
               </div>
+              {balances.length > 0 && (
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs text-slate-500">Account</label>
+                  <MultiSelectChips
+                    options={accountFilterOptions(balances)}
+                    selected={selectedAccounts}
+                    onToggle={toggleAccount}
+                  />
+                </div>
+              )}
               <AmountRangeFilter
                 label="Amount"
                 op={amountOp}

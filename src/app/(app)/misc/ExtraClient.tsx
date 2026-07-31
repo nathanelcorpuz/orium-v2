@@ -5,6 +5,8 @@ import { formatCentavos } from "@/lib/money";
 import { formatFullDate, todayInManila } from "@/lib/date";
 import { DatePicker } from "@/components/DatePicker";
 import { AmountRangeFilter, matchesAmountFilter, type ComparisonOp } from "@/components/AmountRangeFilter";
+import { accountFilterOptions, matchesAccountFilter } from "@/lib/accountFilter";
+import { MultiSelectChips } from "@/components/MultiSelectChips";
 import { AmountSortControl, sortByAmount, type SortOrder } from "@/components/AmountSortControl";
 import { ReorderButtons } from "@/components/ReorderButtons";
 import { SubmitButton } from "@/components/SubmitButton";
@@ -26,6 +28,17 @@ export function ExtraClient({ extras, balances }: { extras: ExtraRow[]; balances
   const [amountValue1, setAmountValue1] = useState("");
   const [amountValue2, setAmountValue2] = useState("");
   const [sortOrder, setSortOrder] = useState<SortOrder>("none");
+  // T159: filter by connected account (T71 balance_id).
+  const [selectedAccounts, setSelectedAccounts] = useState<Set<string>>(new Set());
+
+  function toggleAccount(accountId: string) {
+    setSelectedAccounts((prev) => {
+      const next = new Set(prev);
+      if (next.has(accountId)) next.delete(accountId);
+      else next.add(accountId);
+      return next;
+    });
+  }
 
   function clearFilters() {
     setNameFilter("");
@@ -34,10 +47,11 @@ export function ExtraClient({ extras, balances }: { extras: ExtraRow[]; balances
     setAmountOp("any");
     setAmountValue1("");
     setAmountValue2("");
+    setSelectedAccounts(new Set());
   }
 
   const filtersActive =
-    nameFilter !== "" || dueFrom !== "" || dueTo !== "" || amountOp !== "any";
+    nameFilter !== "" || dueFrom !== "" || dueTo !== "" || amountOp !== "any" || selectedAccounts.size > 0;
 
   // T145: persisted custom row order (up/down buttons) - only meaningful
   // as the base ordering when nothing else is already imposing one.
@@ -55,9 +69,10 @@ export function ExtraClient({ extras, balances }: { extras: ExtraRow[]; balances
       if (dueFrom && extra.due_date < dueFrom) return false;
       if (dueTo && extra.due_date > dueTo) return false;
       if (!matchesAmountFilter(extra.amount, amountOp, amountValue1, amountValue2)) return false;
+      if (!matchesAccountFilter(extra.balance_id, selectedAccounts)) return false;
       return true;
     });
-  }, [orderedExtras, nameFilter, dueFrom, dueTo, amountOp, amountValue1, amountValue2]);
+  }, [orderedExtras, nameFilter, dueFrom, dueTo, amountOp, amountValue1, amountValue2, selectedAccounts]);
 
   const sortedExtras = useMemo(
     () => sortByAmount(filteredExtras, sortOrder, (extra) => extra.amount),
@@ -122,6 +137,16 @@ export function ExtraClient({ extras, balances }: { extras: ExtraRow[]; balances
                   className="rounded border border-notion-hairline px-1.5 py-1 text-left text-xs focus:border-notion-accent focus:outline-none"
                 />
               </div>
+              {balances.length > 0 && (
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs text-slate-500">Account</label>
+                  <MultiSelectChips
+                    options={accountFilterOptions(balances)}
+                    selected={selectedAccounts}
+                    onToggle={toggleAccount}
+                  />
+                </div>
+              )}
               <AmountRangeFilter
                 label="Amount"
                 op={amountOp}
