@@ -8,11 +8,33 @@ import { SegmentedControl } from "@/components/SegmentedControl";
 import { blockNegativeKey, centavosToPesosString } from "@/lib/money";
 import { todayInManila } from "@/lib/date";
 import { RecurrencePicker, type RecurrenceValue } from "@/components/recurring/RecurrencePicker";
+import { summarizeRecurrence } from "@/lib/recurrenceSummary";
 import { type BudgetRow } from "@/lib/budgetView";
 import { createBudget, updateBudget, type BudgetActionState } from "./actions";
 import type { BudgetAccountRow } from "./BudgetAccountModal";
+import type { IncomeItemRow } from "./BudgetCard";
 
 export type { BudgetRow } from "@/lib/budgetView";
+
+// T198: the rule fields are optional here, not required like on
+// `IncomeItemRow` itself - the onboarding wizard's own income list
+// (`BalanceOption`, OnboardingWizard.tsx) only ever has `{id, name}`, and
+// widening this modal's own requirement rather than that unrelated list
+// keeps the wizard untouched. The frequency line below simply doesn't
+// render when the extra fields aren't there.
+type IncomeOption = { id: string; name: string } & Partial<Omit<IncomeItemRow, "id" | "name">>;
+
+// Narrows an IncomeOption down to a full IncomeItemRow only when every rule
+// field is actually present - true for every real caller (BudgetsClient.tsx
+// via budgets/page.tsx), false only for the wizard's bare {id, name} list.
+function hasRecurrenceRule(income: IncomeOption): income is IncomeOption & IncomeItemRow {
+  return (
+    income.startDate !== undefined &&
+    income.interval !== undefined &&
+    income.unit !== undefined &&
+    income.endsType !== undefined
+  );
+}
 
 // Phase 10/T55 gave a budget two replenish modes (income-linked or manual);
 // Phase 11/T60 adds a third back - "schedule" ("Replenish every", the
@@ -41,7 +63,10 @@ export function BudgetModal({
   createActionOverride,
 }: {
   budget: BudgetRow | null;
-  incomes: { id: string; name: string }[];
+  // T198: full rule fields when the caller has them, so the picker can show
+  // the selected income's own frequency (summarizeRecurrence) - optional,
+  // see IncomeOption above.
+  incomes: IncomeOption[];
   // T204: optional storage account picker - default `[]` keeps every
   // existing caller (e.g. the onboarding wizard, if it ever creates budgets)
   // valid without threading this everywhere at once.
@@ -61,6 +86,10 @@ export function BudgetModal({
     budget?.linked_income_id ? "income" : budget?.start_date ? "schedule" : "manual",
   );
   const [startDate, setStartDate] = useState(budget?.start_date ?? todayInManila());
+  // T198 (user request): controlled so picking a different income updates
+  // its frequency line live, not just on the next render.
+  const [selectedIncomeId, setSelectedIncomeId] = useState(budget?.linked_income_id ?? "");
+  const selectedIncome = incomes.find((income) => income.id === selectedIncomeId) ?? null;
 
   const initialRecurrenceValue: RecurrenceValue | null =
     budget && budget.start_date && budget.interval !== null && budget.unit !== null && budget.ends_type !== null
@@ -179,7 +208,8 @@ export function BudgetModal({
                 id="linkedIncomeId"
                 name="linkedIncomeId"
                 required
-                defaultValue={budget?.linked_income_id ?? ""}
+                value={selectedIncomeId}
+                onChange={(event) => setSelectedIncomeId(event.target.value)}
                 className="mt-1 w-full rounded border border-notion-hairline p-2 text-notion-text focus:border-notion-accent focus:outline-none"
               >
                 <option value="" disabled>
@@ -191,7 +221,13 @@ export function BudgetModal({
                   </option>
                 ))}
               </select>
-              <p className="mt-1 text-sm text-slate-400">Replenishes each time this income is settled.</p>
+              <p className="mt-1 text-sm text-slate-400">
+                Replenishes each time this income is settled.
+                {/* T198 (user request): the income's own frequency, right
+                    here - previously the only way to know was to go check
+                    the Income page itself. */}
+                {selectedIncome && hasRecurrenceRule(selectedIncome) && ` ${summarizeRecurrence(selectedIncome)}.`}
+              </p>
             </div>
           ) : (
             <p className="text-sm text-slate-400">
