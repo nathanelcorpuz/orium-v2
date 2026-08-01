@@ -6,6 +6,9 @@ import { ChevronIcon, DeleteIcon, EditIcon } from "@/components/navIcons";
 import { SubmitButton } from "@/components/SubmitButton";
 import { deleteBudgetAccount } from "./actions";
 import { BudgetAccountModal, type BudgetAccountRow } from "./BudgetAccountModal";
+import { BudgetAccountFundsModal } from "./BudgetAccountFundsModal";
+
+type FundsModalState = { account: BudgetAccountRow; mode: "add" | "take" | "move" };
 
 // T204 (user request 2026-08-01): "I need another set of accounts that
 // will be used as storage for the budgets" - managed from a sub-section
@@ -16,6 +19,9 @@ export function BudgetAccountsSection({ accounts }: { accounts: BudgetAccountRow
   const [open, setOpen] = useState(false);
   const [modalState, setModalState] = useState<null | "new" | BudgetAccountRow>(null);
   const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null);
+  // T209 (user follow-up to T204): Add/Take/Move funds, mirroring Accounts'
+  // own row (T189/T186).
+  const [fundsModalState, setFundsModalState] = useState<FundsModalState | null>(null);
 
   return (
     <div className="mb-6 rounded-lg border border-notion-hairline bg-white p-4">
@@ -43,13 +49,15 @@ export function BudgetAccountsSection({ accounts }: { accounts: BudgetAccountRow
           ) : (
             <ul className="mb-3 divide-y divide-notion-hairline">
               {accounts.map((account) => (
-                <li key={account.id} className="flex items-center justify-between gap-2 py-2 text-sm">
-                  <span className="min-w-0 flex-1 truncate text-notion-text">{account.name}</span>
-                  <span className="w-24 shrink-0 text-right tabular-nums text-notion-text">
-                    {formatCentavos(account.amount)}
-                  </span>
+                <li key={account.id} className="flex flex-col gap-2 py-2 text-sm sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex min-w-0 flex-1 items-center justify-between gap-2 sm:justify-start">
+                    <span className="min-w-0 flex-1 truncate text-notion-text">{account.name}</span>
+                    <span className="w-24 shrink-0 text-right tabular-nums text-notion-text">
+                      {formatCentavos(account.amount)}
+                    </span>
+                  </div>
                   {confirmingDeleteId === account.id ? (
-                    <div className="flex shrink-0 items-center gap-1">
+                    <div className="flex shrink-0 items-center gap-1 self-end sm:self-auto">
                       <span className="text-xs text-slate-500">Delete?</span>
                       <form action={deleteBudgetAccount}>
                         <input type="hidden" name="id" value={account.id} />
@@ -69,7 +77,33 @@ export function BudgetAccountsSection({ accounts }: { accounts: BudgetAccountRow
                       </button>
                     </div>
                   ) : (
-                    <div className="flex shrink-0 items-center gap-1">
+                    <div className="flex shrink-0 items-center gap-2 self-end sm:self-auto">
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setFundsModalState({ account, mode: "add" })}
+                          className="text-xs font-medium text-green-700 hover:underline"
+                        >
+                          Add
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setFundsModalState({ account, mode: "take" })}
+                          className="text-xs font-medium text-red-600 hover:underline"
+                        >
+                          Take
+                        </button>
+                        {accounts.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => setFundsModalState({ account, mode: "move" })}
+                            className="text-xs font-medium text-notion-accent hover:underline"
+                          >
+                            Move
+                          </button>
+                        )}
+                      </div>
+                      <div className="h-4 w-px bg-notion-hairline" />
                       <button
                         type="button"
                         onClick={() => setModalState(account)}
@@ -108,6 +142,15 @@ export function BudgetAccountsSection({ accounts }: { accounts: BudgetAccountRow
         <BudgetAccountModal
           account={modalState === "new" ? null : modalState}
           onClose={() => setModalState(null)}
+        />
+      )}
+
+      {fundsModalState && (
+        <BudgetAccountFundsModal
+          mode={fundsModalState.mode}
+          account={fundsModalState.account}
+          accounts={accounts}
+          onClose={() => setFundsModalState(null)}
         />
       )}
     </div>

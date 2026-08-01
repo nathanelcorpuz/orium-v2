@@ -601,3 +601,155 @@ export async function deleteBudgetAccount(formData: FormData) {
   }
   revalidatePath("/budgets");
 }
+
+// T209 (user follow-up to T204): "budget accounts should have almost
+// identical functionality with main accounts, but they don't have to have
+// projected total balance." Mirrors accounts/actions.ts's own Add/Take/Move
+// funds (T186) exactly, just against `budget_accounts`/
+// `budget_account_transactions` (migration 0041) instead of `balances`/
+// `balance_transactions` - no fee concept here, since a budget account was
+// never part of the forecast/fee model T172 built.
+function readBudgetAccountFundsForm(formData: FormData) {
+  const amount = parseCentavos(formData.get("amountPesos") as string);
+  const entryDate = formData.get("entryDate") as string;
+  const note = ((formData.get("note") as string) || "").trim() || null;
+  if (amount === null || amount <= 0) return { error: "Enter a valid amount." } as const;
+  if (!entryDate) return { error: "Date is required." } as const;
+  return { error: null, amount, entryDate, note } as const;
+}
+
+export async function addBudgetAccountFunds(
+  _prevState: BudgetActionState,
+  formData: FormData,
+): Promise<BudgetActionState> {
+  const budgetAccountId = formData.get("budgetAccountId") as string;
+  const budgetAccountName = formData.get("budgetAccountName") as string;
+  const fields = readBudgetAccountFundsForm(formData);
+  if (fields.error) return { error: fields.error };
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Not signed in." };
+
+  const accountError = await applyToBudgetAccount(supabase, budgetAccountId, fields.amount);
+  if (accountError) return { error: accountError };
+
+  const { error } = await supabase.from("budget_account_transactions").insert({
+    user_id: user.id,
+    budget_account_id: budgetAccountId,
+    entry_date: fields.entryDate,
+    amount: fields.amount,
+    direction: "incoming",
+    note: fields.note,
+  });
+  if (error) return { error: error.message };
+
+  await logActivity(supabase, user.id, {
+    action: "update",
+    entityType: "budget_account",
+    entityName: budgetAccountName,
+    detail: `Added funds: ${formatCentavos(fields.amount)}${fields.note ? ` (${fields.note})` : ""}`,
+  });
+
+  revalidatePath("/budgets");
+  return { error: null };
+}
+
+export async function takeBudgetAccountFunds(
+  _prevState: BudgetActionState,
+  formData: FormData,
+): Promise<BudgetActionState> {
+  const budgetAccountId = formData.get("budgetAccountId") as string;
+  const budgetAccountName = formData.get("budgetAccountName") as string;
+  const fields = readBudgetAccountFundsForm(formData);
+  if (fields.error) return { error: fields.error };
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Not signed in." };
+
+  const accountError = await applyToBudgetAccount(supabase, budgetAccountId, -fields.amount);
+  if (accountError) return { error: accountError };
+
+  const { error } = await supabase.from("budget_account_transactions").insert({
+    user_id: user.id,
+    budget_account_id: budgetAccountId,
+    entry_date: fields.entryDate,
+    amount: fields.amount,
+    direction: "outgoing",
+    note: fields.note,
+  });
+  if (error) return { error: error.message };
+
+  await logActivity(supabase, user.id, {
+    action: "update",
+    entityType: "budget_account",
+    entityName: budgetAccountName,
+    detail: `Took funds: ${formatCentavos(fields.amount)}${fields.note ? ` (${fields.note})` : ""}`,
+  });
+
+  revalidatePath("/budgets");
+  return { error: null };
+}
+
+// Two ledger rows, not a third "transfer" direction - same reasoning
+// moveAccountFunds (accounts/actions.ts) already documents.
+export async function moveBudgetAccountFunds(
+  _prevState: BudgetActionState,
+  formData: FormData,
+): Promise<BudgetActionState> {
+  const fromId = formData.get("fromBudgetAccountId") as string;
+  const toId = formData.get("toBudgetAccountId") as string;
+  const fromName = formData.get("fromBudgetAccountName") as string;
+  const toName = formData.get("toBudgetAccountName") as string;
+  const fields = readBudgetAccountFundsForm(formData);
+  if (fields.error) return { error: fields.error };
+  if (!toId) return { error: "Choose an account to move funds to." };
+  if (fromId === toId) return { error: "Choose two different accounts." };
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Not signed in." };
+
+  const fromError = await applyToBudgetAccount(supabase, fromId, -fields.amount);
+  if (fromError) return { error: fromError };
+  const toError = await applyToBudgetAccount(supabase, toId, fields.amount);
+  if (toError) return { error: toError };
+
+  const noteSuffix = fields.note ? ` (${fields.note})` : "";
+  const { error: outError } = await supabase.from("budget_account_transactions").insert({
+    user_id: user.id,
+    budget_account_id: fromId,
+    entry_date: fields.entryDate,
+    amount: fields.amount,
+    direction: "outgoing",
+    note: fields.note ?? `Moved to ${toName}`,
+  });
+  if (outError) return { error: outError.message };
+
+  const { error: inError } = await supabase.from("budget_account_transactions").insert({
+    user_id: user.id,
+    budget_account_id: toId,
+    entry_date: fields.entryDate,
+    amount: fields.amount,
+    direction: "incoming",
+    note: fields.note ?? `Moved from ${fromName}`,
+  });
+  if (inError) return { error: inError.message };
+
+  await logActivity(supabase, user.id, {
+    action: "update",
+    entityType: "budget_account",
+    entityName: fromName,
+    detail: `Moved ${formatCentavos(fields.amount)} to ${toName}${noteSuffix}`,
+  });
+
+  revalidatePath("/budgets");
+  return { error: null };
+}

@@ -9,13 +9,12 @@ Scratchpad for things raised between sessions. Write anything here, in any shape
 ## Pending (NJ will be filling this with raw ideas)
 
 (nothing - inbox is empty, see the triage note below)
-- budget accounts should have almost identical functionality with main accounts, but they don't have to have projected total balance
-- budget items when adjusted in any way should reflect on the budget account connected to it accordingly. if there are more than one budget account connected to a budget item, we can implement a dropdown selection for which account it should be auto calculated from in log spend, add funds, or take funds, as well as in the forecast page in the replenishment, we can have a default account set for a budget item and that should populate in the replenishment forecast item but should also be editable
 
 ---
 
 ## Last triage
 
+- **2026-08-01, ninth pass**: 3 items. "Budget accounts should have almost identical functionality with main accounts" → built directly as **T209** (Add/Take/Move funds for budget accounts, SPEC.md Phase 28). The other two - a budget linked to *multiple* budget accounts with per-transaction selection, and a shareable no-login link for Updates - are both real architecture/security decisions, not executable as-is; both moved to "Before MVP launch (needs discussion)" rather than built blind, per CLAUDE.md's "ask before making product or architecture decisions" rule.
 - **2026-08-01, eighth pass**: 1 item (reminders add/edit UX) → built directly, same session: the add-reminder form now collapses behind a button (**T207**, SPEC.md Phase 29), and the reported edit-mode breakage is **Bug #17** (BUGS.md, fixed - a missing `min-w-0` on the edit input).
 - **2026-08-01, seventh pass**: 1 item (account filter should be a dropdown) → **T206** (SPEC.md Phase 27, not yet built).
 - **2026-08-01, sixth pass**: 1 item (mobile Forecast table height) → **T205** (SPEC.md Phase 27, not yet built). Same session: built the budget-accounts feature the user asked about directly (T204, SPEC.md Phase 28) - a separate `budget_accounts` table, storage for budgets, optionally linked, never counted in Total Balance/the forecast, managed from the Budgets page itself.
