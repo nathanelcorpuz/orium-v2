@@ -8,7 +8,7 @@ import type { BudgetAccountRow } from "./BudgetAccountModal";
 export default async function BudgetsPage() {
   const supabase = await createClient();
 
-  const [budgetsRes, entriesRes, incomesRes, replenishOverridesRes, incomeOverridesRes, budgetAccountsRes] =
+  const [budgetsRes, entriesRes, incomesRes, replenishOverridesRes, incomeOverridesRes, budgetAccountsRes, balancesRes] =
     await Promise.all([
       supabase
         .from("budgets")
@@ -30,7 +30,7 @@ export default async function BudgetsPage() {
       supabase
         .from("recurring_items")
         .select(
-          "id, name, start_date, interval, unit, weekdays, days_of_month, ordinal, ordinal_weekday, ends_type, end_date, occurrence_count",
+          "id, name, start_date, interval, unit, weekdays, days_of_month, ordinal, ordinal_weekday, ends_type, end_date, occurrence_count, balance_id",
         )
         .eq("type", "income")
         .order("name", { ascending: true }),
@@ -54,8 +54,12 @@ export default async function BudgetsPage() {
       supabase.from("occurrence_overrides").select("recurring_item_id, original_date").eq("skipped", true),
       // T204: budget accounts, for the Budgets page's own management
       // sub-section and so each budget's create/edit form can offer the
-      // "Storage account" picker.
+      // "Budget account" picker.
       supabase.from("budget_accounts").select("id, name, amount, comments").order("name", { ascending: true }),
+      // User request 2026-08-01: "budget items should show the main
+      // account connected to the income connected to it" - just id/name,
+      // resolved against each income's own `balance_id` in BudgetCard.tsx.
+      supabase.from("balances").select("id, name"),
     ]);
 
   if (budgetsRes.error) {
@@ -90,9 +94,13 @@ export default async function BudgetsPage() {
       </p>
     );
   }
+  if (balancesRes.error) {
+    return <p className="p-8 text-red-600">Could not load accounts: {balancesRes.error.message}</p>;
+  }
 
   const budgets: BudgetRow[] = budgetsRes.data ?? [];
   const budgetAccounts: BudgetAccountRow[] = budgetAccountsRes.data ?? [];
+  const balances = balancesRes.data ?? [];
 
   const entriesByBudgetId: Record<string, BudgetEntryRow[]> = {};
   for (const entry of entriesRes.data ?? []) {
@@ -120,6 +128,7 @@ export default async function BudgetsPage() {
     endsType: row.ends_type,
     endDate: row.end_date,
     occurrenceCount: row.occurrence_count,
+    balanceId: row.balance_id,
   }));
 
   const editedIds = idSetFromColumn(replenishOverridesRes.data, "budget_id");
@@ -162,6 +171,7 @@ export default async function BudgetsPage() {
       budgets={budgets}
       entriesByBudgetId={entriesByBudgetId}
       incomes={incomes}
+      balances={balances}
       editedIds={editedIds}
       handledDatesByBudgetId={handledDatesByBudgetId}
       budgetAccounts={budgetAccounts}

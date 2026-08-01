@@ -9,6 +9,8 @@ Scratchpad for things raised between sessions. Write anything here, in any shape
 ## Pending (NJ will be filling this with raw ideas)
 
 (nothing - inbox is empty, see the triage note below)
+- budget accounts should have almost identical functionality with main accounts, but they don't have to have projected total balance
+- budget items when adjusted in any way should reflect on the budget account connected to it accordingly. if there are more than one budget account connected to a budget item, we can implement a dropdown selection for which account it should be auto calculated from in log spend, add funds, or take funds, as well as in the forecast page in the replenishment, we can have a default account set for a budget item and that should populate in the replenishment forecast item but should also be editable
 
 ---
 

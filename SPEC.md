@@ -235,7 +235,7 @@ Bug reports from the same batch went straight to BUGS.md (Bug #15) instead - thi
 - [ ] **T205.** Mobile Forecast table should occupy nearly the full viewport height when scrolled to it, with a small space above for Filter/Scenarios and room to scroll back up.
 - [ ] **T206.** The account filter already on Bills/Income/Debt/Savings/etc. becomes a dropdown (matching whatever pattern the other filters on those pages already use), rather than however it's currently presented.
 
-### Completed work (T1-T192, plus T204 - see Phase 28 below, completed out of order)
+### Completed work (T1-T192, plus T204/T208 - see Phase 28 below, completed out of order)
 Full build write-ups live in **ARCHIVE.md**, in this same order. This index exists so a task number can be found quickly without opening it.
 
 **Done**
@@ -488,6 +488,7 @@ Full build write-ups live in **ARCHIVE.md**, in this same order. This index exis
 **Phase 28 — Budget accounts (done 2026-08-01, completed ahead of Phase 27)**
 
 - **T204.** "I want to create accounts specified for budgets as well. The main accounts used in the cash flow will be separate, and I need another set of accounts that will be used as storage for the budgets." New `budget_accounts` table (migration 0040), separate from `balances` and never counted toward Total Balance or the forecast. A budget optionally links to one (same "optional connection" shape bills/income already use for a main account); once linked, every ledger change on that budget - replenish (auto from a settled income, or its own schedule), spend, manual add/take - moves the linked account's balance too, the same way settling a bill moves a connected main account. Managed from a collapsible "Budget Accounts" sub-section on the Budgets page itself, per the user's own answer, not a new nav item.
+- **T208.** Two small follow-ups raised right after T204/T198 shipped: (1) an income-linked budget's card now also shows the main account that income is connected to ("From account: X"), one hop further than the existing "Connected to {income}" pill - `IncomeItemRow` gained `balanceId`, and `budgets/page.tsx` now also fetches `balances` (id/name only) to resolve it. (2) the "Storage account" field on a budget's own create/edit form was renamed "Budget account" for consistency with the Budgets page's own "Budget Accounts" section header.
 
 **Phase 29 — Reminders UX (done 2026-08-01)**
 

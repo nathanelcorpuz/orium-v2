@@ -32,6 +32,7 @@ export function BudgetsClient({
   budgets,
   entriesByBudgetId,
   incomes,
+  balances,
   editedIds,
   handledDatesByBudgetId,
   budgetAccounts,
@@ -39,6 +40,9 @@ export function BudgetsClient({
   budgets: BudgetRow[];
   entriesByBudgetId: Record<string, BudgetEntryRow[]>;
   incomes: IncomeItemRow[];
+  // User request 2026-08-01: so BudgetCard can show a linked income's own
+  // connected main account.
+  balances: { id: string; name: string }[];
   editedIds: Set<string>;
   // T167: skipped replenish occurrence dates per budget, so the card can
   // stop advertising a replenishment that already happened.
@@ -225,6 +229,7 @@ export function BudgetsClient({
                     budget={budget}
                     entries={entriesByBudgetId[budget.id] ?? []}
                     incomes={incomes}
+                    balances={balances}
                     onEdit={() => setModalState(budget)}
                     edited={editedIds.has(budget.id)}
                     handledDates={handledDatesByBudgetId[budget.id] ?? []}

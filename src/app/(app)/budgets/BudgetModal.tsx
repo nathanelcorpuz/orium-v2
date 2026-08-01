@@ -169,7 +169,7 @@ export function BudgetModal({
             requirement, same as bills/income's own optional account link. */}
         <div>
           <label className="block text-sm text-slate-600" htmlFor="budgetAccountId">
-            Storage account (optional)
+            Budget account (optional)
           </label>
           <select
             id="budgetAccountId"

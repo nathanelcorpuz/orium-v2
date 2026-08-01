@@ -50,6 +50,10 @@ export type IncomeItemRow = {
   endsType: RecurrenceEndsType;
   endDate: string | null;
   occurrenceCount: number | null;
+  // User request 2026-08-01: "budget items should show the main account
+  // connected to the income connected to it" - the income's own T71 link,
+  // resolved against `balances` below.
+  balanceId: string | null;
 };
 
 // T165 (SPEC.md Phase 21): exported so BudgetsClient.tsx can reuse it for the
@@ -76,6 +80,7 @@ export function BudgetCard({
   budget,
   entries,
   incomes,
+  balances,
   onEdit,
   edited,
   handledDates = [],
@@ -83,6 +88,10 @@ export function BudgetCard({
   budget: BudgetRow;
   entries: BudgetEntryRow[];
   incomes: IncomeItemRow[];
+  // User request 2026-08-01: just enough to resolve a linked income's own
+  // connected main account by id - not the full `Balance`/`BalanceRow`
+  // shape, since nothing here needs an amount or a fee.
+  balances: { id: string; name: string }[];
   onEdit: () => void;
   edited: boolean;
   // T167: replenish occurrences already settled, so the countdown below moves
@@ -132,6 +141,12 @@ export function BudgetCard({
   // countdown), so this is just showing what was there. Skipped for
   // schedule-mode budgets, whose pill *is* the frequency summary already.
   const frequencyLabel = incomeName && rule ? summarizeRecurrence(rule) : null;
+  // User request 2026-08-01: "budget items should show the main account
+  // connected to the income connected to it" - one hop further than
+  // `incomeName` above, resolved through the income's own T71 link.
+  const linkedAccountName = linkedIncome?.balanceId
+    ? (balances.find((balance) => balance.id === linkedIncome.balanceId)?.name ?? null)
+    : null;
   // T175: undefined (older rows, or a fixture that never set it) means active.
   const isActive = budget.active !== false;
 
@@ -153,6 +168,9 @@ export function BudgetCard({
             </span>
           </div>
           {frequencyLabel && <p className="mt-0.5 text-xs text-slate-400">{frequencyLabel}</p>}
+          {linkedAccountName && (
+            <p className="mt-0.5 text-xs text-slate-400">From account: {linkedAccountName}</p>
+          )}
           <p className={`text-xl font-semibold ${balance < 0 ? "text-red-600" : "text-notion-text"}`}>
             {formatCentavos(balance)}
           </p>
