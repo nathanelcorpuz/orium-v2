@@ -163,6 +163,17 @@ export default async function Home({
 
   const totalBalance = balances.reduce((sum, balance) => sum + balance.amount, 0);
 
+  // T197 (user request): Misc has no "monthly" concept (one-offs, not
+  // recurring), so these total whatever's still pending in the forecast
+  // instead - every not-yet-settled Misc row, in and out separately. Scoped
+  // to the full `forecast` (past-due included, same "not actually gone yet"
+  // convention T150 established), not just `upcoming`.
+  const extraRows = forecast.filter((row) => row.type === "extra");
+  const totalMiscIn = extraRows.filter((row) => row.amount > 0).reduce((sum, row) => sum + row.amount, 0);
+  const totalMiscOut = extraRows
+    .filter((row) => row.amount < 0)
+    .reduce((sum, row) => sum + Math.abs(row.amount), 0);
+
   const totalMonthlyBills = recurringItems
     .filter((item) => item.type === "bill")
     .reduce((sum, item) => sum + Math.abs(monthlyEquivalent(item)), 0);
@@ -194,7 +205,15 @@ export default async function Home({
   // against other recurring types' "never" rule, not debt's own).
   const debtProgress = aggregateGoalProgress(debtItems, settledCountByItemId);
 
+  // T196 (user request): Debt and Savings get the same "total monthly"
+  // treatment Bills/Income already had - previously only "Remaining Debt"/
+  // "Savings" (the total left, not a monthly figure) existed for these two.
+  const totalMonthlyDebt = recurringItems
+    .filter((item) => item.type === "debt")
+    .reduce((sum, item) => sum + Math.abs(monthlyEquivalent(item)), 0);
+
   const savingsItems = recurringItems.filter((item) => item.type === "savings");
+  const totalMonthlySavings = savingsItems.reduce((sum, item) => sum + Math.abs(monthlyEquivalent(item)), 0);
   const remainingSavings = savingsItems.reduce(
     (sum, item) => sum + (remainingTotal(item, today) ?? 0),
     0,
@@ -254,20 +273,74 @@ export default async function Home({
           },
         ]
       : []),
+    // T196 (user request): Total Balance is now its own section, with each
+    // account's own balance broken out underneath - not just the combined
+    // figure. Split out of the old shared "stats" 3-card grid into its own
+    // widget so it can also be reordered/hidden independently of the
+    // monthly totals below.
     {
-      key: "stats",
-      label: "Stat cards",
+      key: "totalBalance",
+      label: "Total Balance",
       node: (
-        <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3" data-tour="dashboard-stats">
-          <DashboardCard title="Total Balance" value={formatCentavos(totalBalance, currency)} />
-          <DashboardCard
-            title="Total Monthly Bills"
-            value={formatCentavos(totalMonthlyBills, currency)}
-          />
+        <div className="mb-6 rounded-lg border border-notion-hairline bg-white p-4" data-tour="dashboard-stats">
+          <p className="text-sm text-slate-500">Total Balance</p>
+          <p className="text-xl font-semibold text-notion-text">{formatCentavos(totalBalance, currency)}</p>
+          {balances.length > 0 && (
+            <ul className="mt-3 space-y-1 border-t border-notion-hairline pt-2 text-sm">
+              {balances.map((balance) => (
+                <li key={balance.id} className="flex justify-between text-slate-600">
+                  <span>{balance.name}</span>
+                  <span>{formatCentavos(balance.amount, currency)}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      ),
+    },
+    // T196: Bills/Income/Debt/Savings each get their own "Total Monthly"
+    // category, not just Bills/Income as before - Debt/Savings previously
+    // had no monthly-equivalent figure at all (only "Remaining" further
+    // down, a different question - how much is left, not what moves monthly).
+    {
+      key: "monthlyStats",
+      label: "Monthly totals",
+      node: (
+        <div className="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
+          <DashboardCard title="Total Monthly Bills" value={formatCentavos(totalMonthlyBills, currency)} />
           <DashboardCard
             title="Total Monthly Income"
             value={formatCentavos(totalMonthlyIncome, currency)}
             valueClassName="text-green-700"
+          />
+          <DashboardCard
+            title="Total Monthly Debt"
+            value={formatCentavos(totalMonthlyDebt, currency)}
+            valueClassName="text-orange-700"
+          />
+          <DashboardCard
+            title="Total Monthly Savings"
+            value={formatCentavos(totalMonthlySavings, currency)}
+            valueClassName="text-blue-700"
+          />
+        </div>
+      ),
+    },
+    // T197 (user request): Misc had no stat cards of its own at all.
+    {
+      key: "miscStats",
+      label: "Misc totals",
+      node: (
+        <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <DashboardCard
+            title="Total Money In (Misc)"
+            value={formatCentavos(totalMiscIn, currency)}
+            valueClassName="text-green-700"
+          />
+          <DashboardCard
+            title="Total Money Out (Misc)"
+            value={formatCentavos(totalMiscOut, currency)}
+            valueClassName="text-purple-700"
           />
         </div>
       ),
