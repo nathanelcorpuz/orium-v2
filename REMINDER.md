@@ -6,15 +6,16 @@ Scratchpad for things raised between sessions. Write anything here, in any shape
 
 ---
 
-## Pending
+## Pending (NJ will be filling this with raw ideas)
 
-(nothing - inbox is empty)
+(nothing - inbox is empty, see the triage note below)
 
 ---
 
 ## Last triage
 
-- **2026-08-01**: 18 items → **T177-T188** (SPEC.md Phase 23, now done - see ARCHIVE.md). One was a false alarm: "leftover sample data in production" (originally T170) turned out to be a cross-account query bug mixing the real account with throwaway QA test accounts - corrected in SPEC.md (T151's real figure was ₱2,000, not ₱26,000), not a real task. The Supabase service-role key for the new Orium Staging project was provided directly and saved to `.env.local` - not a task, just closing STAGING.md's one open manual step.
+- **2026-08-01, third pass**: 11 items. The budget replenishment bug → **Bug #15** in BUGS.md (root cause confirmed against live production data, code fix committed; a data correction for today's affected rows is identified and awaiting the user's go-ahead before anything touches the real records). Two process complaints (always re-check REMINDER/SPEC on "continue"; document interruptions and confirm what changed) became standing rules in CLAUDE.md's session workflow rather than T-numbers - process, not product. The remaining 8 became **T193-T199** (SPEC.md Phase 27, not yet built) and two "Before MVP launch" discussion bullets (auto-move between accounts on income settle; FIRE-style financial goal reminders, explicitly not to be built yet).
+- **2026-08-01, second pass**: 18 items → **T177-T188** (SPEC.md Phase 23, now done - see ARCHIVE.md). One was a false alarm: "leftover sample data in production" (originally T170) turned out to be a cross-account query bug mixing the real account with throwaway QA test accounts - corrected in SPEC.md (T151's real figure was ₱2,000, not ₱26,000), not a real task. The Supabase service-role key for the new Orium Staging project was provided directly and saved to `.env.local` - not a task, just closing STAGING.md's one open manual step.
 
 ---
 
