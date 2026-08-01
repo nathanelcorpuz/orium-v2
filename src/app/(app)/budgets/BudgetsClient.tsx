@@ -8,7 +8,7 @@ import { ReorderButtons } from "@/components/ReorderButtons";
 import { useOrderedList } from "@/lib/useOrderedList";
 import { formatCentavos } from "@/lib/money";
 import { todayInManila } from "@/lib/date";
-import { computeBudgetBalance } from "@/lib/engine/budgetLedger";
+import { computeBudgetAccountBalance, computeBudgetBalance } from "@/lib/engine/budgetLedger";
 import { BudgetCard, toEngineEntries, type BudgetEntryRow, type IncomeItemRow } from "./BudgetCard";
 import { BudgetModal, type BudgetRow } from "./BudgetModal";
 import { BudgetAccountsSection } from "./BudgetAccountsSection";
@@ -131,6 +131,29 @@ export function BudgetsClient({
     [budgets, entriesByBudgetId, today],
   );
 
+  // T222 (user request 2026-08-02): "I need to be able to easily identify
+  // how much of the GCash Tatay amount only belongs to Pocket Money" - the
+  // inverse of each BudgetCard's own per-account breakdown. A budget
+  // account can hold more than one budget's money at once, so this groups
+  // every budget's own attributed share (computeBudgetAccountBalance) by
+  // which account it's actually sitting in, for BudgetAccountsSection to
+  // show alongside each account's raw total.
+  const budgetsByAccountId = useMemo(() => {
+    const map: Record<string, { budgetId: string; budgetName: string; amount: number }[]> = {};
+    for (const budget of budgets) {
+      const links = accountLinksByBudgetId[budget.id] ?? [];
+      if (links.length === 0) continue;
+      const engineEntries = toEngineEntries(entriesByBudgetId[budget.id] ?? [], budget.id);
+      for (const link of links) {
+        const amount = computeBudgetAccountBalance(engineEntries, budget.id, link.budgetAccountId, today);
+        const list = map[link.budgetAccountId] ?? [];
+        list.push({ budgetId: budget.id, budgetName: budget.name, amount });
+        map[link.budgetAccountId] = list;
+      }
+    }
+    return map;
+  }, [budgets, entriesByBudgetId, accountLinksByBudgetId, today]);
+
   return (
     <div className="p-4 md:p-8">
       <div className="mx-auto max-w-2xl">
@@ -160,7 +183,7 @@ export function BudgetsClient({
           </button>
         </div>
 
-        <BudgetAccountsSection accounts={budgetAccounts} />
+        <BudgetAccountsSection accounts={budgetAccounts} budgetsByAccountId={budgetsByAccountId} />
 
         {budgets.length > 0 && (
           <div className="mb-4 rounded-lg border border-notion-hairline bg-white p-4">

@@ -29,7 +29,7 @@ export default async function BudgetsPage() {
       // filter in BudgetCard narrows what's *displayed* client-side.
       supabase
         .from("budget_entries")
-        .select("id, budget_id, entry_date, amount, note, direction")
+        .select("id, budget_id, entry_date, amount, note, direction, budget_account_id")
         .order("entry_date", { ascending: true }),
       // Phase 11 (T60): the recurrence rule columns too, not just id/name - an
       // income-linked budget's "days until replenish" progress bar
@@ -140,6 +140,7 @@ export default async function BudgetsPage() {
       amount: entry.amount,
       note: entry.note,
       direction: entry.direction,
+      budget_account_id: entry.budget_account_id,
     });
     entriesByBudgetId[entry.budget_id] = list;
   }

@@ -181,6 +181,14 @@ export interface BudgetEntry {
   // only so a handful of pre-Phase-10 test literals that never set it don't
   // need touching.
   direction?: "incoming" | "outgoing";
+  // T222 (user request 2026-08-02): which one of the budget's connected
+  // budget accounts (T218) this specific entry actually touched - null for
+  // an entry that predates T218/T044's `budget_account_id` column, or a
+  // budget with no connected account at all. Lets a budget's own ledger
+  // total (`computeBudgetBalance`, ignores this field) be broken down
+  // further into "how much of this budget's money sits in this particular
+  // account" (`computeBudgetAccountBalance`, below).
+  budgetAccountId?: string | null;
 }
 
 export interface ForecastRow {

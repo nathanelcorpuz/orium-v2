@@ -15,7 +15,19 @@ type FundsModalState = { account: BudgetAccountRow; mode: "add" | "take" | "move
 // right on this page (the user's own answer), collapsed by default like
 // Forecast's own Insights card (T81) so it doesn't compete with the budget
 // list below for a feature most sessions won't touch.
-export function BudgetAccountsSection({ accounts }: { accounts: BudgetAccountRow[] }) {
+export function BudgetAccountsSection({
+  accounts,
+  budgetsByAccountId,
+}: {
+  accounts: BudgetAccountRow[];
+  // T222 (user request 2026-08-02): which budgets have money in each
+  // account, and how much of it is theirs - a budget account can hold more
+  // than one budget's money at once. Whatever's left over (the account's
+  // raw total minus every budget's attributed share) is unallocated - money
+  // added directly to the account rather than through any one budget's own
+  // ledger.
+  budgetsByAccountId: Record<string, { budgetId: string; budgetName: string; amount: number }[]>;
+}) {
   const [open, setOpen] = useState(false);
   const [modalState, setModalState] = useState<null | "new" | BudgetAccountRow>(null);
   const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null);
@@ -48,8 +60,17 @@ export function BudgetAccountsSection({ accounts }: { accounts: BudgetAccountRow
             <p className="mb-3 text-sm text-slate-400">No budget accounts yet.</p>
           ) : (
             <ul className="mb-3 divide-y divide-notion-hairline">
-              {accounts.map((account) => (
-                <li key={account.id} className="flex flex-col gap-2 py-2 text-sm sm:flex-row sm:items-center sm:justify-between">
+              {accounts.map((account) => {
+                // T222: this account's own attributed breakdown - which
+                // budgets have money here, and how much of the raw total is
+                // still unallocated (added directly to the account, not
+                // through any one budget's own ledger).
+                const attributed = budgetsByAccountId[account.id] ?? [];
+                const unallocated =
+                  account.amount - attributed.reduce((sum, entry) => sum + entry.amount, 0);
+                return (
+                <li key={account.id} className="py-2 text-sm">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                   <div className="flex min-w-0 flex-1 items-center justify-between gap-2 sm:justify-start">
                     <span className="min-w-0 flex-1 truncate text-notion-text">{account.name}</span>
                     <span className="w-24 shrink-0 text-right tabular-nums text-notion-text">
@@ -124,8 +145,17 @@ export function BudgetAccountsSection({ accounts }: { accounts: BudgetAccountRow
                       </button>
                     </div>
                   )}
+                  </div>
+                  {(attributed.length > 0 || unallocated !== 0) && (
+                    <p className="mt-1 text-xs text-slate-400">
+                      {attributed.map((entry) => `${entry.budgetName} ${formatCentavos(entry.amount)}`).join(" · ")}
+                      {attributed.length > 0 && unallocated !== 0 && " · "}
+                      {unallocated !== 0 && `Unallocated ${formatCentavos(unallocated)}`}
+                    </p>
+                  )}
                 </li>
-              ))}
+                );
+              })}
             </ul>
           )}
           <button

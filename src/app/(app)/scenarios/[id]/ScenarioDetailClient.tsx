@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { formatCentavos } from "@/lib/money";
 import { formatFullDate } from "@/lib/date";
@@ -19,7 +19,6 @@ import {
   deleteScenarioBudgetEntry,
   deleteScenarioItem,
   deleteScenarioOneOff,
-  type ScenarioActionState,
 } from "../actions";
 
 export type { ScenarioBudgetRow } from "../ScenarioBudgetModal";

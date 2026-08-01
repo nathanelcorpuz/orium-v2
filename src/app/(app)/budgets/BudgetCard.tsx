@@ -6,6 +6,7 @@ import { todayInManila } from "@/lib/date";
 import {
   budgetProgressFraction,
   budgetReplenishRule,
+  computeBudgetAccountBalance,
   computeBudgetBalance,
   replenishProgress,
 } from "@/lib/engine/budgetLedger";
@@ -21,6 +22,7 @@ import { deleteBudget } from "./actions";
 import { BudgetEntriesModal } from "./BudgetEntriesModal";
 import { LogSpendModal } from "./LogSpendModal";
 import { FundsModal } from "./FundsModal";
+import { MoveBudgetFundsModal } from "./MoveBudgetFundsModal";
 import type { BudgetAccountRow } from "./BudgetAccountModal";
 
 // Simplified, page-local shapes (SPEC.md Phase 10/T55) - the fuller
@@ -33,6 +35,10 @@ export type BudgetEntryRow = {
   amount: number;
   note: string | null;
   direction?: "incoming" | "outgoing";
+  // T222: which connected budget account this entry touched, if any - lets
+  // a budget's per-account breakdown (below) show its own attributed share
+  // of each account, not the account's raw total.
+  budget_account_id?: string | null;
 };
 
 // Phase 11 (T60): the recurrence rule too, not just id/name - an
@@ -67,6 +73,7 @@ export function toEngineEntries(entries: BudgetEntryRow[], budgetId: string): Bu
     amount: entry.amount,
     note: entry.note,
     direction: entry.direction,
+    budgetAccountId: entry.budget_account_id,
   }));
 }
 
@@ -126,7 +133,8 @@ export function BudgetCard({
   // (budgetLedger.ts) - a future-dated entry hasn't landed yet, so it
   // doesn't count here; it shows up on the Forecast page instead, same
   // pattern T43 established for future spends.
-  const balance = computeBudgetBalance(toEngineEntries(entries, budget.id), budget.id, today);
+  const engineEntries = toEngineEntries(entries, budget.id);
+  const balance = computeBudgetBalance(engineEntries, budget.id, today);
 
   const linkedIncome = budget.linked_income_id
     ? incomes.find((income) => income.id === budget.linked_income_id)
@@ -178,12 +186,20 @@ export function BudgetCard({
   // T218: every budget account this budget is connected to (T204's storage
   // layer, now many-to-many) - distinct from linkedAccountName above, which
   // is the linked income's own main account. Resolved against the live
-  // `budgetAccounts` list so the breakdown always shows the current amount,
-  // not a stale snapshot.
+  // `budgetAccounts` list so the account's own name is never stale.
+  //
+  // T222 (user request 2026-08-02): "I need to be able to easily identify
+  // how much of the GCash Tatay amount only belongs to Pocket Money" - a
+  // budget account can hold more than one budget's money at once (nothing
+  // stops two budgets sharing an account), so the breakdown shows *this
+  // budget's own attributed share* of each account (computeBudgetAccountBalance,
+  // summing only entries tagged with both this budget and that account),
+  // not the account's raw total balance.
   const resolvedAccountLinks = accountLinks
     .map((link) => ({
       ...link,
       account: budgetAccounts.find((account) => account.id === link.budgetAccountId),
+      attributedAmount: computeBudgetAccountBalance(engineEntries, budget.id, link.budgetAccountId, today),
     }))
     .filter((link): link is typeof link & { account: BudgetAccountRow } => link.account !== undefined);
   // T175: undefined (older rows, or a fixture that never set it) means active.
@@ -222,7 +238,7 @@ export function BudgetCard({
             <p className="mt-0.5 text-xs text-slate-400">
               Budget accounts:{" "}
               {resolvedAccountLinks
-                .map((link) => `${link.account.name} ${formatCentavos(link.account.amount)}`)
+                .map((link) => `${link.account.name} ${formatCentavos(link.attributedAmount)}`)
                 .join(" · ")}
             </p>
           )}
@@ -352,7 +368,9 @@ export function BudgetCard({
         >
           Take funds
         </button>
-        {budgets.length > 1 && (
+        {/* T222: a move needs somewhere to go - either this budget's own
+            other connected account, or a different budget entirely. */}
+        {(budgets.length > 1 || resolvedAccountLinks.length > 1) && (
           <button
             type="button"
             onClick={() => setActiveModal("move")}
@@ -379,15 +397,23 @@ export function BudgetCard({
           onClose={() => setActiveModal(null)}
         />
       )}
-      {(activeModal === "add" || activeModal === "take" || activeModal === "move") && (
+      {(activeModal === "add" || activeModal === "take") && (
         <FundsModal
           mode={activeModal}
           budgetId={budget.id}
           budgetName={budget.name}
-          budgets={budgets}
           accounts={resolvedAccountLinks.map((link) => ({ id: link.account.id, name: link.account.name }))}
-          budgetAccounts={budgetAccounts}
+          onClose={() => setActiveModal(null)}
+        />
+      )}
+      {activeModal === "move" && (
+        <MoveBudgetFundsModal
+          budgetId={budget.id}
+          budgetName={budget.name}
+          accounts={resolvedAccountLinks.map((link) => ({ id: link.account.id, name: link.account.name }))}
+          budgets={budgets}
           accountLinksByBudgetId={accountLinksByBudgetId}
+          budgetAccounts={budgetAccounts}
           onClose={() => setActiveModal(null)}
         />
       )}

@@ -30,6 +30,26 @@ export function computeBudgetBalance(entries: BudgetEntry[], budgetId: string, a
 }
 
 /**
+ * T222 (user request 2026-08-02): "how much of this budget's money sits in
+ * this particular connected account" - the same running-total math as
+ * `computeBudgetBalance`, just also filtered to one `budgetAccountId`. A
+ * budget account can hold several budgets' money at once (T218 allows a
+ * budget to connect to more than one account, and nothing stops two
+ * budgets from sharing an account) - this is what lets the UI show "GCash
+ * Tatay ₱20,000 total - Pocket Money ₱5,000 of that, Orius Needs ₱6,000".
+ */
+export function computeBudgetAccountBalance(
+  entries: BudgetEntry[],
+  budgetId: string,
+  budgetAccountId: string,
+  asOf: string,
+): number {
+  return entries
+    .filter((e) => e.budgetId === budgetId && e.budgetAccountId === budgetAccountId && e.entryDate <= asOf)
+    .reduce((sum, e) => sum + signedAmount(e), 0);
+}
+
+/**
  * This budget's entries dated after `today`, sorted ascending - each
  * renders as its own Forecast row (forecast.ts) rather than affecting the
  * current total, the same pattern T43 established for future-dated spends,
