@@ -542,6 +542,27 @@ export function EditSettleModal({
               className="mt-1 w-full rounded border border-notion-hairline p-2 text-left focus:border-notion-accent focus:outline-none"
             />
           </div>
+          {/* T193 (user request): editable here too, not only at settle time
+              - a permanent change to the item's own connection, same as
+              editing it from Bills/Income/Debt/Savings/Misc's own page. */}
+          <div>
+            <label className="block text-sm text-slate-600" htmlFor="editBalanceId">
+              Connected account
+            </label>
+            <select
+              id="editBalanceId"
+              name="balanceId"
+              defaultValue={row.balanceId ?? ""}
+              className="mt-1 w-full rounded border border-notion-hairline p-2 text-notion-text focus:border-notion-accent focus:outline-none"
+            >
+              <option value="">No account</option>
+              {balances.map((balance) => (
+                <option key={balance.id} value={balance.id}>
+                  {balance.name}
+                </option>
+              ))}
+            </select>
+          </div>
           {editState.error && <p className="text-sm text-red-600">{editState.error}</p>}
           <div className="flex justify-end gap-2">
             <button

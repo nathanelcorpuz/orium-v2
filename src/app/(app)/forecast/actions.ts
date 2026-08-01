@@ -39,13 +39,20 @@ function readOccurrenceForm(formData: FormData) {
   const type = formData.get("type") as string;
   const amount = parseCentavos(formData.get("amountPesos") as string);
   const date = formData.get("date") as string;
+  // T193 (user request): the connected account is now editable from here
+  // too, not only at settle time - a *permanent* change to the underlying
+  // item's own `balance_id`, same field the item's own CRUD page edits,
+  // not a per-occurrence override (there's no such column on
+  // occurrence_overrides, and "I connected this to the wrong account" reads
+  // as a lasting fix, not a one-time deviation).
+  const balanceId = (formData.get("balanceId") as string) || null;
 
   if (!name) return { error: "Name is required." } as const;
   if (amount === null) return { error: "Enter a valid amount." } as const;
   if (!date) return { error: "Date is required." } as const;
   if (date < todayInManila()) return { error: "Date can't be in the past." } as const;
 
-  return { error: null, name, amount: normalizeSignedAmount(amount, type), date } as const;
+  return { error: null, name, amount: normalizeSignedAmount(amount, type), date, balanceId } as const;
 }
 
 export async function editRecurringOccurrence(
@@ -78,6 +85,15 @@ export async function editRecurringOccurrence(
   );
   if (error) return { error: error.message };
 
+  // T193: unlike name/amount/date above, the connected account isn't a
+  // per-occurrence thing - it belongs to the recurring item itself, same
+  // field its own CRUD page (Bills/Income/Debt/Savings) edits.
+  const { error: balanceError } = await supabase
+    .from("recurring_items")
+    .update({ balance_id: fields.balanceId })
+    .eq("id", recurringItemId);
+  if (balanceError) return { error: balanceError.message };
+
   await logActivity(supabase, user.id, {
     action: "update",
     entityType: activityEntityType(type),
@@ -86,6 +102,7 @@ export async function editRecurringOccurrence(
   });
 
   revalidatePath("/forecast");
+  revalidatePath("/accounts");
   revalidatePath("/");
   return { error: null };
 }
@@ -104,7 +121,7 @@ export async function editOneOff(
   } = await supabase.auth.getUser();
   const { error } = await supabase
     .from("one_off_items")
-    .update({ name: fields.name, amount: fields.amount, due_date: fields.date })
+    .update({ name: fields.name, amount: fields.amount, due_date: fields.date, balance_id: fields.balanceId })
     .eq("id", id);
   if (error) return { error: error.message };
 
@@ -118,6 +135,7 @@ export async function editOneOff(
   }
 
   revalidatePath("/forecast");
+  revalidatePath("/accounts");
   revalidatePath("/");
   revalidatePath("/misc");
   return { error: null };
