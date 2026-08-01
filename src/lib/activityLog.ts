@@ -14,6 +14,7 @@ export type ActivityEntityType =
   | "savings"
   | "budget"
   | "budget_entry"
+  | "budget_account"
   | "misc"
   | "reminder";
 

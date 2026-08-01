@@ -10,6 +10,7 @@ import { todayInManila } from "@/lib/date";
 import { RecurrencePicker, type RecurrenceValue } from "@/components/recurring/RecurrencePicker";
 import { type BudgetRow } from "@/lib/budgetView";
 import { createBudget, updateBudget, type BudgetActionState } from "./actions";
+import type { BudgetAccountRow } from "./BudgetAccountModal";
 
 export type { BudgetRow } from "@/lib/budgetView";
 
@@ -30,6 +31,7 @@ const initialState: BudgetActionState = { error: null };
 export function BudgetModal({
   budget,
   incomes,
+  budgetAccounts = [],
   onClose,
   // T115: fired only on a genuine successful save, distinct from onClose
   // (which also fires on Cancel/X). NOTE: proved unreliable for the wizard
@@ -40,6 +42,10 @@ export function BudgetModal({
 }: {
   budget: BudgetRow | null;
   incomes: { id: string; name: string }[];
+  // T204: optional storage account picker - default `[]` keeps every
+  // existing caller (e.g. the onboarding wizard, if it ever creates budgets)
+  // valid without threading this everywhere at once.
+  budgetAccounts?: BudgetAccountRow[];
   onClose: () => void;
   onSaved?: () => void;
   createActionOverride?: typeof createBudget;
@@ -127,6 +133,30 @@ export function BudgetModal({
           />
           <p className="mt-1 text-sm text-slate-400">
             How much gets added when this budget replenishes.
+          </p>
+        </div>
+
+        {/* T204: optional - a budget account is separate storage, not a
+            requirement, same as bills/income's own optional account link. */}
+        <div>
+          <label className="block text-sm text-slate-600" htmlFor="budgetAccountId">
+            Storage account (optional)
+          </label>
+          <select
+            id="budgetAccountId"
+            name="budgetAccountId"
+            defaultValue={budget?.budget_account_id ?? ""}
+            className="mt-1 w-full rounded border border-notion-hairline p-2 text-notion-text focus:border-notion-accent focus:outline-none"
+          >
+            <option value="">No account</option>
+            {budgetAccounts.map((account) => (
+              <option key={account.id} value={account.id}>
+                {account.name}
+              </option>
+            ))}
+          </select>
+          <p className="mt-1 text-sm text-slate-400">
+            Replenishing, spending, or adding/taking funds here also moves this account&rsquo;s balance.
           </p>
         </div>
 

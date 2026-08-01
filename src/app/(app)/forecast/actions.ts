@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { formatCentavos, parseCentavos } from "@/lib/money";
 import { formatFullDate, todayInManila } from "@/lib/date";
 import { logActivity, type ActivityEntityType } from "@/lib/activityLog";
+import { applyToBudgetAccount } from "@/lib/budgetAccounts";
 
 // T162: maps a ForecastRow/settlement `type` ("bill"|"income"|"debt"|
 // "savings"|"extra") onto the activity log's vocabulary - only "extra" needs
@@ -217,7 +218,7 @@ export async function settleOccurrence(
   // account the income lands in. Fetched here rather than in the loop further
   // down (which used to be the only place that knew about them) so the
   // account can be moved once, by the net figure.
-  type LinkedBudget = { id: string; name: string; allocation: number };
+  type LinkedBudget = { id: string; name: string; allocation: number; budget_account_id: string | null };
   let linkedBudgets: LinkedBudget[] = [];
   // Bug #15: a budget's own per-instance override for *this exact
   // occurrence* - if the user edited this replenishment's amount from the
@@ -231,7 +232,7 @@ export async function settleOccurrence(
   if (sourceType === "recurring" && type === "income") {
     const { data, error: linkedBudgetsError } = await supabase
       .from("budgets")
-      .select("id, name, allocation")
+      .select("id, name, allocation, budget_account_id")
       .eq("linked_income_id", sourceId);
     if (linkedBudgetsError) return { error: linkedBudgetsError.message };
     linkedBudgets = data ?? [];
@@ -348,6 +349,14 @@ export async function settleOccurrence(
           direction: "incoming",
         });
         if (entryError) return { error: entryError.message };
+
+        // T204: this replenishment's real "home", if the budget has one -
+        // moves the same way a manual replenish (writeLedgerEntry,
+        // budgets/actions.ts) would.
+        if (linkedBudget.budget_account_id) {
+          const accountError = await applyToBudgetAccount(supabase, linkedBudget.budget_account_id, amount);
+          if (accountError) return { error: accountError };
+        }
 
         const { error: budgetSettlementError } = await supabase.from("settlements").insert({
           user_id: user.id,
@@ -539,6 +548,20 @@ export async function settleBudgetReplenish(
     direction: "incoming",
   });
   if (entryError) return { error: entryError.message };
+
+  // T204: same real-storage-account effect as the income-linked replenish
+  // path above.
+  if (fields.actualAmount > 0) {
+    const { data: budgetRow } = await supabase
+      .from("budgets")
+      .select("budget_account_id")
+      .eq("id", budgetId)
+      .single();
+    if (budgetRow?.budget_account_id) {
+      const accountError = await applyToBudgetAccount(supabase, budgetRow.budget_account_id, fields.actualAmount);
+      if (accountError) return { error: accountError };
+    }
+  }
 
   const { error: settlementError } = await supabase.from("settlements").insert({
     user_id: user.id,

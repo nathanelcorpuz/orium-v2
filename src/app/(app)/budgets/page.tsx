@@ -3,54 +3,60 @@ import { idSetFromColumn } from "@/lib/editedItems";
 import { BudgetsClient } from "./BudgetsClient";
 import type { BudgetEntryRow, IncomeItemRow } from "./BudgetCard";
 import type { BudgetRow } from "./BudgetModal";
+import type { BudgetAccountRow } from "./BudgetAccountModal";
 
 export default async function BudgetsPage() {
   const supabase = await createClient();
 
-  const [budgetsRes, entriesRes, incomesRes, replenishOverridesRes, incomeOverridesRes] = await Promise.all([
-    supabase
-      .from("budgets")
-      .select(
-        "id, name, monthly_allocation, allocation, created_at, linked_income_id, start_date, interval, unit, weekdays, days_of_month, ordinal, ordinal_weekday, ends_type, end_date, occurrence_count, active",
-      )
-      .order("name", { ascending: true }),
-    // Every entry, not just the current month - a budget's running total
-    // (SPEC.md Phase 10, budgetLedger.ts) needs its full history; the month
-    // filter in BudgetCard narrows what's *displayed* client-side.
-    supabase
-      .from("budget_entries")
-      .select("id, budget_id, entry_date, amount, note, direction")
-      .order("entry_date", { ascending: true }),
-    // Phase 11 (T60): the recurrence rule columns too, not just id/name - an
-    // income-linked budget's "days until replenish" progress bar
-    // (BudgetCard.tsx) resolves its schedule from whichever income it's
-    // linked to, via budgetReplenishRule (engine/budgetLedger.ts).
-    supabase
-      .from("recurring_items")
-      .select(
-        "id, name, start_date, interval, unit, weekdays, days_of_month, ordinal, ordinal_weekday, ends_type, end_date, occurrence_count",
-      )
-      .eq("type", "income")
-      .order("name", { ascending: true }),
-    // T51: any budget_replenish_overrides row (including a pure skip) marks
-    // the budget itself as edited - the table SPEC.md calls
-    // "budget_occurrence_overrides" was dropped in migration 0010 and
-    // replaced by this one in migration 0011 (T59).
-    // T167 adds original_date/skipped: BudgetCard's "days until replenish"
-    // needs to know which occurrences have already been settled, or it keeps
-    // saying "Replenishes today" after the money has already moved.
-    supabase.from("budget_replenish_overrides").select("budget_id, original_date, skipped"),
-    // Bug (user report, 2026-08-01): a budget linked to an income *after*
-    // that income's occurrence for today was already settled has no
-    // `budget_replenish_overrides` row of its own yet (settleOccurrence only
-    // ever writes one for budgets that were linked *at settle time*), so the
-    // check above alone still finds nothing "handled" and reports "Replenishes
-    // today" - technically true of the rule, but the money for today already
-    // moved without this budget. The income's own settled occurrence
-    // (`occurrence_overrides.skipped`) closes that gap: if the income itself
-    // is done for that date, no budget can still be waiting on it.
-    supabase.from("occurrence_overrides").select("recurring_item_id, original_date").eq("skipped", true),
-  ]);
+  const [budgetsRes, entriesRes, incomesRes, replenishOverridesRes, incomeOverridesRes, budgetAccountsRes] =
+    await Promise.all([
+      supabase
+        .from("budgets")
+        .select(
+          "id, name, monthly_allocation, allocation, created_at, linked_income_id, budget_account_id, start_date, interval, unit, weekdays, days_of_month, ordinal, ordinal_weekday, ends_type, end_date, occurrence_count, active",
+        )
+        .order("name", { ascending: true }),
+      // Every entry, not just the current month - a budget's running total
+      // (SPEC.md Phase 10, budgetLedger.ts) needs its full history; the month
+      // filter in BudgetCard narrows what's *displayed* client-side.
+      supabase
+        .from("budget_entries")
+        .select("id, budget_id, entry_date, amount, note, direction")
+        .order("entry_date", { ascending: true }),
+      // Phase 11 (T60): the recurrence rule columns too, not just id/name - an
+      // income-linked budget's "days until replenish" progress bar
+      // (BudgetCard.tsx) resolves its schedule from whichever income it's
+      // linked to, via budgetReplenishRule (engine/budgetLedger.ts).
+      supabase
+        .from("recurring_items")
+        .select(
+          "id, name, start_date, interval, unit, weekdays, days_of_month, ordinal, ordinal_weekday, ends_type, end_date, occurrence_count",
+        )
+        .eq("type", "income")
+        .order("name", { ascending: true }),
+      // T51: any budget_replenish_overrides row (including a pure skip) marks
+      // the budget itself as edited - the table SPEC.md calls
+      // "budget_occurrence_overrides" was dropped in migration 0010 and
+      // replaced by this one in migration 0011 (T59).
+      // T167 adds original_date/skipped: BudgetCard's "days until replenish"
+      // needs to know which occurrences have already been settled, or it keeps
+      // saying "Replenishes today" after the money has already moved.
+      supabase.from("budget_replenish_overrides").select("budget_id, original_date, skipped"),
+      // Bug (user report, 2026-08-01): a budget linked to an income *after*
+      // that income's occurrence for today was already settled has no
+      // `budget_replenish_overrides` row of its own yet (settleOccurrence only
+      // ever writes one for budgets that were linked *at settle time*), so the
+      // check above alone still finds nothing "handled" and reports "Replenishes
+      // today" - technically true of the rule, but the money for today already
+      // moved without this budget. The income's own settled occurrence
+      // (`occurrence_overrides.skipped`) closes that gap: if the income itself
+      // is done for that date, no budget can still be waiting on it.
+      supabase.from("occurrence_overrides").select("recurring_item_id, original_date").eq("skipped", true),
+      // T204: budget accounts, for the Budgets page's own management
+      // sub-section and so each budget's create/edit form can offer the
+      // "Storage account" picker.
+      supabase.from("budget_accounts").select("id, name, amount, comments").order("name", { ascending: true }),
+    ]);
 
   if (budgetsRes.error) {
     return <p className="p-8 text-red-600">Could not load budgets: {budgetsRes.error.message}</p>;
@@ -77,8 +83,16 @@ export default async function BudgetsPage() {
       </p>
     );
   }
+  if (budgetAccountsRes.error) {
+    return (
+      <p className="p-8 text-red-600">
+        Could not load budget accounts: {budgetAccountsRes.error.message}
+      </p>
+    );
+  }
 
   const budgets: BudgetRow[] = budgetsRes.data ?? [];
+  const budgetAccounts: BudgetAccountRow[] = budgetAccountsRes.data ?? [];
 
   const entriesByBudgetId: Record<string, BudgetEntryRow[]> = {};
   for (const entry of entriesRes.data ?? []) {
@@ -150,6 +164,7 @@ export default async function BudgetsPage() {
       incomes={incomes}
       editedIds={editedIds}
       handledDatesByBudgetId={handledDatesByBudgetId}
+      budgetAccounts={budgetAccounts}
     />
   );
 }

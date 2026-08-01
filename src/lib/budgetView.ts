@@ -14,6 +14,10 @@ export type BudgetRow = {
   // anything other than an explicit false as active.
   active?: boolean;
   linked_income_id: string | null;
+  // T204: optional link to a budget_accounts row - display/CRUD only, the
+  // engine's own Budget type (below) never carries it since budget accounts
+  // are deliberately outside the forecast entirely.
+  budget_account_id?: string | null;
   // Phase 11 (T58): a budget's own replenish schedule ("replenish every"),
   // set only when linked_income_id is null - see engine/types.ts Budget.
   start_date: string | null;

@@ -16,12 +16,14 @@ Two supporting files, added 2026-07-31, deliberately do *not* need reading at se
    - Re-read REMINDER.md, SPEC.md, and this file before doing anything else - context may have changed since it was last loaded, and messages the user sent while a response was still generating can otherwise get silently lost.
    - Check REMINDER.md for pending items. Work through those first.
    - If a reminder item is substantial, ask the user whether to do it now or write it into SPEC.md first.
+   - **Every single item gets documented somewhere - never silently drop one, even a duplicate.** If a reminder item turns out to already be covered by an existing SPEC.md task, note the cross-reference in the triage log rather than just discarding it - the user has explicitly said losing a note this way is the failure mode to avoid.
    - Once a reminder item is done or added to SPEC.md, remove it from REMINDER.md - never keep the same item listed in both files.
    - Check `git log`, the Roadmap checklists in SPEC.md, and BUGS.md (open bugs) to see where we left off.
    - **If the previous turn was cut off mid-task** (e.g. a usage limit reset): before continuing, write a short note of what was interrupted into SPEC.md (under the in-progress task, or REMINDER.md if it hadn't been specced yet) so the interruption itself is never lost - then tell the user plainly what was interrupted and what has changed since, before resuming the work itself.
 2. **Pick the task:** work on exactly one task from SPEC.md per session unless told otherwise.
    - **Task order is non-negotiable: always the topmost unchecked (`- [ ]`) item in the Roadmap, top to bottom.**
    - Never skip ahead or cherry-pick a later task without the user explicitly saying so.
+   - **When explicitly told to run the whole Roadmap uninterrupted** (the user's own standing loop, given 2026-08-01): work through roadmap tasks without stopping to ask → check REMINDER.md for anything new the user added mid-session → integrate any new content into SPEC.md/BUGS.md/this file, per the "every item gets documented" rule above → resume another pass of roadmap tasks → check REMINDER.md again → once a check finds nothing new, that's the natural stopping point. Executive judgment calls on anything ambiguous are expected in this mode, not a reason to stop and ask.
 3. **Before writing code:** state a short plan (3-6 bullets) and wait for approval.
 4. **After building:**
    - Run `npm run build` and `npm run test` yourself; fix failures before finishing.

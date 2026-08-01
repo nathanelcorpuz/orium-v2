@@ -26,6 +26,7 @@ const ENTITY_LABEL: Record<string, string> = {
   savings: "savings goal",
   budget: "budget",
   budget_entry: "budget entry",
+  budget_account: "budget account",
   misc: "misc item",
   reminder: "reminder",
 };

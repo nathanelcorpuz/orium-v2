@@ -11,6 +11,8 @@ import { todayInManila } from "@/lib/date";
 import { computeBudgetBalance } from "@/lib/engine/budgetLedger";
 import { BudgetCard, toEngineEntries, type BudgetEntryRow, type IncomeItemRow } from "./BudgetCard";
 import { BudgetModal, type BudgetRow } from "./BudgetModal";
+import { BudgetAccountsSection } from "./BudgetAccountsSection";
+import type { BudgetAccountRow } from "./BudgetAccountModal";
 
 type ReplenishType = "manual" | "income" | "schedule";
 
@@ -32,6 +34,7 @@ export function BudgetsClient({
   incomes,
   editedIds,
   handledDatesByBudgetId,
+  budgetAccounts,
 }: {
   budgets: BudgetRow[];
   entriesByBudgetId: Record<string, BudgetEntryRow[]>;
@@ -40,6 +43,9 @@ export function BudgetsClient({
   // T167: skipped replenish occurrence dates per budget, so the card can
   // stop advertising a replenishment that already happened.
   handledDatesByBudgetId: Record<string, string[]>;
+  // T204: separate storage accounts for budgets - own sub-section below,
+  // and threaded into BudgetModal for the optional per-budget picker.
+  budgetAccounts: BudgetAccountRow[];
 }) {
   const [modalState, setModalState] = useState<null | "new" | BudgetRow>(null);
 
@@ -147,6 +153,8 @@ export function BudgetsClient({
           </button>
         </div>
 
+        <BudgetAccountsSection accounts={budgetAccounts} />
+
         {budgets.length > 0 && (
           <div className="mb-4 rounded-lg border border-notion-hairline bg-white p-4">
             <div className="flex flex-wrap items-end gap-4">
@@ -231,6 +239,7 @@ export function BudgetsClient({
           <BudgetModal
             budget={modalState === "new" ? null : modalState}
             incomes={incomes}
+            budgetAccounts={budgetAccounts}
             onClose={() => setModalState(null)}
           />
         )}

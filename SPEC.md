@@ -69,7 +69,10 @@ Per-instance edits to a recurring rule (calendar-exception style). `id, user_id,
 "History" — what actually happened, written when the user settles an occurrence or logs a budget spend. `id, user_id, source_type (recurring|one_off|budget), source_id, name, type (bill|income|debt|savings|extra|budget), forecasted_amount, actual_amount, forecasted_date, actual_date, forecasted_balance`. Settling a recurring occurrence also writes a `skipped` override so it leaves the forecast.
 
 ### `budgets` (T36 columns live; app still on the pre-6B baseline until T37/T38)
-`id, user_id, name, created_at`, plus (still pre-6B, current app): `monthly_allocation (bigint ≥ 0)`. Plus (T36, migration 0006, added 2026-07-21): `allocation (bigint ≥ 0, NOT NULL, backfilled 1:1 from monthly_allocation)`, `carryover_enabled (bool, default true)`, `linked_income_id (uuid nullable, REFERENCES recurring_items ON DELETE SET NULL — app-level rule: must point at a type=income item, not DB-enforced)`, and the full recurrence rule shape (all nullable — `start_date, interval, unit, weekdays, days_of_month, ordinal, ordinal_weekday, ends_type, end_date, occurrence_count`; `interval`/`unit`/`start_date`/`ends_type` are constrained to move together as a complete-or-nothing group). `monthly_allocation` is dropped by migration 0007 once T38 ships and the app no longer reads it — same additive-then-drop pattern as 0004/0005.
+`id, user_id, name, created_at`, plus (still pre-6B, current app): `monthly_allocation (bigint ≥ 0)`. Plus (T36, migration 0006, added 2026-07-21): `allocation (bigint ≥ 0, NOT NULL, backfilled 1:1 from monthly_allocation)`, `carryover_enabled (bool, default true)`, `linked_income_id (uuid nullable, REFERENCES recurring_items ON DELETE SET NULL — app-level rule: must point at a type=income item, not DB-enforced)`, and the full recurrence rule shape (all nullable — `start_date, interval, unit, weekdays, days_of_month, ordinal, ordinal_weekday, ends_type, end_date, occurrence_count`; `interval`/`unit`/`start_date`/`ends_type` are constrained to move together as a complete-or-nothing group). `monthly_allocation` is dropped by migration 0007 once T38 ships and the app no longer reads it — same additive-then-drop pattern as 0004/0005. Plus (T204, migration 0040): `budget_account_id (uuid nullable, REFERENCES budget_accounts ON DELETE SET NULL)` - optional link to a `budget_accounts` row (below).
+
+### `budget_accounts` (T204, migration 0040)
+`id, user_id, name, amount (bigint), comments (nullable), created_at`. Separate storage for budgets - never read by `generateForecast`/`loadForecast`, never counted toward Total Balance. A linked budget's ledger activity (replenish, spend, manual add/take) moves this account's `amount` the same way a connected main account moves on settle.
 
 ### `budget_entries`
 The budget ledger. `id, user_id, budget_id (fk cascade), entry_date, amount (bigint > 0, always a positive magnitude), note, created_at`. Unchanged by 6B. Plus (Phase 10, migration 0009, added 2026-07-23): `direction (text, 'incoming' | 'outgoing', not null, no default — every insert must say which)`. Existing rows backfilled `'outgoing'` (they're all past logged spends, so their meaning is unchanged).
@@ -229,8 +232,9 @@ Bug reports from the same batch went straight to BUGS.md (Bug #15) instead - thi
 - [ ] **T201.** Fix: the Updates nav item's unseen-count badge (T163) is oversized when the sidebar is collapsed - should shrink to fit the narrow rail like every other collapsed-state element.
 - [ ] **T202.** Add a loading state for the Dashboard - clicking into it currently shows nothing while its data fetches.
 - [ ] **T203.** Budgets get a Move funds action too, matching Accounts' own Add/Take/Move funds (T186) - moving money from one budget to another, logged the same two-leg way T186 already does for accounts.
+- [ ] **T205.** Mobile Forecast table should occupy nearly the full viewport height when scrolled to it, with a small space above for Filter/Scenarios and room to scroll back up.
 
-### Completed work (T1-T192)
+### Completed work (T1-T192, plus T204 - see Phase 28 below, completed out of order)
 Full build write-ups live in **ARCHIVE.md**, in this same order. This index exists so a task number can be found quickly without opening it.
 
 **Done**
@@ -479,6 +483,10 @@ Full build write-ups live in **ARCHIVE.md**, in this same order. This index exis
 
 - **T191.** Clicking a forecasted transaction connected to an account now shows what that account's own balance will be right after this transaction, in both the Forecast table and calendar views - resolves the "Forecasted balance per account" discussion item, scoped down to a single transaction rather than a general per-date lookup. An income-linked budget's replenishment is now attributed to that income's own connected account (money really does leave it, per T151/Bug #14's settle-time behavior) and shows up in the Forecast table's Account column accordingly; an own-schedule budget's replenishment stays unattributed, since it isn't funded from any particular account in this model.
 - **T192.** A forecasted transaction's amount can now be exactly 0 wherever it's entered - creating/editing a Bill/Income/Debt/Savings/Misc item or a scenario version of one, settling or editing a single occurrence, and a budget replenishment/ledger entry (real or scenario) - previously rejected outright as "not a valid amount" in seven places, only some of which even had a stated reason (the two that did were guarding against a negative, not a zero).
+
+**Phase 28 — Budget accounts (done 2026-08-01, completed ahead of Phase 27)**
+
+- **T204.** "I want to create accounts specified for budgets as well. The main accounts used in the cash flow will be separate, and I need another set of accounts that will be used as storage for the budgets." New `budget_accounts` table (migration 0040), separate from `balances` and never counted toward Total Balance or the forecast. A budget optionally links to one (same "optional connection" shape bills/income already use for a main account); once linked, every ledger change on that budget - replenish (auto from a settled income, or its own schedule), spend, manual add/take - moves the linked account's balance too, the same way settling a bill moves a connected main account. Managed from a collapsible "Budget Accounts" sub-section on the Budgets page itself, per the user's own answer, not a new nav item.
 
 ### Out of scope
 Payments/subscriptions, mobile app, notifications, bank sync, multi-user families.
