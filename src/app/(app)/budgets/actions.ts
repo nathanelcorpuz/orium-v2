@@ -9,6 +9,7 @@ import { todayInManila } from "@/lib/date";
 import { readRecurrenceRuleForm } from "@/lib/recurrenceForm";
 import { expandRecurrenceOccurrences } from "@/lib/engine/recurrence";
 import { applyToBudgetAccount, loadBudgetAccountLinks } from "@/lib/budgetAccounts";
+import { splitAmountByShares } from "@/lib/budgetSplit";
 import type { RecurrenceEndsType, RecurrenceUnit } from "@/lib/engine/types";
 
 export type BudgetActionState = { error: string | null };
@@ -847,16 +848,114 @@ export async function moveBudgetAccountFunds(
   return { error: null };
 }
 
+// T218 follow-up (REMINDER, 2026-08-02: "Moving funds in budgets should
+// also state which accounts connected to the receiving budget will receive
+// corresponding amounts"): one leg of a budget-to-budget move, on one
+// budget's own side. 0 connected accounts: ledger-only, unchanged. 1:
+// auto-applies to that account, same as before this follow-up. 2+: splits
+// proportional to each account's configured share (`splitAmountByShares`,
+// the same logic the replenish path uses), one budget_entries + settlement
+// row per account leg. `amount` is always the positive magnitude; `sign`
+// carries the direction (+1 incoming, -1 outgoing) into both the account
+// balance and the settlement's actual_amount.
+async function writeBudgetMoveLeg(
+  supabase: SupabaseClient,
+  userId: string,
+  budgetId: string,
+  budgetName: string,
+  amount: number,
+  direction: "incoming" | "outgoing",
+  entryDate: string,
+  defaultNote: string,
+  userNote: string | null,
+): Promise<string | null> {
+  const sign = direction === "incoming" ? 1 : -1;
+  const links = await loadBudgetAccountLinks(supabase, budgetId);
+
+  if (links.length <= 1) {
+    const budgetAccountId = links[0]?.budgetAccountId ?? null;
+    const note = userNote ?? defaultNote;
+
+    const { error: entryError } = await supabase.from("budget_entries").insert({
+      user_id: userId,
+      budget_id: budgetId,
+      entry_date: entryDate,
+      amount,
+      note,
+      direction,
+      budget_account_id: budgetAccountId,
+    });
+    if (entryError) return entryError.message;
+
+    if (budgetAccountId) {
+      const accountError = await applyToBudgetAccount(supabase, budgetAccountId, sign * amount);
+      if (accountError) return accountError;
+    }
+
+    const { error: settlementError } = await supabase.from("settlements").insert({
+      user_id: userId,
+      source_type: "budget",
+      source_id: budgetId,
+      name: `${budgetName} - ${note}`,
+      type: "budget",
+      forecasted_amount: 0,
+      actual_amount: sign * amount,
+      forecasted_date: entryDate,
+      actual_date: entryDate,
+      forecasted_balance: 0,
+      budget_account_id: budgetAccountId,
+    });
+    return settlementError?.message ?? null;
+  }
+
+  const shares = links.map((link) => link.replenishAmount);
+  const legs = splitAmountByShares(amount, shares);
+
+  for (let i = 0; i < links.length; i++) {
+    // `budget_entries.amount` is DB-constrained strictly positive - a leg
+    // that rounds down to exactly 0 has nothing to record for that account.
+    if (legs[i] === 0) continue;
+    const link = links[i];
+    const legNote = `${userNote ?? defaultNote} - ${link.name}`;
+
+    const { error: entryError } = await supabase.from("budget_entries").insert({
+      user_id: userId,
+      budget_id: budgetId,
+      entry_date: entryDate,
+      amount: legs[i],
+      note: legNote,
+      direction,
+      budget_account_id: link.budgetAccountId,
+    });
+    if (entryError) return entryError.message;
+
+    const accountError = await applyToBudgetAccount(supabase, link.budgetAccountId, sign * legs[i]);
+    if (accountError) return accountError;
+
+    const { error: settlementError } = await supabase.from("settlements").insert({
+      user_id: userId,
+      source_type: "budget",
+      source_id: budgetId,
+      name: `${budgetName} - ${legNote}`,
+      type: "budget",
+      forecasted_amount: 0,
+      actual_amount: sign * legs[i],
+      forecasted_date: entryDate,
+      actual_date: entryDate,
+      forecasted_balance: 0,
+      budget_account_id: link.budgetAccountId,
+    });
+    if (settlementError) return settlementError.message;
+  }
+  return null;
+}
+
 // T203 (user request): Move funds between two *budgets* - distinct from
 // T209's moveBudgetAccountFunds above, which moves money between two
-// budget *accounts* (the separate storage concept, T204). This one writes
-// two budget_entries rows (outgoing/incoming), same two-leg shape every
-// other "move" in this app uses, plus the matching settlements rows every
-// other ledger entry gets (writeLedgerEntry above). If either budget has
-// exactly one connected budget account (T204/T218), that account's balance
-// moves too, on its own leg; with zero or with 2+ connected accounts on a
-// side, only that side's own budget ledger moves - see the comment further
-// down for why 2+ is left unresolved here rather than guessed at.
+// budget *accounts* (the separate storage concept, T204). Each side writes
+// via writeBudgetMoveLeg above - a matching budget_entries + settlement leg
+// per connected account on that side, splitting proportionally once a side
+// has 2+ connected accounts (T218 follow-up, 2026-08-02).
 export async function moveBudgetFunds(
   _prevState: BudgetActionState,
   formData: FormData,
@@ -878,77 +977,31 @@ export async function moveBudgetFunds(
 
   const noteSuffix = fields.note ? ` (${fields.note})` : "";
 
-  // T218: moving funds between two *budgets* has no per-transaction account
-  // picker (unlike Log spend/Add/Take funds) - with exactly one connected
-  // account on a side, it's still unambiguous and auto-applies same as
-  // before T218; with zero or with 2+ (which one?), only the two budgets'
-  // own ledgers move and no physical budget account does, on that side.
-  const fromLinks = await loadBudgetAccountLinks(supabase, fromId);
-  const fromAccountId = fromLinks.length === 1 ? fromLinks[0].budgetAccountId : null;
-  const toLinks = await loadBudgetAccountLinks(supabase, toId);
-  const toAccountId = toLinks.length === 1 ? toLinks[0].budgetAccountId : null;
+  const outLegError = await writeBudgetMoveLeg(
+    supabase,
+    user.id,
+    fromId,
+    fromName,
+    fields.amount,
+    "outgoing",
+    fields.entryDate,
+    `Moved to ${toName}`,
+    fields.note,
+  );
+  if (outLegError) return { error: outLegError };
 
-  const { error: outEntryError } = await supabase.from("budget_entries").insert({
-    user_id: user.id,
-    budget_id: fromId,
-    entry_date: fields.entryDate,
-    amount: fields.amount,
-    note: fields.note ?? `Moved to ${toName}`,
-    direction: "outgoing",
-    budget_account_id: fromAccountId,
-  });
-  if (outEntryError) return { error: outEntryError.message };
-
-  if (fromAccountId) {
-    const accountError = await applyToBudgetAccount(supabase, fromAccountId, -fields.amount);
-    if (accountError) return { error: accountError };
-  }
-
-  const { error: outSettlementError } = await supabase.from("settlements").insert({
-    user_id: user.id,
-    source_type: "budget",
-    source_id: fromId,
-    name: `${fromName} - Moved to ${toName}`,
-    type: "budget",
-    forecasted_amount: 0,
-    actual_amount: -fields.amount,
-    forecasted_date: fields.entryDate,
-    actual_date: fields.entryDate,
-    forecasted_balance: 0,
-    budget_account_id: fromAccountId,
-  });
-  if (outSettlementError) return { error: outSettlementError.message };
-
-  const { error: inEntryError } = await supabase.from("budget_entries").insert({
-    user_id: user.id,
-    budget_id: toId,
-    entry_date: fields.entryDate,
-    amount: fields.amount,
-    note: fields.note ?? `Moved from ${fromName}`,
-    direction: "incoming",
-    budget_account_id: toAccountId,
-  });
-  if (inEntryError) return { error: inEntryError.message };
-
-  if (toAccountId) {
-    const accountError = await applyToBudgetAccount(supabase, toAccountId, fields.amount);
-    if (accountError) return { error: accountError };
-  }
-
-  const { error: inSettlementError } = await supabase.from("settlements").insert({
-    user_id: user.id,
-    source_type: "budget",
-    source_id: toId,
-    name: `${toName} - Moved from ${fromName}`,
-    type: "budget",
-    forecasted_amount: 0,
-    actual_amount: fields.amount,
-    forecasted_date: fields.entryDate,
-    actual_date: fields.entryDate,
-    forecasted_balance: 0,
-    budget_account_id: toAccountId,
-  });
-  if (inSettlementError) return { error: inSettlementError.message };
+  const inLegError = await writeBudgetMoveLeg(
+    supabase,
+    user.id,
+    toId,
+    toName,
+    fields.amount,
+    "incoming",
+    fields.entryDate,
+    `Moved from ${fromName}`,
+    fields.note,
+  );
+  if (inLegError) return { error: inLegError };
 
   await logActivity(supabase, user.id, {
     action: "update",

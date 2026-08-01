@@ -85,6 +85,7 @@ export function BudgetCard({
   budgets,
   budgetAccounts,
   accountLinks,
+  accountLinksByBudgetId,
   onEdit,
   edited,
   handledDates = [],
@@ -106,6 +107,11 @@ export function BudgetCard({
   // T218: every budget account currently connected to this budget, in
   // connection order - replaces T204's single `budget.budget_account_id`.
   accountLinks: { budgetAccountId: string; replenishAmount: number }[];
+  // T218 follow-up (REMINDER, 2026-08-02): every *other* budget's own
+  // connected accounts too, keyed by budget id - Move funds needs this to
+  // state where the money lands on whichever destination budget gets
+  // picked, not just this card's own budget.
+  accountLinksByBudgetId: Record<string, { budgetAccountId: string; replenishAmount: number }[]>;
   onEdit: () => void;
   edited: boolean;
   // T167: replenish occurrences already settled, so the countdown below moves
@@ -380,6 +386,8 @@ export function BudgetCard({
           budgetName={budget.name}
           budgets={budgets}
           accounts={resolvedAccountLinks.map((link) => ({ id: link.account.id, name: link.account.name }))}
+          budgetAccounts={budgetAccounts}
+          accountLinksByBudgetId={accountLinksByBudgetId}
           onClose={() => setActiveModal(null)}
         />
       )}

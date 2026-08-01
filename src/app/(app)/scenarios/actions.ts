@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { parseCentavos } from "@/lib/money";
 import { readRecurrenceRuleForm } from "@/lib/recurrenceForm";
 import { logActivity } from "@/lib/activityLog";
+import type { RecurrenceEndsType, RecurrenceUnit } from "@/lib/engine/types";
 
 export type ScenarioActionState = { error: string | null };
 
@@ -127,12 +128,17 @@ export async function activateScenarioPermanently(
     supabase
       .from("scenario_recurring_items")
       .select(
-        "name, type, amount, comments, balance_id, start_date, interval, unit, weekdays, days_of_month, ordinal, ordinal_weekday, ends_type, end_date, occurrence_count",
+        "id, name, type, amount, comments, balance_id, start_date, interval, unit, weekdays, days_of_month, ordinal, ordinal_weekday, ends_type, end_date, occurrence_count",
       )
       .eq("scenario_id", id),
     supabase.from("scenario_one_off_items").select("name, amount, due_date, comments, balance_id").eq("scenario_id", id),
-    // T182
-    supabase.from("scenario_budgets").select("id, name").eq("scenario_id", id),
+    // T182, full parity added by T218 follow-up (2026-08-02).
+    supabase
+      .from("scenario_budgets")
+      .select(
+        "id, name, allocation, linked_scenario_income_id, start_date, interval, unit, weekdays, days_of_month, ordinal, ordinal_weekday, ends_type, end_date, occurrence_count",
+      )
+      .eq("scenario_id", id),
     supabase
       .from("scenario_budget_entries")
       .select("scenario_budget_id, entry_date, amount, note, direction")
@@ -143,27 +149,65 @@ export async function activateScenarioPermanently(
   if (scenarioBudgetsRes.error) return { error: scenarioBudgetsRes.error.message };
   if (scenarioBudgetEntriesRes.error) return { error: scenarioBudgetEntriesRes.error.message };
 
-  const recurringToInsert = (recurringRes.data ?? []).map((row) => ({ ...row, user_id: user.id }));
   const oneOffsToInsert = (oneOffRes.data ?? []).map((row) => ({ ...row, user_id: user.id }));
 
-  if (recurringToInsert.length > 0) {
-    const { error } = await supabase.from("recurring_items").insert(recurringToInsert);
+  // T218 follow-up: recurring items need their new real id captured too now,
+  // not just budgets below - a scenario budget linked to a scenario income
+  // has to resolve that income's *real*, post-activation id, so one insert
+  // per item rather than a bulk insert (same reasoning the budget loop
+  // already used for its own id remap).
+  const recurringIdMap = new Map<string, string>();
+  for (const row of recurringRes.data ?? []) {
+    const { id: scenarioItemId, ...fields } = row;
+    const { data: inserted, error } = await supabase
+      .from("recurring_items")
+      .insert({ ...fields, user_id: user.id })
+      .select("id")
+      .single();
     if (error) return { error: error.message };
+    recurringIdMap.set(scenarioItemId, inserted.id);
   }
+  const recurringToInsert = recurringRes.data ?? [];
+
   if (oneOffsToInsert.length > 0) {
     const { error } = await supabase.from("one_off_items").insert(oneOffsToInsert);
     if (error) return { error: error.message };
   }
 
-  // T182: budgets need their new real id captured before their entries can
-  // be inserted (entries reference budget_id) - one insert per budget
-  // rather than a bulk insert, so each old scenario_budgets id can be
-  // reliably paired with the new real budgets id it maps to.
+  // T182, full parity added by T218 follow-up: budgets need their new real
+  // id captured before their entries can be inserted (entries reference
+  // budget_id) - one insert per budget rather than a bulk insert, so each
+  // old scenario_budgets id can be reliably paired with the new real
+  // budgets id it maps to. Allocation/schedule now carry over too, and a
+  // linked scenario income resolves to that income's own new real id via
+  // recurringIdMap above (falls back to no link if that lookup somehow
+  // misses - a scenario income should always have been activated in the
+  // same pass just above, but a dangling budget with no matching income row
+  // is not impossible, e.g. after manual data edits).
   const budgetIdMap = new Map<string, string>();
   for (const scenarioBudget of scenarioBudgetsRes.data ?? []) {
+    const linkedIncomeId = scenarioBudget.linked_scenario_income_id
+      ? (recurringIdMap.get(scenarioBudget.linked_scenario_income_id) ?? null)
+      : null;
     const { data: inserted, error } = await supabase
       .from("budgets")
-      .insert({ user_id: user.id, name: scenarioBudget.name, allocation: 0, monthly_allocation: 0 })
+      .insert({
+        user_id: user.id,
+        name: scenarioBudget.name,
+        allocation: scenarioBudget.allocation,
+        monthly_allocation: scenarioBudget.allocation,
+        linked_income_id: linkedIncomeId,
+        start_date: linkedIncomeId ? null : scenarioBudget.start_date,
+        interval: linkedIncomeId ? null : scenarioBudget.interval,
+        unit: linkedIncomeId ? null : scenarioBudget.unit,
+        weekdays: linkedIncomeId ? null : scenarioBudget.weekdays,
+        days_of_month: linkedIncomeId ? null : scenarioBudget.days_of_month,
+        ordinal: linkedIncomeId ? null : scenarioBudget.ordinal,
+        ordinal_weekday: linkedIncomeId ? null : scenarioBudget.ordinal_weekday,
+        ends_type: linkedIncomeId ? null : scenarioBudget.ends_type,
+        end_date: linkedIncomeId ? null : scenarioBudget.end_date,
+        occurrence_count: linkedIncomeId ? null : scenarioBudget.occurrence_count,
+      })
       .select("id")
       .single();
     if (error) return { error: error.message };
@@ -421,20 +465,113 @@ export async function deleteScenarioOneOff(formData: FormData) {
   for (const path of AFFECTED_PATHS) revalidatePath(path);
 }
 
-// --- Scenario budgets (T182) ------------------------------------------------
+// --- Scenario budgets (T182, full parity added by T218 follow-up) ----------
 //
-// Deliberately a plain named pot, not a clone of the real Budgets page's
-// allocation/replenish-schedule/linked-income model - see migration 0037's
-// own comment. One creation modal (just a name) plus its own entries list,
-// the same "one modal per item type" shape scenario bills/misc already use.
+// REMINDER, 2026-08-02: "Adding a budget in a Scenario should allow me to
+// get all functionalities of adding a new budget in the real thing, not
+// just add a budget name." Now the same shape as a real budget's own form
+// (BudgetModal.tsx) - name, allocation, and a three-way replenish source
+// (connected to one of the scenario's own incomes / its own schedule /
+// manual) - with one deliberate exception: no budget-account link. A budget
+// account is real storage for real money, and nothing about a scenario
+// touches real money until "Activate permanently" copies it into real
+// tables, at which point it becomes a real budget and can be linked like
+// any other (see migration 0046's own comment).
+//
+// The engine treats a scenario budget exactly like a real one always has
+// (Budgets v3, Phase 10) - `linked_income_id`/the schedule only ever drive
+// BudgetCard-style display (progress bar, "days until replenish") and a
+// real settle-time trigger; neither real nor scenario budgets get a
+// projected reservation row in the Forecast. A scenario budget's actual
+// forecast effect still comes only from its own future-dated entries
+// (`scenario_budget_entries`, unchanged) - configuring a replenish source
+// here does not fabricate money that was never logged, same as a real
+// budget.
+
+type ScenarioBudgetFormFields =
+  | { error: string }
+  | {
+      error: null;
+      name: string;
+      allocation: number;
+      linkedScenarioIncomeId: string | null;
+      startDate: string | null;
+      interval: number | null;
+      unit: RecurrenceUnit | null;
+      weekdays: number[] | null;
+      daysOfMonth: number[] | null;
+      ordinal: number | null;
+      ordinalWeekday: number | null;
+      endsType: RecurrenceEndsType | null;
+      endDate: string | null;
+      occurrenceCount: number | null;
+    };
+
+const SCENARIO_BUDGET_EMPTY_SCHEDULE = {
+  startDate: null,
+  interval: null,
+  unit: null,
+  weekdays: null,
+  daysOfMonth: null,
+  ordinal: null,
+  ordinalWeekday: null,
+  endsType: null,
+  endDate: null,
+  occurrenceCount: null,
+} as const;
+
+function readScenarioBudgetForm(formData: FormData): ScenarioBudgetFormFields {
+  const name = (formData.get("name") as string).trim();
+  if (!name) return { error: "Name is required." };
+  const allocation = parseCentavos(formData.get("allocationPesos") as string);
+  if (allocation === null || allocation < 0) return { error: "Enter a valid allocation." };
+  const source = formData.get("replenishSource") as string;
+
+  if (source === "schedule") {
+    const startDate = (formData.get("startDate") as string) || "";
+    if (!startDate) return { error: "Start date is required." };
+    const rule = readRecurrenceRuleForm(formData);
+    if (rule.error !== null) return { error: rule.error };
+    return {
+      error: null,
+      name,
+      allocation,
+      linkedScenarioIncomeId: null,
+      startDate,
+      interval: rule.interval,
+      unit: rule.unit,
+      weekdays: rule.weekdays,
+      daysOfMonth: rule.daysOfMonth,
+      ordinal: rule.ordinal,
+      ordinalWeekday: rule.ordinalWeekday,
+      endsType: rule.endsType,
+      endDate: rule.endDate,
+      occurrenceCount: rule.occurrenceCount,
+    };
+  }
+
+  if (source === "income") {
+    const linkedScenarioIncomeId = (formData.get("linkedScenarioIncomeId") as string) || null;
+    if (!linkedScenarioIncomeId) return { error: "Choose an income source." };
+    return {
+      error: null,
+      name,
+      allocation,
+      linkedScenarioIncomeId,
+      ...SCENARIO_BUDGET_EMPTY_SCHEDULE,
+    };
+  }
+
+  return { error: null, name, allocation, linkedScenarioIncomeId: null, ...SCENARIO_BUDGET_EMPTY_SCHEDULE };
+}
 
 export async function createScenarioBudget(
   _prevState: ScenarioActionState,
   formData: FormData,
 ): Promise<ScenarioActionState> {
   const scenarioId = formData.get("scenarioId") as string;
-  const name = (formData.get("name") as string).trim();
-  if (!name) return { error: "Name is required." };
+  const fields = readScenarioBudgetForm(formData);
+  if (fields.error !== null) return { error: fields.error };
 
   const supabase = await createClient();
   const {
@@ -442,28 +579,82 @@ export async function createScenarioBudget(
   } = await supabase.auth.getUser();
   if (!user) return { error: "Not signed in." };
 
-  const { error } = await supabase
-    .from("scenario_budgets")
-    .insert({ user_id: user.id, scenario_id: scenarioId, name });
+  const { error } = await supabase.from("scenario_budgets").insert({
+    user_id: user.id,
+    scenario_id: scenarioId,
+    name: fields.name,
+    allocation: fields.allocation,
+    linked_scenario_income_id: fields.linkedScenarioIncomeId,
+    start_date: fields.startDate,
+    interval: fields.interval,
+    unit: fields.unit,
+    weekdays: fields.weekdays,
+    days_of_month: fields.daysOfMonth,
+    ordinal: fields.ordinal,
+    ordinal_weekday: fields.ordinalWeekday,
+    ends_type: fields.endsType,
+    end_date: fields.endDate,
+    occurrence_count: fields.occurrenceCount,
+  });
   if (error) return { error: error.message };
+
+  // REMINDER, 2026-08-02 ("This also should show in the Updates"): a
+  // scenario budget is now rich enough (allocation, replenish source) that
+  // its own create/edit/delete is worth a line in the Updates feed, the
+  // same way a real budget's already is - previously no scenario item type
+  // logged activity at all, since a bare-name pot wasn't worth one.
+  await logActivity(supabase, user.id, {
+    action: "create",
+    entityType: "budget",
+    entityName: `${fields.name} (scenario)`,
+  });
 
   revalidatePath(`/scenarios/${scenarioId}`);
   for (const path of AFFECTED_PATHS) revalidatePath(path);
   return { error: null };
 }
 
-export async function renameScenarioBudget(
+export async function updateScenarioBudget(
   _prevState: ScenarioActionState,
   formData: FormData,
 ): Promise<ScenarioActionState> {
   const id = formData.get("id") as string;
   const scenarioId = formData.get("scenarioId") as string;
-  const name = (formData.get("name") as string).trim();
-  if (!name) return { error: "Name is required." };
+  const fields = readScenarioBudgetForm(formData);
+  if (fields.error !== null) return { error: fields.error };
 
   const supabase = await createClient();
-  const { error } = await supabase.from("scenario_budgets").update({ name }).eq("id", id);
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const { error } = await supabase
+    .from("scenario_budgets")
+    .update({
+      name: fields.name,
+      allocation: fields.allocation,
+      linked_scenario_income_id: fields.linkedScenarioIncomeId,
+      start_date: fields.startDate,
+      interval: fields.interval,
+      unit: fields.unit,
+      weekdays: fields.weekdays,
+      days_of_month: fields.daysOfMonth,
+      ordinal: fields.ordinal,
+      ordinal_weekday: fields.ordinalWeekday,
+      ends_type: fields.endsType,
+      end_date: fields.endDate,
+      occurrence_count: fields.occurrenceCount,
+    })
+    .eq("id", id);
   if (error) return { error: error.message };
+
+  if (user) {
+    await logActivity(supabase, user.id, {
+      action: "update",
+      entityType: "budget",
+      entityName: `${fields.name} (scenario)`,
+    });
+  }
 
   revalidatePath(`/scenarios/${scenarioId}`);
   for (const path of AFFECTED_PATHS) revalidatePath(path);
@@ -474,8 +665,18 @@ export async function deleteScenarioBudget(formData: FormData) {
   const id = formData.get("id") as string;
   const scenarioId = formData.get("scenarioId") as string;
   const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   // Cascades scenario_budget_entries away with it (migration 0037).
-  await supabase.from("scenario_budgets").delete().eq("id", id);
+  const { data: deleted } = await supabase.from("scenario_budgets").delete().eq("id", id).select("name").single();
+  if (user && deleted) {
+    await logActivity(supabase, user.id, {
+      action: "delete",
+      entityType: "budget",
+      entityName: `${deleted.name} (scenario)`,
+    });
+  }
   revalidatePath(`/scenarios/${scenarioId}`);
   for (const path of AFFECTED_PATHS) revalidatePath(path);
 }

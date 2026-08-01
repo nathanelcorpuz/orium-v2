@@ -26,8 +26,14 @@ export default async function ScenarioDetailPage({ params }: { params: Promise<{
         .eq("scenario_id", id)
         .order("due_date", { ascending: true }),
       supabase.from("balances").select("id, name").order("name", { ascending: true }),
-      // T182
-      supabase.from("scenario_budgets").select("id, name").eq("scenario_id", id).order("name", { ascending: true }),
+      // T182, full parity added by T218 follow-up (2026-08-02).
+      supabase
+        .from("scenario_budgets")
+        .select(
+          "id, name, allocation, linked_scenario_income_id, start_date, interval, unit, weekdays, days_of_month, ordinal, ordinal_weekday, ends_type, end_date, occurrence_count",
+        )
+        .eq("scenario_id", id)
+        .order("name", { ascending: true }),
       supabase
         .from("scenario_budget_entries")
         .select("id, scenario_budget_id, entry_date, amount, direction, note")
@@ -48,12 +54,34 @@ export default async function ScenarioDetailPage({ params }: { params: Promise<{
     entriesByBudgetId.set(entry.scenario_budget_id, list);
   }
 
+  // T218 follow-up: a scenario budget can only link to one of this same
+  // scenario's own income items (migration 0046's own comment on why),
+  // resolved here from the same `scenario_recurring_items` query above
+  // rather than a second one.
+  const scenarioIncomes = (itemsRes.data ?? [])
+    .filter((item) => item.type === "income")
+    .map((item) => ({
+      id: item.id,
+      name: item.name,
+      startDate: item.start_date,
+      interval: item.interval,
+      unit: item.unit,
+      weekdays: item.weekdays,
+      daysOfMonth: item.days_of_month,
+      ordinal: item.ordinal,
+      ordinalWeekday: item.ordinal_weekday,
+      endsType: item.ends_type,
+      endDate: item.end_date,
+      occurrenceCount: item.occurrence_count,
+    }));
+
   return (
     <ScenarioDetailClient
       scenario={scenarioRes.data}
       items={itemsRes.data ?? []}
       oneOffs={oneOffsRes.data ?? []}
       scenarioBudgets={scenarioBudgetsRes.data ?? []}
+      scenarioIncomes={scenarioIncomes}
       entriesByBudgetId={entriesByBudgetId}
       balances={balancesRes.data ?? []}
     />

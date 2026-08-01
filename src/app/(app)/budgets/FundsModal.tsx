@@ -2,10 +2,12 @@
 
 import { useActionState, useEffect, useRef, useState } from "react";
 import { Modal } from "@/components/Modal";
-import { blockNegativeKey } from "@/lib/money";
+import { blockNegativeKey, formatCentavos, parseCentavos } from "@/lib/money";
 import { todayInManila } from "@/lib/date";
+import { splitAmountByShares } from "@/lib/budgetSplit";
 import { addFunds, moveBudgetFunds, takeFunds, type BudgetActionState } from "./actions";
 import type { BudgetRow } from "./BudgetModal";
+import type { BudgetAccountRow } from "./BudgetAccountModal";
 
 const initialState: BudgetActionState = { error: null };
 
@@ -22,6 +24,8 @@ export function FundsModal({
   budgetName,
   budgets,
   accounts,
+  budgetAccounts,
+  accountLinksByBudgetId,
   onClose,
 }: {
   mode: "add" | "take" | "move";
@@ -29,10 +33,14 @@ export function FundsModal({
   budgetName: string;
   // Only needed for move mode - the list of other budgets to move funds to.
   budgets?: BudgetRow[];
-  // T218: every budget account connected to this budget - only relevant for
-  // add/take (a real picked-transaction), not move (see moveBudgetFunds's
-  // own comment on why a 2+ side is left unresolved there).
+  // T218: every budget account connected to this budget - used for add/take
+  // (a real picked-transaction).
   accounts: { id: string; name: string }[];
+  // T218 follow-up (REMINDER, 2026-08-02): move mode needs to resolve the
+  // *destination* budget's own connected accounts live, as the user picks a
+  // different one - not just this budget's own `accounts` above.
+  budgetAccounts?: BudgetAccountRow[];
+  accountLinksByBudgetId?: Record<string, { budgetAccountId: string; replenishAmount: number }[]>;
   onClose: () => void;
 }) {
   const action = mode === "add" ? addFunds : mode === "take" ? takeFunds : moveBudgetFunds;
@@ -40,6 +48,24 @@ export function FundsModal({
   const submitted = useRef(false);
   const otherBudgets = (budgets ?? []).filter((budget) => budget.id !== budgetId);
   const [toBudgetId, setToBudgetId] = useState(otherBudgets[0]?.id ?? "");
+  const [amountPesos, setAmountPesos] = useState("");
+
+  // T218 follow-up: resolves the chosen destination budget's connected
+  // accounts to real names/shares, so the modal can state where the money
+  // actually lands - a single account is used outright, 2+ split
+  // proportionally by their configured shares (same logic the automatic
+  // replenish path uses, splitAmountByShares).
+  const toBudgetAccounts = (accountLinksByBudgetId?.[toBudgetId] ?? [])
+    .map((link) => ({
+      replenishAmount: link.replenishAmount,
+      name: budgetAccounts?.find((account) => account.id === link.budgetAccountId)?.name,
+    }))
+    .filter((link): link is { replenishAmount: number; name: string } => link.name !== undefined);
+  const amountCentavos = parseCentavos(amountPesos) ?? 0;
+  const splitPreview =
+    toBudgetAccounts.length > 1
+      ? splitAmountByShares(amountCentavos, toBudgetAccounts.map((account) => account.replenishAmount))
+      : [];
 
   useEffect(() => {
     if (submitted.current && !pending && !state.error) {
@@ -88,6 +114,25 @@ export function FundsModal({
                 ))}
               </select>
             </div>
+            {/* T218 follow-up (REMINDER, 2026-08-02): states where the money
+                actually lands on the receiving side, same as the picker
+                already does for Log spend/Add/Take funds - a single
+                connected account applies outright, 2+ split proportionally
+                by their configured shares. */}
+            {toBudgetAccounts.length === 1 && (
+              <p className="text-sm text-slate-500">
+                Also moves {formatCentavos(amountCentavos)} into {toBudgetAccounts[0].name}.
+              </p>
+            )}
+            {toBudgetAccounts.length > 1 && (
+              <p className="text-sm text-slate-500">
+                Also splits into:{" "}
+                {toBudgetAccounts
+                  .map((account, index) => `${account.name} ${formatCentavos(splitPreview[index] ?? 0)}`)
+                  .join(", ")}
+                .
+              </p>
+            )}
           </>
         ) : (
           <>
@@ -132,6 +177,8 @@ export function FundsModal({
             step="0.01"
             min="0"
             required
+            value={amountPesos}
+            onChange={(event) => setAmountPesos(event.target.value)}
             onKeyDown={blockNegativeKey}
             className="mt-1 w-full rounded border border-notion-hairline p-2 text-notion-text focus:border-notion-accent focus:outline-none"
           />

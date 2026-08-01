@@ -10,16 +10,19 @@ import { ScenarioItemModal, type ScenarioItemRow, type BalanceOption } from "../
 import { ScenarioOneOffModal, type ScenarioOneOffRow } from "../ScenarioOneOffModal";
 import { ScenarioBudgetEntryModal, type ScenarioBudgetEntryRow } from "../ScenarioBudgetEntryModal";
 import {
-  createScenarioBudget,
+  ScenarioBudgetModal,
+  type ScenarioBudgetRow,
+  type ScenarioIncomeOption,
+} from "../ScenarioBudgetModal";
+import {
   deleteScenarioBudget,
   deleteScenarioBudgetEntry,
   deleteScenarioItem,
   deleteScenarioOneOff,
-  renameScenarioBudget,
   type ScenarioActionState,
 } from "../actions";
 
-export type ScenarioBudgetRow = { id: string; name: string };
+export type { ScenarioBudgetRow } from "../ScenarioBudgetModal";
 
 const TYPE_COLOR: Record<ScenarioItemRow["type"], string> = {
   income: "text-green-700",
@@ -43,121 +46,30 @@ function itemRule(item: ScenarioItemRow) {
   };
 }
 
-const scenarioActionInitialState: ScenarioActionState = { error: null };
-
-// T182: a plain inline name field, matching this file's own established
-// "add" forms (ScenariosClient.tsx's CreateScenarioForm) rather than a modal
-// for something this small.
-function AddScenarioBudgetForm({ scenarioId }: { scenarioId: string }) {
-  const [state, formAction, pending] = useActionState(createScenarioBudget, scenarioActionInitialState);
-  const formRef = useRef<HTMLFormElement>(null);
-  const submitted = useRef(false);
-
-  useEffect(() => {
-    if (submitted.current && !pending && !state.error) {
-      formRef.current?.reset();
-      submitted.current = false;
-    }
-  }, [pending, state]);
-
-  return (
-    <form
-      ref={formRef}
-      action={formAction}
-      onSubmit={() => {
-        submitted.current = true;
-      }}
-      className="mb-4 flex items-end gap-2"
-    >
-      <input type="hidden" name="scenarioId" value={scenarioId} />
-      <div className="flex-1">
-        <label className="block text-sm text-slate-600" htmlFor="budgetName">
-          New budget
-        </label>
-        <input
-          id="budgetName"
-          name="name"
-          type="text"
-          required
-          placeholder="e.g. Travel fund"
-          className="mt-1 w-full rounded border border-notion-hairline p-2 text-notion-text focus:border-notion-accent focus:outline-none"
-        />
-      </div>
-      <SubmitButton className="rounded bg-notion-text px-4 py-2 text-white hover:opacity-90 disabled:opacity-50">
-        Add
-      </SubmitButton>
-      {state.error && <p className="text-sm text-red-600">{state.error}</p>}
-    </form>
-  );
-}
-
-// T182: same rename-inline pattern RemindersPanel's edit mode uses - a
-// budget name is the only field this task's scope actually needs to change
-// after creation (no allocation/schedule to edit - see migration 0037).
-function ScenarioBudgetName({
-  scenarioId,
-  budget,
-}: {
-  scenarioId: string;
-  budget: ScenarioBudgetRow;
-}) {
-  const [editing, setEditing] = useState(false);
-  const [state, formAction, pending] = useActionState(renameScenarioBudget, scenarioActionInitialState);
-  const submitted = useRef(false);
-
-  useEffect(() => {
-    if (submitted.current && !pending && !state.error) {
-      setEditing(false);
-      submitted.current = false;
-    }
-  }, [pending, state]);
-
-  if (!editing) {
-    return (
-      <button
-        type="button"
-        onClick={() => setEditing(true)}
-        className="font-medium text-notion-text hover:underline"
-        title="Rename"
-      >
-        {budget.name}
-      </button>
-    );
+// T218 follow-up: a scenario budget's replenish label, matching the real
+// BudgetCard's own "Connected to X" / recurrence summary / "Manual"
+// wording - simplified here (no progress bar/countdown, since a scenario
+// item never settles and there's nothing to count down to).
+function scenarioBudgetReplenishLabel(budget: ScenarioBudgetRow, incomes: ScenarioIncomeOption[]): string {
+  if (budget.linked_scenario_income_id) {
+    const income = incomes.find((i) => i.id === budget.linked_scenario_income_id);
+    return income ? `Connected to ${income.name}` : "Connected to income";
   }
-
-  return (
-    <form
-      action={formAction}
-      onSubmit={() => {
-        submitted.current = true;
-      }}
-      className="flex items-center gap-1"
-    >
-      <input type="hidden" name="id" value={budget.id} />
-      <input type="hidden" name="scenarioId" value={scenarioId} />
-      <input
-        name="name"
-        type="text"
-        defaultValue={budget.name}
-        required
-        className="rounded border border-notion-hairline p-1 text-sm text-notion-text focus:border-notion-accent focus:outline-none"
-      />
-      <SubmitButton
-        disabled={pending}
-        className="rounded px-2 py-1 text-xs text-notion-accent hover:bg-notion-hover disabled:opacity-50"
-      >
-        Save
-      </SubmitButton>
-      <button
-        type="button"
-        onClick={() => setEditing(false)}
-        className="rounded px-2 py-1 text-xs text-slate-400 hover:bg-notion-hover"
-      >
-        Cancel
-      </button>
-      {state.error && <p className="text-xs text-red-600">{state.error}</p>}
-    </form>
-  );
+  if (budget.start_date && budget.interval !== null && budget.unit !== null && budget.ends_type !== null) {
+    return summarizeRecurrence({
+      startDate: budget.start_date,
+      interval: budget.interval,
+      unit: budget.unit,
+      weekdays: budget.weekdays,
+      daysOfMonth: budget.days_of_month,
+      ordinal: budget.ordinal,
+      ordinalWeekday: budget.ordinal_weekday,
+      endsType: budget.ends_type,
+      endDate: budget.end_date,
+      occurrenceCount: budget.occurrence_count,
+    });
+  }
+  return "Replenished manually";
 }
 
 export function ScenarioDetailClient({
@@ -165,6 +77,7 @@ export function ScenarioDetailClient({
   items,
   oneOffs,
   scenarioBudgets,
+  scenarioIncomes,
   entriesByBudgetId,
   balances,
 }: {
@@ -172,6 +85,10 @@ export function ScenarioDetailClient({
   items: ScenarioItemRow[];
   oneOffs: ScenarioOneOffRow[];
   scenarioBudgets: ScenarioBudgetRow[];
+  // T218 follow-up: this scenario's own income items, so a scenario budget
+  // can link to one - never a real income (see ScenarioBudgetModal's own
+  // comment).
+  scenarioIncomes: ScenarioIncomeOption[];
   entriesByBudgetId: Map<string, ScenarioBudgetEntryRow[]>;
   balances: BalanceOption[];
 }) {
@@ -184,6 +101,7 @@ export function ScenarioDetailClient({
   >(null);
   const [confirmingDeleteBudget, setConfirmingDeleteBudget] = useState<string | null>(null);
   const [confirmingDeleteEntry, setConfirmingDeleteEntry] = useState<string | null>(null);
+  const [budgetModalState, setBudgetModalState] = useState<null | "new" | ScenarioBudgetRow>(null);
 
   return (
     <div className="p-4 md:p-8">
@@ -339,13 +257,20 @@ export function ScenarioDetailClient({
           </ul>
         )}
 
-        {/* T182: a scenario budget is a plain named pot - see migration
-            0037's own comment for why it doesn't mirror the real Budgets
-            page's allocation/replenish-schedule/linked-income model. */}
+        {/* T218 follow-up (REMINDER, 2026-08-02): a scenario budget now has
+            the same allocation/replenish-source functionality a real budget
+            does - see ScenarioBudgetModal's own comment for the one
+            deliberate exception (no budget-account link). */}
         <div className="mb-6 mt-6 flex items-center justify-between">
           <h2 className="text-sm font-semibold text-notion-text">Budgets</h2>
+          <button
+            type="button"
+            onClick={() => setBudgetModalState("new")}
+            className="rounded bg-notion-text px-3 py-1.5 text-sm text-white hover:opacity-90"
+          >
+            Add budget
+          </button>
         </div>
-        <AddScenarioBudgetForm scenarioId={scenario.id} />
 
         {scenarioBudgets.length === 0 ? (
           <p className="text-slate-500">No budgets yet.</p>
@@ -360,7 +285,26 @@ export function ScenarioDetailClient({
               return (
                 <li key={budget.id} className="rounded-lg border border-notion-hairline bg-white p-4">
                   <div className="flex items-center justify-between">
-                    <ScenarioBudgetName scenarioId={scenario.id} budget={budget} />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setBudgetModalState(budget)}
+                          className="font-medium text-notion-text hover:underline"
+                          title="Edit"
+                        >
+                          {budget.name}
+                        </button>
+                        <span className="rounded-full bg-notion-hover px-2 py-0.5 text-xs font-medium text-slate-500">
+                          {scenarioBudgetReplenishLabel(budget, scenarioIncomes)}
+                        </span>
+                      </div>
+                      {budget.allocation > 0 && (
+                        <p className="text-xs text-slate-500">
+                          {formatCentavos(budget.allocation)} allocated per replenishment
+                        </p>
+                      )}
+                    </div>
                     <div className="flex shrink-0 items-center gap-2">
                       <span className={`text-sm font-medium ${total < 0 ? "text-red-600" : "text-notion-text"}`}>
                         {formatCentavos(total)}
@@ -484,6 +428,14 @@ export function ScenarioDetailClient({
           scenarioBudgetId={entryModalState.scenarioBudgetId}
           entry={entryModalState.entry}
           onClose={() => setEntryModalState(null)}
+        />
+      )}
+      {budgetModalState !== null && (
+        <ScenarioBudgetModal
+          scenarioId={scenario.id}
+          budget={budgetModalState === "new" ? null : budgetModalState}
+          incomes={scenarioIncomes}
+          onClose={() => setBudgetModalState(null)}
         />
       )}
     </div>

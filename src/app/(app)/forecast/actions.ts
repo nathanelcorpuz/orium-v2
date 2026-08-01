@@ -271,6 +271,12 @@ async function writeBudgetReplenishLegs(
 
   for (let i = 0; i < links.length; i++) {
     const link = links[i];
+    // `budget_entries.amount` is DB-constrained to be strictly positive
+    // (migration 0003) - a leg that rounds down to exactly 0 (a tiny total
+    // split across several accounts) has to be skipped entirely rather than
+    // written, since there's genuinely nothing to record for that account
+    // this time.
+    if (actualLegs[i] === 0) continue;
     const legNote = `${noteLabel} - ${link.name}`;
 
     const { error: entryError } = await supabase.from("budget_entries").insert({
@@ -284,10 +290,8 @@ async function writeBudgetReplenishLegs(
     });
     if (entryError) return entryError.message;
 
-    if (actualLegs[i] > 0) {
-      const accountError = await applyToBudgetAccount(supabase, link.budgetAccountId, actualLegs[i]);
-      if (accountError) return accountError;
-    }
+    const accountError = await applyToBudgetAccount(supabase, link.budgetAccountId, actualLegs[i]);
+    if (accountError) return accountError;
 
     const { error: settlementError } = await supabase.from("settlements").insert({
       user_id: userId,

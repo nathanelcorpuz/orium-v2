@@ -182,6 +182,33 @@ export default async function Home({
     .filter((item) => item.type === "income")
     .reduce((sum, item) => sum + monthlyEquivalent(item), 0);
 
+  // REMINDER item, 2026-08-02 ("I want a monthly budgets total in the
+  // dashboard as well"): budgets had no monthly-equivalent figure anywhere,
+  // unlike Bills/Income/Debt/Savings below - same `monthlyEquivalent`
+  // formula, resolved against whichever schedule actually drives a budget's
+  // replenishment (its linked income's, or its own "replenish every" rule -
+  // `budgetReplenishRule`, the same resolver the Budgets widget below
+  // already uses for its progress bars). A manual budget has neither, so it
+  // contributes 0 - there's no recurring rhythm to average into a monthly
+  // figure, the same reason a purely one-off Misc item isn't counted either.
+  const totalMonthlyBudgets = budgets.reduce((sum, budget) => {
+    const linkedIncome = budget.linkedIncomeId
+      ? recurringItems.find((item) => item.id === budget.linkedIncomeId) ?? null
+      : null;
+    const rule = budgetReplenishRule(budget, linkedIncome);
+    if (!rule) return sum;
+    return (
+      sum +
+      monthlyEquivalent({
+        amount: budget.allocation,
+        interval: rule.interval,
+        unit: rule.unit,
+        weekdays: rule.weekdays,
+        daysOfMonth: rule.daysOfMonth,
+      })
+    );
+  }, 0);
+
   const debtItems = recurringItems.filter((item) => item.type === "debt");
   // "never"-ending debt items have no finite remaining total or end date
   // (SPEC.md); remainingTotal/ruleEndDate return null for them, and they're
@@ -306,7 +333,7 @@ export default async function Home({
       key: "monthlyStats",
       label: "Monthly totals",
       node: (
-        <div className="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
+        <div className="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
           <DashboardCard title="Total Monthly Bills" value={formatCentavos(totalMonthlyBills, currency)} />
           <DashboardCard
             title="Total Monthly Income"
@@ -322,6 +349,11 @@ export default async function Home({
             title="Total Monthly Savings"
             value={formatCentavos(totalMonthlySavings, currency)}
             valueClassName="text-blue-700"
+          />
+          <DashboardCard
+            title="Total Monthly Budgets"
+            value={formatCentavos(totalMonthlyBudgets, currency)}
+            valueClassName="text-teal-700"
           />
         </div>
       ),
