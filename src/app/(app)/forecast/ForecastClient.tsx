@@ -390,29 +390,31 @@ export function ForecastClient({
             </p>
             <div className="mt-2 flex flex-wrap gap-2">
               {balances.map((balance) => {
-                // T180: desktop-only per the original scoping - a native
-                // `title` tooltip only ever appears on mouse hover, which
-                // already limits this to desktop without any extra media
-                // query, and matches every other tooltip in this app (the
-                // "edited from schedule" ✎ mark, etc.).
+                // T180, made visible per user follow-up feedback (previously
+                // hover-only, which was too easy to miss) - now a plain
+                // second line under the balance, same wording and the same
+                // stat this page's `findAccountLowestPoints` call already
+                // computes, matching what the Accounts page now shows too.
                 const lowest = accountLowestPoints.get(balance.id);
-                const title =
+                const projectionLine =
                   lowest && lowest.date !== todayInManila()
                     ? `Lowest projected: ${formatCentavos(lowest.balance, currency)} on ${formatFullDate(lowest.date)}`
                     : lowest
                       ? `Not projected to dip below ${formatCentavos(lowest.balance, currency)}`
-                      : undefined;
+                      : null;
                 return (
                   <button
                     key={balance.id}
                     type="button"
-                    title={title}
                     onClick={() => {
                       if (!previewMode) setEditingBalance(balance);
                     }}
-                    className={`rounded-full border border-notion-hairline bg-white px-3 py-1 text-sm text-notion-text ${previewMode ? "" : "hover:bg-notion-hover"}`}
+                    className={`rounded-lg border border-notion-hairline bg-white px-3 py-1.5 text-left text-sm text-notion-text ${previewMode ? "" : "hover:bg-notion-hover"}`}
                   >
-                    {balance.name}: {formatCentavos(balance.amount, currency)}
+                    <span>
+                      {balance.name}: {formatCentavos(balance.amount, currency)}
+                    </span>
+                    {projectionLine && <span className="block text-xs text-slate-400">{projectionLine}</span>}
                   </button>
                 );
               })}
