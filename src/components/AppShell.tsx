@@ -145,11 +145,21 @@ function SidebarContent({
                   count next to the centered icon) since a couple checking
                   in after a few days is exactly who this is for, and they
                   might not expand the sidebar first. */}
+              {/* T201 (user report): the collapsed badge used to share the
+                  expanded version's px-1.5/py-0.5 pill sizing, which reads
+                  fine inline but grows wider than the 64px collapsed rail
+                  once "99+" or any 2-digit count sits inside a rounded-full
+                  pill with no size cap. Collapsed now uses the same
+                  fixed-size h-4/min-w-4 badge shape RemindersPanel's own
+                  bell badge already established, so it stays a small circle
+                  regardless of digit count. */}
               {item.href === "/updates" && unseenUpdatesCount > 0 && (
                 <span
-                  className={`shrink-0 rounded-full bg-notion-accent px-1.5 py-0.5 text-xs font-medium text-white ${
-                    collapsed ? "absolute right-1 top-1" : "ml-auto"
-                  }`}
+                  className={
+                    collapsed
+                      ? "absolute right-0.5 top-0.5 flex h-4 min-w-4 shrink-0 items-center justify-center rounded-full bg-notion-accent px-0.5 text-[10px] font-medium text-white"
+                      : "ml-auto shrink-0 rounded-full bg-notion-accent px-1.5 py-0.5 text-xs font-medium text-white"
+                  }
                 >
                   {unseenUpdatesCount > 99 ? "99+" : unseenUpdatesCount}
                 </span>
@@ -232,8 +242,13 @@ function SidebarContent({
             Both squares share one row so dismissing one, then the other,
             visibly reads as "the same feature, shrinking" rather than two
             unrelated things appearing in sequence. */}
+        {/* T200 (user report): collapsed to the 64px icon rail, two 32px
+            squares side by side (plus the gap) don't fit - they overflowed
+            the rail instead of wrapping. Stacking them vertically when
+            collapsed keeps each one fully visible, same as every other
+            collapsed-state element in this sidebar. */}
         {(!showQuickTour || !showGuidedSetup) && (
-          <div className={`flex gap-2 ${collapsed ? "justify-center px-2" : "px-3"}`}>
+          <div className={`flex gap-2 ${collapsed ? "flex-col items-center px-2" : "px-3"}`}>
             {!showQuickTour && (
               <form action={replayTour}>
                 <SubmitButton
