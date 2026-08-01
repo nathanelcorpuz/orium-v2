@@ -14,6 +14,7 @@ Scratchpad for things raised between sessions. Write anything here, in any shape
 
 ## Last triage
 
+- **2026-08-01, eleventh pass**: 1 item ("the accounts section in the dashboard is now redundant, you can remove that") → built directly as **T216** (SPEC.md Phase 31).
 - **2026-08-01, tenth pass**: 1 item ("manually replenished budgets should indicate that... 'Replenished manually'") → **T210** (SPEC.md Phase 27, not yet built).
 - **2026-08-01, ninth pass**: 3 items. "Budget accounts should have almost identical functionality with main accounts" → built directly as **T209** (Add/Take/Move funds for budget accounts, SPEC.md Phase 28). The other two - a budget linked to *multiple* budget accounts with per-transaction selection, and a shareable no-login link for Updates - are both real architecture/security decisions, not executable as-is; both moved to "Before MVP launch (needs discussion)" rather than built blind, per CLAUDE.md's "ask before making product or architecture decisions" rule.
 - **2026-08-01, eighth pass**: 1 item (reminders add/edit UX) → built directly, same session: the add-reminder form now collapses behind a button (**T207**, SPEC.md Phase 29), and the reported edit-mode breakage is **Bug #17** (BUGS.md, fixed - a missing `min-w-0` on the edit input).

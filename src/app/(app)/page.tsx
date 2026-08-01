@@ -410,35 +410,6 @@ export default async function Home({
       ),
     },
     {
-      key: "accounts",
-      label: "Accounts",
-      node: (
-        <div className="mb-6 rounded-lg border border-notion-hairline bg-white p-4" data-tour="dashboard-accounts">
-          <div className="mb-2 flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-notion-text">Accounts</h2>
-            <Link
-              href="/accounts"
-              className="rounded border border-notion-hairline px-2 py-1 text-xs text-notion-text hover:bg-notion-hover"
-            >
-              Manage
-            </Link>
-          </div>
-          {balances.length === 0 ? (
-            <p className="text-sm text-slate-400">No accounts yet.</p>
-          ) : (
-            <ul className="divide-y divide-notion-hairline text-sm">
-              {balances.map((balance) => (
-                <li key={balance.id} className="flex justify-between py-1.5 text-notion-text first:pt-0 last:pb-0">
-                  <span>{balance.name}</span>
-                  <span>{formatCentavos(balance.amount, currency)}</span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-      ),
-    },
-    {
       key: "debt",
       label: "Remaining Debt",
       node: (
