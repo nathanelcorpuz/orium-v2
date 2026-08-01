@@ -228,6 +228,7 @@ Bug reports from the same batch went straight to BUGS.md (Bug #15) instead - thi
 - [ ] **T200.** Fix: the sidebar's purple help/tip icons don't lay out correctly when the sidebar is collapsed - they should stack vertically like everything else in the collapsed rail, not keep their expanded-width arrangement.
 - [ ] **T201.** Fix: the Updates nav item's unseen-count badge (T163) is oversized when the sidebar is collapsed - should shrink to fit the narrow rail like every other collapsed-state element.
 - [ ] **T202.** Add a loading state for the Dashboard - clicking into it currently shows nothing while its data fetches.
+- [ ] **T203.** Budgets get a Move funds action too, matching Accounts' own Add/Take/Move funds (T186) - moving money from one budget to another, logged the same two-leg way T186 already does for accounts.
 
 ### Completed work (T1-T192)
 Full build write-ups live in **ARCHIVE.md**, in this same order. This index exists so a task number can be found quickly without opening it.

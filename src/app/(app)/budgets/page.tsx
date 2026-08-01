@@ -7,7 +7,7 @@ import type { BudgetRow } from "./BudgetModal";
 export default async function BudgetsPage() {
   const supabase = await createClient();
 
-  const [budgetsRes, entriesRes, incomesRes, replenishOverridesRes] = await Promise.all([
+  const [budgetsRes, entriesRes, incomesRes, replenishOverridesRes, incomeOverridesRes] = await Promise.all([
     supabase
       .from("budgets")
       .select(
@@ -40,6 +40,16 @@ export default async function BudgetsPage() {
     // needs to know which occurrences have already been settled, or it keeps
     // saying "Replenishes today" after the money has already moved.
     supabase.from("budget_replenish_overrides").select("budget_id, original_date, skipped"),
+    // Bug (user report, 2026-08-01): a budget linked to an income *after*
+    // that income's occurrence for today was already settled has no
+    // `budget_replenish_overrides` row of its own yet (settleOccurrence only
+    // ever writes one for budgets that were linked *at settle time*), so the
+    // check above alone still finds nothing "handled" and reports "Replenishes
+    // today" - technically true of the rule, but the money for today already
+    // moved without this budget. The income's own settled occurrence
+    // (`occurrence_overrides.skipped`) closes that gap: if the income itself
+    // is done for that date, no budget can still be waiting on it.
+    supabase.from("occurrence_overrides").select("recurring_item_id, original_date").eq("skipped", true),
   ]);
 
   if (budgetsRes.error) {
@@ -57,6 +67,13 @@ export default async function BudgetsPage() {
     return (
       <p className="p-8 text-red-600">
         Could not load budget overrides: {replenishOverridesRes.error.message}
+      </p>
+    );
+  }
+  if (incomeOverridesRes.error) {
+    return (
+      <p className="p-8 text-red-600">
+        Could not load income schedules: {incomeOverridesRes.error.message}
       </p>
     );
   }
@@ -102,6 +119,28 @@ export default async function BudgetsPage() {
     const list = handledDatesByBudgetId[override.budget_id] ?? [];
     list.push(override.original_date);
     handledDatesByBudgetId[override.budget_id] = list;
+  }
+
+  // Bug fix (user report, 2026-08-01): a budget linked to an income *after*
+  // that income's occurrence for a given date was already settled has no
+  // `budget_replenish_overrides` row of its own for that date (settling only
+  // ever writes one for budgets linked at the time), so it still read as
+  // "not yet handled" and reported "Replenishes today" for a day the linked
+  // income had already moved past. Every skipped date on the income's *own*
+  // schedule closes that gap for every budget linked to it, on top of the
+  // budget's own handled dates above.
+  const skippedDatesByIncomeId: Record<string, string[]> = {};
+  for (const override of incomeOverridesRes.data ?? []) {
+    const list = skippedDatesByIncomeId[override.recurring_item_id] ?? [];
+    list.push(override.original_date);
+    skippedDatesByIncomeId[override.recurring_item_id] = list;
+  }
+  for (const budget of budgets) {
+    if (!budget.linked_income_id) continue;
+    const incomeSkippedDates = skippedDatesByIncomeId[budget.linked_income_id];
+    if (!incomeSkippedDates) continue;
+    const list = handledDatesByBudgetId[budget.id] ?? [];
+    handledDatesByBudgetId[budget.id] = [...list, ...incomeSkippedDates];
   }
 
   return (
