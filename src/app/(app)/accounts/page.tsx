@@ -31,7 +31,7 @@ export default async function BalancesPage({
   const supabase = await createClient();
   // T71's connected-items queries moved into `loadConnectedItems` (T152) so
   // the Forecast page can build the same data for the same modal.
-  const [{ data: balances, error }, connectedItems, transactionsRes, forecastData] = await Promise.all([
+  const [{ data: balances, error }, connectedItems, transactionsRes, autoMovesRes, forecastData] = await Promise.all([
     supabase
       .from("balances")
       .select("id, name, amount, comments, transaction_fee_centavos")
@@ -43,6 +43,9 @@ export default async function BalancesPage({
       .from("balance_transactions")
       .select("id, balance_id, entry_date, amount, direction, note, created_at")
       .order("created_at", { ascending: false }),
+    // T212: which income auto-moves land in each account, for the
+    // "Receives ₱X from {income} on settle" pill.
+    supabase.from("income_auto_moves").select("id, income_id, destination_balance_id, amount"),
     // T180 follow-up (user feedback: the Forecast page's hover-only tooltip
     // was too easy to miss): the same per-account "lowest projected
     // balance" stat, shown directly and visibly on this page instead.
@@ -66,12 +69,25 @@ export default async function BalancesPage({
     forecastData.today,
   );
 
+  // T212: `forecastData.recurringItems` (already fetched by loadForecast())
+  // already has every income's name, so this needs no extra query - just a
+  // join against income_auto_moves' bare income_id, grouped by which
+  // account each rule actually lands in.
+  const incomeNameById = new Map(forecastData.recurringItems.map((item) => [item.id, item.name]));
+  const autoMovesByDestination = new Map<string, { incomeId: string; incomeName: string; amount: number }[]>();
+  for (const row of autoMovesRes.data ?? []) {
+    const list = autoMovesByDestination.get(row.destination_balance_id) ?? [];
+    list.push({ incomeId: row.income_id, incomeName: incomeNameById.get(row.income_id) ?? "an income", amount: row.amount });
+    autoMovesByDestination.set(row.destination_balance_id, list);
+  }
+
   return (
     <BalancesClient
       balances={balances ?? []}
       connectedItems={connectedItems}
       transactionsByBalanceId={transactionsByBalanceId}
       lowestPointByBalanceId={lowestPointByBalanceId}
+      autoMovesByDestination={autoMovesByDestination}
       currency={forecastData.currency}
       today={forecastData.today}
     />

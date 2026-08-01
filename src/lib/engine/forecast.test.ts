@@ -1387,6 +1387,136 @@ describe("generateForecast per-account transaction fee (T172)", () => {
   });
 });
 
+describe("generateForecast income auto-move (SPEC.md T212)", () => {
+  it("generates a paired debit/credit row on each income occurrence", () => {
+    const result = generateForecast({
+      balances: [
+        { id: "wise", name: "Wise Nanay", amount: 1000000 },
+        { id: "bdo", name: "BDO Tatay", amount: 200000 },
+      ],
+      recurringItems: [
+        monthlyItem({
+          id: "income-1",
+          name: "TNIT",
+          type: "income",
+          amount: 500000,
+          daysOfMonth: [5],
+          balanceId: "wise",
+        }),
+      ],
+      overrides: [],
+      oneOffs: [],
+      incomeAutoMoves: [{ id: "move-1", incomeId: "income-1", destinationBalanceId: "bdo", amount: 100000 }],
+      today: "2026-01-01",
+      horizon: "2026-01-31",
+    });
+
+    // income lands, then the pair (order matches the engine's own same-day
+    // incoming-before-outgoing sort - the debit and credit are same-signed
+    // relative to each other so insertion order wins between them).
+    expect(result.map((row) => ({ sourceType: row.sourceType, name: row.name, amount: row.amount, balanceId: row.balanceId }))).toEqual([
+      { sourceType: "recurring", name: "TNIT", amount: 500000, balanceId: "wise" },
+      { sourceType: "income_auto_move", name: "Auto-move from Wise Nanay", amount: 100000, balanceId: "bdo" },
+      { sourceType: "income_auto_move", name: "Auto-move to BDO Tatay", amount: -100000, balanceId: "wise" },
+    ]);
+
+    // Combined total is unaffected by an internal transfer: 1,200,000 +
+    // 500,000 (income) - 100,000 (auto-move out) + 100,000 (auto-move in) =
+    // 1,700,000.
+    expect(result[result.length - 1].runningBalance).toBe(1700000);
+  });
+
+  it("attributes the debit to the source account and the credit to the destination, independently", () => {
+    const result = generateForecast({
+      balances: [
+        { id: "wise", name: "Wise Nanay", amount: 1000000 },
+        { id: "bdo", name: "BDO Tatay", amount: 200000 },
+      ],
+      recurringItems: [
+        monthlyItem({
+          id: "income-1",
+          name: "TNIT",
+          type: "income",
+          amount: 500000,
+          daysOfMonth: [5],
+          balanceId: "wise",
+        }),
+      ],
+      overrides: [],
+      oneOffs: [],
+      incomeAutoMoves: [{ id: "move-1", incomeId: "income-1", destinationBalanceId: "bdo", amount: 100000 }],
+      today: "2026-01-01",
+      horizon: "2026-01-31",
+    });
+
+    const debit = result.find((row) => row.sourceType === "income_auto_move" && row.amount < 0)!;
+    const credit = result.find((row) => row.sourceType === "income_auto_move" && row.amount > 0)!;
+    expect(debit.balanceId).toBe("wise");
+    expect(credit.balanceId).toBe("bdo");
+    expect(debit.linkedIncomeId).toBe("income-1");
+    expect(credit.linkedIncomeId).toBe("income-1");
+  });
+
+  it("stays dormant when the income has no connected account", () => {
+    const result = generateForecast({
+      balances: [{ id: "bdo", name: "BDO Tatay", amount: 200000 }],
+      recurringItems: [
+        monthlyItem({
+          id: "income-1",
+          name: "TNIT",
+          type: "income",
+          amount: 500000,
+          daysOfMonth: [5],
+          balanceId: null,
+        }),
+      ],
+      overrides: [],
+      oneOffs: [],
+      incomeAutoMoves: [{ id: "move-1", incomeId: "income-1", destinationBalanceId: "bdo", amount: 100000 }],
+      today: "2026-01-01",
+      horizon: "2026-01-31",
+    });
+
+    expect(result.some((row) => row.sourceType === "income_auto_move")).toBe(false);
+  });
+
+  it("moves with the income when its occurrence is skipped, and charges the source account's own fee", () => {
+    const result = generateForecast({
+      balances: [
+        { id: "wise", name: "Wise Nanay", amount: 1000000, transactionFeeCentavos: 500 },
+        { id: "bdo", name: "BDO Tatay", amount: 200000 },
+      ],
+      recurringItems: [
+        monthlyItem({
+          id: "income-1",
+          name: "TNIT",
+          type: "income",
+          amount: 500000,
+          daysOfMonth: [5, 12],
+          balanceId: "wise",
+        }),
+      ],
+      overrides: [
+        { id: "ov-1", recurringItemId: "income-1", originalDate: "2026-01-05", newDate: null, newAmount: null, newName: null, skipped: true },
+      ],
+      oneOffs: [],
+      incomeAutoMoves: [{ id: "move-1", incomeId: "income-1", destinationBalanceId: "bdo", amount: 100000 }],
+      today: "2026-01-01",
+      horizon: "2026-01-31",
+    });
+
+    // Only the Jan 12 occurrence survives the skip - one pair, not two.
+    const autoMoveRows = result.filter((row) => row.sourceType === "income_auto_move");
+    expect(autoMoveRows).toHaveLength(2);
+    expect(autoMoveRows.every((row) => row.dueDate === "2026-01-12")).toBe(true);
+
+    const debit = autoMoveRows.find((row) => row.amount < 0)!;
+    expect(debit.feeAmount).toBe(500);
+    const credit = autoMoveRows.find((row) => row.amount > 0)!;
+    expect(credit.feeAmount).toBeUndefined();
+  });
+});
+
 // T174 ("run possible scenario"): scenario-sourced items pass a `fromScenario`
 // flag through to their forecast rows unchanged, so the UI can badge them
 // distinctly from real data. The engine itself doesn't know or care where a

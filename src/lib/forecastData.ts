@@ -11,6 +11,7 @@ import type {
   BudgetReplenishOverride,
   ForecastRow,
   GenerateForecastInput,
+  IncomeAutoMove,
   OccurrenceOverride,
   OneOffItem,
   RecurringItem,
@@ -37,6 +38,7 @@ export type ForecastData = {
   budgets: Budget[];
   budgetEntries: BudgetEntry[];
   budgetReplenishOverrides: BudgetReplenishOverride[];
+  incomeAutoMoves: IncomeAutoMove[];
   currency: string;
   balanceRanges: number[];
   tierLabels: string[];
@@ -68,6 +70,7 @@ export async function loadForecast(): Promise<ForecastData> {
     budgetsRes,
     entriesRes,
     replenishOverridesRes,
+    autoMovesRes,
     preferencesRes,
     activeScenariosRes,
   ] = await Promise.all([
@@ -88,6 +91,9 @@ export async function loadForecast(): Promise<ForecastData> {
     supabase
       .from("budget_replenish_overrides")
       .select("id, budget_id, original_date, skipped, new_date, new_amount"),
+    // T212: every rule, not just ones with active income occurrences ahead -
+    // generateForecast itself decides which ones actually produce rows.
+    supabase.from("income_auto_moves").select("id, income_id, destination_balance_id, amount"),
     supabase
       .from("preferences")
       .select("currency, balance_ranges, balance_tier_labels, sample_data_seeded_at")
@@ -109,7 +115,8 @@ export async function loadForecast(): Promise<ForecastData> {
     oneOffsRes.error ??
     budgetsRes.error ??
     entriesRes.error ??
-    replenishOverridesRes.error;
+    replenishOverridesRes.error ??
+    autoMovesRes.error;
   if (criticalError) {
     throw new Error(`Failed to load forecast data: ${criticalError.message}`);
   }
@@ -202,6 +209,13 @@ export async function loadForecast(): Promise<ForecastData> {
     // T168 (migration 0027)
     newDate: row.new_date,
     newAmount: row.new_amount,
+  }));
+
+  const incomeAutoMoves: IncomeAutoMove[] = (autoMovesRes.data ?? []).map((row) => ({
+    id: row.id,
+    incomeId: row.income_id,
+    destinationBalanceId: row.destination_balance_id,
+    amount: row.amount,
   }));
 
   // T174 ("run possible scenario"), extended by T183 to any number of
@@ -320,6 +334,7 @@ export async function loadForecast(): Promise<ForecastData> {
     budgets,
     budgetEntries,
     budgetReplenishOverrides,
+    incomeAutoMoves,
     today,
     horizon,
   };
@@ -332,6 +347,7 @@ export async function loadForecast(): Promise<ForecastData> {
     budgets,
     budgetEntries,
     budgetReplenishOverrides,
+    incomeAutoMoves,
     currency: preferencesRes.data?.currency ?? DEFAULT_CURRENCY,
     balanceRanges: preferencesRes.data?.balance_ranges ?? DEFAULT_BALANCE_RANGES,
     tierLabels: preferencesRes.data?.balance_tier_labels ?? DEFAULT_TIER_LABELS,

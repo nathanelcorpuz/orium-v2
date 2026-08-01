@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { formatCentavos } from "@/lib/money";
 import { formatFullDate, todayInManila } from "@/lib/date";
 import { PreviewModeBar } from "@/components/PreviewModeBar";
@@ -30,6 +31,10 @@ export function BalancesClient({
   // Forecast's hover tooltip already showed, surfaced directly and visibly
   // here instead - defaults to empty for preview mode.
   lowestPointByBalanceId = new Map(),
+  // T212: which income auto-moves land in this account, keyed by
+  // destination balance id - defaults to empty for preview mode, same as
+  // every other real-data map on this page.
+  autoMovesByDestination = new Map(),
   currency = "₱",
   today = todayInManila(),
   // T120: `?preview=1` renders a read-only sample fixture (see page.tsx) -
@@ -41,6 +46,7 @@ export function BalancesClient({
   connectedItems: ConnectedItem[];
   transactionsByBalanceId?: Map<string, BalanceTransactionRow[]>;
   lowestPointByBalanceId?: Map<string, AccountLowestPoint>;
+  autoMovesByDestination?: Map<string, { incomeId: string; incomeName: string; amount: number }[]>;
   currency?: string;
   today?: string;
   previewMode?: boolean;
@@ -79,6 +85,7 @@ export function BalancesClient({
           <ul className="space-y-2">
             {balances.map((balance) => {
               const lowest = lowestPointByBalanceId.get(balance.id);
+              const autoMoves = autoMovesByDestination.get(balance.id) ?? [];
               return (
               <li
                 key={balance.id}
@@ -97,6 +104,21 @@ export function BalancesClient({
                   {balance.comments && (
                     <p className="text-sm text-slate-400">{balance.comments}</p>
                   )}
+                  {/* T212: each rule links straight to editing the income
+                      behind it (IncomeClient.tsx's own ?editIncome=
+                      handling) - this pill is the "label" that request
+                      asked for, and the link is the "way to edit that
+                      income" asked for alongside it. */}
+                  {autoMoves.map((autoMove) => (
+                    <Link
+                      key={autoMove.incomeId}
+                      href={`/income?editIncome=${autoMove.incomeId}`}
+                      className="mt-1 block w-fit rounded-full bg-notion-hover px-2 py-0.5 text-xs font-medium text-slate-500 hover:bg-notion-hairline"
+                      title="Click to edit this income's auto-move rule"
+                    >
+                      Receives {formatCentavos(autoMove.amount, currency)} from {autoMove.incomeName} on settle
+                    </Link>
+                  ))}
                 </div>
                 <div className="flex flex-wrap items-center gap-2 sm:justify-end">
                   {previewMode ? null : confirmingDeleteId === balance.id ? (

@@ -33,11 +33,16 @@ export type IncomeRow = {
 // T71: options for the optional "connected account" dropdown.
 export type BalanceOption = { id: string; name: string };
 
+// T212: this income's own existing auto-move rules, for the edit form to
+// prefill - empty for a brand-new income (nothing to prefill).
+export type IncomeAutoMoveRow = { id: string; destination_balance_id: string; amount: number };
+
 const initialState: IncomeActionState = { error: null };
 
 export function IncomeModal({
   income,
   balances,
+  autoMoves = [],
   onClose,
   // T115: fired only on a genuine successful save, distinct from onClose
   // (which also fires on Cancel/X). NOTE: proved unreliable for the wizard
@@ -48,6 +53,10 @@ export function IncomeModal({
 }: {
   income: IncomeRow | null;
   balances: BalanceOption[];
+  // T212: empty for a brand-new income, or when the caller (e.g. the
+  // onboarding wizard) doesn't carry this feature at all - defaults keep
+  // every existing call site valid.
+  autoMoves?: IncomeAutoMoveRow[];
   onClose: () => void;
   onSaved?: () => void;
   createActionOverride?: typeof createIncome;
@@ -58,6 +67,15 @@ export function IncomeModal({
     initialState,
   );
   const [startDate, setStartDate] = useState(income?.start_date ?? todayInManila());
+  // T212: each row is (destination account, amount) - "on settle, move ₱X
+  // to account Y." An empty destination is a blank/unfinished row, filtered
+  // out on submit rather than blocked from being added, same forgiving
+  // pattern this app's other optional repeatable lists use.
+  const [autoMoveRows, setAutoMoveRows] = useState(
+    autoMoves.length > 0
+      ? autoMoves.map((m) => ({ destinationBalanceId: m.destination_balance_id, amountPesos: centavosToPesosString(m.amount) }))
+      : [],
+  );
   const submitted = useRef(false);
 
   const initialRecurrenceValue: RecurrenceValue | null = income
@@ -164,6 +182,67 @@ export function IncomeModal({
             account&rsquo;s balance - you never have to update the balance by hand. Left blank, it
             still counts toward your forecast, just not toward one specific account.
           </FormTip>
+        </div>
+        <div>
+          <label className="block text-sm text-slate-600">Auto-move on settle (optional)</label>
+          <p className="mt-0.5 text-xs text-slate-400">
+            When this income settles, automatically move a portion into another account -
+            e.g. split a paycheck between accounts. Only takes effect once &ldquo;Added to&rdquo;
+            above is set.
+          </p>
+          <div className="mt-2 space-y-2">
+            {autoMoveRows.map((row, index) => (
+              <div key={index} className="flex items-center gap-2">
+                <select
+                  name="autoMoveDestinationId"
+                  value={row.destinationBalanceId}
+                  onChange={(event) => {
+                    const next = [...autoMoveRows];
+                    next[index] = { ...row, destinationBalanceId: event.target.value };
+                    setAutoMoveRows(next);
+                  }}
+                  className="min-w-0 flex-1 rounded border border-notion-hairline p-2 text-notion-text focus:border-notion-accent focus:outline-none"
+                >
+                  <option value="">Choose account</option>
+                  {balances.map((balance) => (
+                    <option key={balance.id} value={balance.id}>
+                      {balance.name}
+                    </option>
+                  ))}
+                </select>
+                <input
+                  name="autoMoveAmountPesos"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  placeholder="Amount"
+                  onKeyDown={blockNegativeKey}
+                  value={row.amountPesos}
+                  onChange={(event) => {
+                    const next = [...autoMoveRows];
+                    next[index] = { ...row, amountPesos: event.target.value };
+                    setAutoMoveRows(next);
+                  }}
+                  className="w-28 rounded border border-notion-hairline p-2 text-notion-text focus:border-notion-accent focus:outline-none"
+                />
+                <button
+                  type="button"
+                  onClick={() => setAutoMoveRows(autoMoveRows.filter((_, i) => i !== index))}
+                  className="rounded border border-notion-hairline px-2 py-2 text-xs text-slate-500 hover:bg-notion-hover"
+                  aria-label="Remove auto-move rule"
+                >
+                  ✕
+                </button>
+              </div>
+            ))}
+            <button
+              type="button"
+              onClick={() => setAutoMoveRows([...autoMoveRows, { destinationBalanceId: "", amountPesos: "" }])}
+              className="rounded border border-notion-hairline px-3 py-1 text-xs text-notion-text hover:bg-notion-hover"
+            >
+              + Add auto-move rule
+            </button>
+          </div>
         </div>
         <div>
           <label className="block text-sm text-slate-600" htmlFor="comments">

@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { formatCentavos } from "@/lib/money";
 import { monthlyEquivalent } from "@/lib/engine/monthlyTotals";
 import { startDateLabel, summarizeRecurrence } from "@/lib/recurrenceSummary";
@@ -17,7 +18,7 @@ import type { ForecastRow, RecurrenceUnit } from "@/lib/engine/types";
 import { useOrderedList } from "@/lib/useOrderedList";
 import { ItemTransactionsModal, type SettlementRow } from "@/components/recurring/ItemTransactionsModal";
 import { deleteIncome } from "./actions";
-import { IncomeModal, type BalanceOption, type IncomeRow } from "./IncomeModal";
+import { IncomeModal, type BalanceOption, type IncomeAutoMoveRow, type IncomeRow } from "./IncomeModal";
 
 const UNIT_OPTIONS: { value: RecurrenceUnit; label: string }[] = [
   { value: "day", label: "Day" },
@@ -52,6 +53,7 @@ export function IncomeClient({
   linkedBudgets,
   upcomingByItemId,
   paidByItemId,
+  autoMovesByIncomeId = new Map(),
   currency,
 }: {
   incomes: IncomeRow[];
@@ -62,9 +64,24 @@ export function IncomeClient({
   // already had (MonthlyGoalsClient).
   upcomingByItemId: Map<string, ForecastRow[]>;
   paidByItemId: Map<string, SettlementRow[]>;
+  // T212: this income's own auto-move rules, keyed by income id - for the
+  // "Auto-moves: X" pill and prefilling the edit form.
+  autoMovesByIncomeId?: Map<string, IncomeAutoMoveRow[]>;
   currency: string;
 }) {
-  const [modalState, setModalState] = useState<null | "new" | IncomeRow>(null);
+  // T212: a link from elsewhere (the Accounts page's own "Receives ₱X from
+  // {income}" pill, or a Forecast auto-move row) can jump straight to
+  // editing the income behind it via ?editIncome={id}. Resolved as a lazy
+  // initial state rather than an effect - `searchParams` is already
+  // available on the very first render, so there's nothing to synchronize
+  // after the fact, and this avoids the extra render an effect-driven
+  // setState would cause.
+  const searchParams = useSearchParams();
+  const [modalState, setModalState] = useState<null | "new" | IncomeRow>(() => {
+    const editIncomeId = searchParams.get("editIncome");
+    if (!editIncomeId) return null;
+    return incomes.find((income) => income.id === editIncomeId) ?? null;
+  });
   const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null);
   const [viewingItem, setViewingItem] = useState<IncomeRow | null>(null);
 
@@ -274,6 +291,7 @@ export function IncomeClient({
           <ul className="space-y-2">
             {sortedIncomes.map((income, index) => {
               const funds = budgetNamesByIncomeId.get(income.id);
+              const autoMoves = autoMovesByIncomeId.get(income.id) ?? [];
               return (
               <li
                 key={income.id}
@@ -329,6 +347,20 @@ export function IncomeClient({
                         title="Budgets funded from this income"
                       >
                         Funds: {funds.join(", ")}
+                      </span>
+                    )}
+                    {autoMoves.length > 0 && (
+                      <span
+                        className="rounded-full bg-notion-hover px-2 py-0.5 text-xs font-medium text-slate-500"
+                        title="Auto-moved to another account when this income settles"
+                      >
+                        Auto-moves:{" "}
+                        {autoMoves
+                          .map(
+                            (m) =>
+                              `${formatCentavos(m.amount)} to ${balanceNameById.get(m.destination_balance_id) ?? "-"}`,
+                          )
+                          .join(", ")}
                       </span>
                     )}
                   </div>
@@ -388,6 +420,7 @@ export function IncomeClient({
           <IncomeModal
             income={modalState === "new" ? null : modalState}
             balances={balances}
+            autoMoves={modalState === "new" ? [] : (autoMovesByIncomeId.get(modalState.id) ?? [])}
             onClose={() => setModalState(null)}
           />
         )}

@@ -295,6 +295,21 @@ export async function settleOccurrence(
 
   const totalAllocation = linkedBudgets.reduce((sum, budget) => sum + (replenishAmountFor(budget) ?? 0), 0);
 
+  // T212: same "fetch before the cash side is touched, net it into one
+  // write" reasoning as `linkedBudgets` above - an auto-move also comes out
+  // of the same account the income lands in.
+  type AutoMove = { id: string; destination_balance_id: string; amount: number };
+  let autoMoves: AutoMove[] = [];
+  if (sourceType === "recurring" && type === "income") {
+    const { data, error: autoMovesError } = await supabase
+      .from("income_auto_moves")
+      .select("id, destination_balance_id, amount")
+      .eq("income_id", sourceId);
+    if (autoMovesError) return { error: autoMovesError.message };
+    autoMoves = data ?? [];
+  }
+  const totalAutoMove = autoMoves.reduce((sum, autoMove) => sum + autoMove.amount, 0);
+
   // T71 (SPEC.md Phase 12): if an account is selected (pre-filled from the
   // item's own linked balance, but overridable per-settlement), apply the
   // actual amount to it - this is the one moment money really moves, so it's
@@ -317,7 +332,7 @@ export async function settleOccurrence(
     const balanceError = await applyToBalance(
       supabase,
       fields.balanceId,
-      actualAmount - totalAllocation,
+      actualAmount - totalAllocation - totalAutoMove,
       fields.feeAmount,
     );
     if (balanceError) return { error: balanceError };
@@ -329,6 +344,62 @@ export async function settleOccurrence(
     entityName: name,
     detail: `${formatCentavos(actualAmount)} on ${formatFullDate(fields.actualDate)}`,
   });
+
+  // T212: the source side's balance change is already folded into the net
+  // write above (same reasoning as budget allocations) - this only credits
+  // each destination account and logs both legs to balance_transactions, the
+  // same two-leg shape a manual Move funds (T186) already writes, so both
+  // accounts' own History view shows where the money came from/went.
+  if (fields.balanceId && autoMoves.length > 0) {
+    const { data: sourceBalance, error: sourceBalanceError } = await supabase
+      .from("balances")
+      .select("name")
+      .eq("id", fields.balanceId)
+      .single();
+    if (sourceBalanceError) return { error: sourceBalanceError.message };
+
+    for (const autoMove of autoMoves) {
+      const { data: destBalance, error: destFetchError } = await supabase
+        .from("balances")
+        .select("amount, name")
+        .eq("id", autoMove.destination_balance_id)
+        .single();
+      if (destFetchError) return { error: destFetchError.message };
+
+      const { error: destUpdateError } = await supabase
+        .from("balances")
+        .update({ amount: destBalance.amount + autoMove.amount })
+        .eq("id", autoMove.destination_balance_id);
+      if (destUpdateError) return { error: destUpdateError.message };
+
+      const { error: outLegError } = await supabase.from("balance_transactions").insert({
+        user_id: user.id,
+        balance_id: fields.balanceId,
+        entry_date: fields.actualDate,
+        amount: autoMove.amount,
+        direction: "outgoing",
+        note: `Auto-moved to ${destBalance.name}`,
+      });
+      if (outLegError) return { error: outLegError.message };
+
+      const { error: inLegError } = await supabase.from("balance_transactions").insert({
+        user_id: user.id,
+        balance_id: autoMove.destination_balance_id,
+        entry_date: fields.actualDate,
+        amount: autoMove.amount,
+        direction: "incoming",
+        note: `Auto-moved from ${sourceBalance.name} (${name} settling)`,
+      });
+      if (inLegError) return { error: inLegError.message };
+    }
+
+    await logActivity(supabase, user.id, {
+      action: "update",
+      entityType: "account",
+      entityName: sourceBalance.name,
+      detail: `Auto-moved ${formatCentavos(totalAutoMove)} on settling ${name}`,
+    });
+  }
 
   if (sourceType === "recurring") {
     const { error } = await supabase.from("occurrence_overrides").upsert(

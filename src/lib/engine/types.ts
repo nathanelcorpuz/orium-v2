@@ -154,6 +154,20 @@ export interface BudgetReplenishOverride {
   newAmount?: number | null;
 }
 
+// SPEC.md T212 (user request 2026-08-01): "when an income arrives to a
+// certain account connected to it, it needs to auto move a portion of the
+// income amount received to another main account." The rule lives on the
+// income (not the destination) - one income can define several of these, so
+// a paycheck can split across accounts. Only ever takes effect when the
+// income itself has a connected account (RecurringItem.balanceId) - that's
+// where the money actually comes from.
+export interface IncomeAutoMove {
+  id: string;
+  incomeId: string;
+  destinationBalanceId: string;
+  amount: number; // centavos, positive magnitude
+}
+
 export interface BudgetEntry {
   id: string;
   budgetId: string;
@@ -176,13 +190,17 @@ export interface ForecastRow {
   // back - a projected future replenish occurrence (own schedule or linked
   // income's), a real deduction from cash flow once settled, not a soft
   // reservation like the old "budget" rows were.
-  sourceType: "recurring" | "one_off" | "budget_entry" | "budget_replenish";
+  // T212: "income_auto_move" - a projected settle-time transfer leg (see
+  // IncomeAutoMove above), always generated in pairs (one outgoing on the
+  // income's own account, one incoming on the destination), the same way a
+  // manual Move funds (T186) shows up as two ledger legs.
+  sourceType: "recurring" | "one_off" | "budget_entry" | "budget_replenish" | "income_auto_move";
   sourceId: string;
   originalDate: string;
   name: string;
   amount: number; // centavos
   dueDate: string;
-  type: RecurringItemType | "extra" | "budget";
+  type: RecurringItemType | "extra" | "budget" | "auto_move";
   runningBalance: number; // centavos
   // budget_entry and budget_replenish rows: the parent budget's id/name and
   // the entry's own note (budget_entry only), separate from `name` (which
@@ -254,6 +272,12 @@ export interface ForecastRow {
   // above - a row is one, the other, or neither. Omitted (not false) for
   // ordinary future rows, same convention as every other flag here.
   dueToday?: true;
+  // T212: "income_auto_move" rows only - the income the rule is attached
+  // to, so the UI can link back to editing it. These rows aren't
+  // independently editable (they settle automatically with the income,
+  // same as an income-linked budget_replenish row), so this is the only way
+  // back to the thing that actually controls them.
+  linkedIncomeId?: string;
 }
 
 export interface GenerateForecastInput {
@@ -264,6 +288,7 @@ export interface GenerateForecastInput {
   budgets?: Budget[];
   budgetEntries?: BudgetEntry[];
   budgetReplenishOverrides?: BudgetReplenishOverride[];
+  incomeAutoMoves?: IncomeAutoMove[];
   today: string; // YYYY-MM-DD
   horizon: string; // YYYY-MM-DD
 }

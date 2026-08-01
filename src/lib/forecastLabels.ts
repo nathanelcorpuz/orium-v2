@@ -18,6 +18,7 @@ export const TYPE_LABEL: Record<ForecastRow["type"], string> = {
   extra: "misc",
   bill: "bill",
   budget: "budget",
+  auto_move: "transfer",
 };
 
 export const TYPE_COLOR: Record<ForecastRow["type"], string> = {
@@ -27,4 +28,5 @@ export const TYPE_COLOR: Record<ForecastRow["type"], string> = {
   extra: "text-purple-700",
   bill: "text-notion-text",
   budget: "text-notion-budget",
+  auto_move: "text-cyan-700",
 };

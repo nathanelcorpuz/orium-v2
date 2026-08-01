@@ -231,6 +231,7 @@ export function BudgetsClient({
                     incomes={incomes}
                     balances={balances}
                     budgets={budgets}
+                    budgetAccounts={budgetAccounts}
                     onEdit={() => setModalState(budget)}
                     edited={editedIds.has(budget.id)}
                     handledDates={handledDatesByBudgetId[budget.id] ?? []}

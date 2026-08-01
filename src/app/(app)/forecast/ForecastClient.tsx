@@ -48,6 +48,7 @@ const TYPE_OPTIONS: { value: ForecastRow["type"]; label: string }[] = [
   { value: "savings", label: "Savings" },
   { value: "extra", label: "Misc" },
   { value: "budget", label: "Budget" },
+  { value: "auto_move", label: "Auto-move" },
 ];
 
 // T90, one table since T161: drives a row's clickability -
@@ -83,9 +84,23 @@ function forecastRowProps(row: ForecastRow, isClickable: boolean, onSelect: (row
 // "auto"-replenish italic+badge treatment meant specifically for that one
 // row kind.
 function ForecastNameCell({ row, isAutoReplenish }: { row: ForecastRow; isAutoReplenish: boolean }) {
+  // T212: an auto-move row settles automatically with its income, the same
+  // "never independently editable here" shape as isAutoReplenish above - so
+  // it gets the same italic treatment, plus a direct link to the one place
+  // it actually can be changed (the income's own edit form).
+  const isAutoMove = row.sourceType === "income_auto_move";
   return (
     <>
-      {isAutoReplenish ? <span className="italic text-slate-500">{row.name}</span> : row.name}
+      {isAutoReplenish || isAutoMove ? <span className="italic text-slate-500">{row.name}</span> : row.name}
+      {isAutoMove && row.linkedIncomeId && (
+        <Link
+          href={`/income?editIncome=${row.linkedIncomeId}`}
+          onClick={(event) => event.stopPropagation()}
+          className="ml-1.5 text-xs text-notion-accent underline"
+        >
+          edit income
+        </Link>
+      )}
       {row.edited && (
         <span className="ml-1.5 text-slate-400" title="Edited from its usual schedule">
           ✎
@@ -773,7 +788,14 @@ export function ForecastClient({
                         // settlement referencing an id that doesn't exist in
                         // the real tables. Must stay non-clickable here;
                         // editing happens on /scenarios instead.
-                        const isClickable = !previewMode && !row.fromScenario;
+                        // T212: an auto-move row settles automatically with
+                        // its income and has no independent edit/settle form
+                        // of its own - EditSettleModal would have nothing
+                        // real to do with it (see ForecastNameCell's "edit
+                        // income" link above for the actual way to change
+                        // it).
+                        const isClickable =
+                          !previewMode && !row.fromScenario && row.sourceType !== "income_auto_move";
                         return (
                           <tr
                             key={`${row.sourceType}-${row.sourceId}-${row.originalDate}-${index}`}

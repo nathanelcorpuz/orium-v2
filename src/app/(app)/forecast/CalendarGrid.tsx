@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import { formatCentavos } from "@/lib/money";
 import { formatFullDate, formatMonthYear, todayInManila } from "@/lib/date";
 import { daysInMonth, formatDate } from "@/lib/engine/date-utils";
@@ -219,13 +220,18 @@ export function CalendarGrid({
                     // about. Same exclusion ForecastClient.tsx applies; editing
                     // happens on /scenarios instead. Preview mode disables it
                     // for the same reason table rows are disabled there.
-                    disabled={row.fromScenario || previewMode}
+                    // T212: an auto-move row settles automatically with its
+                    // income and has nothing of its own to open here either -
+                    // see the "edit income" link rendered alongside it below.
+                    disabled={row.fromScenario || previewMode || row.sourceType === "income_auto_move"}
                     onClick={() => {
                       setOpenDay(null);
                       setSelectedRow(row);
                     }}
                     className={`flex w-full items-center justify-between rounded border border-notion-hairline p-2 text-left ${
-                      row.fromScenario || previewMode ? "cursor-default" : "hover:bg-notion-hover"
+                      row.fromScenario || previewMode || row.sourceType === "income_auto_move"
+                        ? "cursor-default"
+                        : "hover:bg-notion-hover"
                     }`}
                   >
                     <span className="min-w-0 flex-1 truncate">
@@ -238,6 +244,15 @@ export function CalendarGrid({
                         >
                           scenario
                         </span>
+                      )}
+                      {row.sourceType === "income_auto_move" && row.linkedIncomeId && (
+                        <Link
+                          href={`/income?editIncome=${row.linkedIncomeId}`}
+                          onClick={(event) => event.stopPropagation()}
+                          className="ml-1.5 text-xs text-notion-accent underline"
+                        >
+                          edit income
+                        </Link>
                       )}
                     </span>
                     <span className="ml-2 shrink-0 text-right text-sm text-slate-600">

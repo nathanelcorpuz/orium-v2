@@ -6,8 +6,15 @@ import { IncomeClient } from "./IncomeClient";
 
 export default async function IncomePage() {
   const supabase = await createClient();
-  const [{ data: incomes, error }, overridesRes, balancesRes, budgetsRes, settlementsRes, { forecast, currency }] =
-    await Promise.all([
+  const [
+    { data: incomes, error },
+    overridesRes,
+    balancesRes,
+    budgetsRes,
+    settlementsRes,
+    autoMovesRes,
+    { forecast, currency },
+  ] = await Promise.all([
       supabase
         .from("recurring_items")
         .select(
@@ -29,6 +36,9 @@ export default async function IncomePage() {
         .select("id, source_id, name, forecasted_amount, actual_amount, forecasted_date, actual_date")
         .eq("type", "income")
         .order("actual_date", { ascending: false }),
+      // T212: every income's auto-move rules, for both display (the "Auto-
+      // moves: X" pill) and prefilling IncomeModal's edit form.
+      supabase.from("income_auto_moves").select("id, income_id, destination_balance_id, amount"),
       // Reused for each item's "Upcoming" view - already override-aware, so
       // no separate expansion logic is needed here.
       loadForecast(),
@@ -44,6 +54,7 @@ export default async function IncomePage() {
     (row) => row.sourceId,
   );
   const paidByItemId = groupBy(settlementsRes.data ?? [], (row) => row.source_id);
+  const autoMovesByIncomeId = groupBy(autoMovesRes.data ?? [], (row) => row.income_id);
 
   return (
     <IncomeClient
@@ -53,6 +64,7 @@ export default async function IncomePage() {
       linkedBudgets={budgetsRes.data ?? []}
       upcomingByItemId={upcomingByItemId}
       paidByItemId={paidByItemId}
+      autoMovesByIncomeId={autoMovesByIncomeId}
       currency={currency}
     />
   );

@@ -262,6 +262,58 @@ export function generateForecast(input: GenerateForecastInput): ForecastRow[] {
     }
   }
 
+  // SPEC.md T212 (user request 2026-08-01): a projected settle-time transfer
+  // out of an income's own connected account, into another main account -
+  // always generated as a pair (one outgoing on the source, one incoming on
+  // the destination), the same way settling it for real will write two
+  // balance_transactions legs (settleOccurrence, forecast/actions.ts). Uses
+  // the income's own *effective* occurrence dates (computed above, already
+  // override-aware) - a moved or skipped income occurrence moves or skips
+  // its auto-moves with it, same as a linked budget's replenishment does.
+  //
+  // A rule only takes effect once its income actually has a connected
+  // account - otherwise there is nothing to move money out of, so it's
+  // silently dormant rather than an error (matches how settleOccurrence
+  // itself only applies a settlement to `fields.balanceId` when one is set).
+  const balanceById = new Map(balances.map((balance) => [balance.id, balance]));
+  for (const autoMove of input.incomeAutoMoves ?? []) {
+    const sourceBalanceId = balanceIdByRecurringItemId.get(autoMove.incomeId);
+    if (!sourceBalanceId) continue;
+    const destination = balanceById.get(autoMove.destinationBalanceId);
+    if (!destination) continue;
+    const source = balanceById.get(sourceBalanceId);
+
+    for (const { originalDate, effectiveDate } of incomeEffectiveOccurrences.get(autoMove.incomeId) ?? []) {
+      rows.push({
+        sourceType: "income_auto_move",
+        sourceId: autoMove.id,
+        originalDate,
+        name: `Auto-move to ${destination.name}`,
+        amount: -autoMove.amount,
+        dueDate: effectiveDate,
+        type: "auto_move",
+        balanceId: sourceBalanceId,
+        linkedIncomeId: autoMove.incomeId,
+        // T172: the source account's own fee, same as any other transaction
+        // touching it - a genuinely separate transfer, not a same-money
+        // split like a budget replenishment (which deliberately carries no
+        // fee here - see the budget_replenish row above).
+        feeAmount: feeByBalanceId.get(sourceBalanceId),
+      });
+      rows.push({
+        sourceType: "income_auto_move",
+        sourceId: autoMove.id,
+        originalDate,
+        name: `Auto-move from ${source?.name ?? "account"}`,
+        amount: autoMove.amount,
+        dueDate: effectiveDate,
+        type: "auto_move",
+        balanceId: autoMove.destinationBalanceId,
+        linkedIncomeId: autoMove.incomeId,
+      });
+    }
+  }
+
   // Array.prototype.sort is stable (ES2019+), so equal due-date-and-sign rows keep
   // their insertion order. Same-day rows put incoming amounts (income, refunds) before
   // outgoing ones so the running balance reflects money landing before it's spent.

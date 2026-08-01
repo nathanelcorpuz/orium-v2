@@ -21,6 +21,7 @@ import { deleteBudget } from "./actions";
 import { BudgetEntriesModal } from "./BudgetEntriesModal";
 import { LogSpendModal } from "./LogSpendModal";
 import { FundsModal } from "./FundsModal";
+import type { BudgetAccountRow } from "./BudgetAccountModal";
 
 // Simplified, page-local shapes (SPEC.md Phase 10/T55) - the fuller
 // budgetView.ts versions of these still exist for actions.ts's own
@@ -82,6 +83,7 @@ export function BudgetCard({
   incomes,
   balances,
   budgets,
+  budgetAccounts,
   onEdit,
   edited,
   handledDates = [],
@@ -98,6 +100,10 @@ export function BudgetCard({
   // aren't any right now, but keeps this consistent with BudgetsClient's own
   // BudgetAccountRow[] pattern) don't have to pass it.
   budgets: BudgetRow[];
+  // User request 2026-08-01: resolve budget.budget_account_id (T204) to its
+  // own name, so the card shows which budget account it's linked to - not
+  // just the unrelated "From account" (the linked income's main account).
+  budgetAccounts: BudgetAccountRow[];
   onEdit: () => void;
   edited: boolean;
   // T167: replenish occurrences already settled, so the countdown below moves
@@ -161,6 +167,12 @@ export function BudgetCard({
   const linkedAccountName = linkedIncome?.balanceId
     ? (balances.find((balance) => balance.id === linkedIncome.balanceId)?.name ?? null)
     : null;
+  // User request 2026-08-01: the budget account this budget itself is
+  // linked to (T204's storage layer) - distinct from linkedAccountName
+  // above, which is the linked income's own main account.
+  const budgetAccountName = budget.budget_account_id
+    ? (budgetAccounts.find((account) => account.id === budget.budget_account_id)?.name ?? null)
+    : null;
   // T175: undefined (older rows, or a fixture that never set it) means active.
   const isActive = budget.active !== false;
 
@@ -184,6 +196,9 @@ export function BudgetCard({
           {frequencyLabel && <p className="mt-0.5 text-xs text-slate-400">{frequencyLabel}</p>}
           {linkedAccountName && (
             <p className="mt-0.5 text-xs text-slate-400">From account: {linkedAccountName}</p>
+          )}
+          {budgetAccountName && (
+            <p className="mt-0.5 text-xs text-slate-400">Budget account: {budgetAccountName}</p>
           )}
           <p className={`text-xl font-semibold ${balance < 0 ? "text-red-600" : "text-notion-text"}`}>
             {formatCentavos(balance)}
