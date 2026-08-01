@@ -27,6 +27,7 @@ export function EditSettleModal({
   currency,
   balances,
   accountBalanceAtRow = null,
+  frequencySummary = null,
   onClose,
 }: {
   row: ForecastRow;
@@ -40,6 +41,13 @@ export function EditSettleModal({
   // (accountBalances.ts). Null covers every case where there's nothing to
   // show: no connected account, or a stale/deleted one.
   accountBalanceAtRow?: number | null;
+  // T199 (user request): this row's own recurrence frequency, if it has
+  // one - computed by the caller via `summarizeRecurrence`/
+  // `budgetReplenishRuleSummary` (recurrenceSummary.ts), since it needs the
+  // full recurring-items/budgets lists this modal itself doesn't carry.
+  // Null for a one-off, a budget entry, or a manual budget - nothing to
+  // summarize.
+  frequencySummary?: string | null;
   onClose: () => void;
 }) {
   const connectedAccountName = row.balanceId ? (balances.find((b) => b.id === row.balanceId)?.name ?? null) : null;
@@ -152,18 +160,38 @@ export function EditSettleModal({
 
   return (
     <Modal title={row.name} onClose={onClose}>
-      {/* T191 (user request): shown up front, not tucked behind "See more" -
-          the whole point is knowing this without an extra click. Only
-          renders when there's actually a connected account with something
-          to report (see the prop's own comment for the null cases). */}
-      {connectedAccountName && accountBalanceAtRow !== null && (
-        <p className="mb-4 rounded border border-notion-hairline bg-notion-hover/40 p-2 text-sm text-slate-600">
-          <span className="font-medium text-notion-text">{connectedAccountName}</span> will be{" "}
-          <span className="font-medium text-notion-text">
-            {centavosToPesosString(accountBalanceAtRow)} {currency}
-          </span>{" "}
-          after this.
-        </p>
+      {/* T191/T199 (user request): shown up front, not tucked behind "See
+          more" - the whole point of each line is knowing it without an
+          extra click. Each renders independently of the others, so a row
+          missing one (e.g. an own-schedule budget has no account balance
+          line, a plain bill has no "goes to budget" line) just shows
+          whichever apply. */}
+      {((connectedAccountName && accountBalanceAtRow !== null) || row.budgetName || frequencySummary) && (
+        <div className="mb-4 space-y-1 rounded border border-notion-hairline bg-notion-hover/40 p-2 text-sm text-slate-600">
+          {connectedAccountName && accountBalanceAtRow !== null && (
+            <p>
+              <span className="font-medium text-notion-text">{connectedAccountName}</span> will be{" "}
+              <span className="font-medium text-notion-text">
+                {centavosToPesosString(accountBalanceAtRow)} {currency}
+              </span>{" "}
+              after this.
+            </p>
+          )}
+          {/* T199: distinct from the modal's own title (which already
+              carries the budget's name for a budget_replenish/budget_entry
+              row) - the user asked for this as its own labeled value, not
+              just the title text. */}
+          {row.budgetName && (
+            <p>
+              Goes to budget: <span className="font-medium text-notion-text">{row.budgetName}</span>
+            </p>
+          )}
+          {frequencySummary && (
+            <p>
+              Frequency: <span className="font-medium text-notion-text">{frequencySummary}</span>
+            </p>
+          )}
+        </div>
       )}
       {/* T158: the table shows only name and amount, so everything else about
           a row required opening the underlying record on another page.

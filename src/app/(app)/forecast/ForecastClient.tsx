@@ -17,7 +17,8 @@ import { ScenarioModeBar } from "@/components/ScenarioModeBar";
 import { SubmitButton } from "@/components/SubmitButton";
 import { toggleScenarioActive } from "@/app/(app)/scenarios/actions";
 import { TYPE_COLOR, TYPE_LABEL } from "@/lib/forecastLabels";
-import type { ForecastRow } from "@/lib/engine/types";
+import { summarizeRecurrence, budgetReplenishRuleSummary } from "@/lib/recurrenceSummary";
+import type { ForecastRow, Budget, RecurringItem } from "@/lib/engine/types";
 import type { ConnectedItem } from "@/lib/connectedItems";
 import type { LowestBalancePoint } from "@/lib/engine/lowestBalance";
 import { EditSettleModal } from "./EditSettleModal";
@@ -145,6 +146,8 @@ function ForecastBalanceCell({
 export function ForecastClient({
   forecast,
   balances,
+  recurringItems,
+  budgets,
   currency,
   balanceRanges,
   tierLabels,
@@ -160,6 +163,11 @@ export function ForecastClient({
 }: {
   forecast: ForecastRow[];
   balances: BalanceRow[];
+  // T199: for the "frequency" line in EditSettleModal/CalendarGrid - a
+  // recurring row's own rule, or a budget_replenish row's linked income's
+  // rule (via budgetReplenishRuleSummary).
+  recurringItems: RecurringItem[];
+  budgets: Budget[];
   currency: string;
   balanceRanges: number[];
   tierLabels: string[];
@@ -301,6 +309,28 @@ export function ForecastClient({
     () => computeAccountBalancesAfterEachRow(forecast, balances),
     [forecast, balances],
   );
+
+  // T199 (user request): a forecasted transaction's own recurrence
+  // frequency, shown when it's clicked - for a "recurring" row, its own
+  // rule; for a "budget_replenish" row, its budget's effective rule
+  // (linked income's, or its own schedule). One-off/budget_entry rows have
+  // no recurrence at all, so this returns null for them.
+  const recurringItemsById = useMemo(
+    () => new Map(recurringItems.map((item) => [item.id, item])),
+    [recurringItems],
+  );
+  const budgetsById = useMemo(() => new Map(budgets.map((budget) => [budget.id, budget])), [budgets]);
+  function frequencyForRow(row: ForecastRow): string | null {
+    if (row.sourceType === "recurring") {
+      const item = recurringItemsById.get(row.sourceId);
+      return item ? summarizeRecurrence(item) : null;
+    }
+    if (row.sourceType === "budget_replenish" && row.budgetId) {
+      const budget = budgetsById.get(row.budgetId);
+      return budget ? budgetReplenishRuleSummary(budget, recurringItemsById) : null;
+    }
+    return null;
+  }
 
   const filteredForecast = useMemo(() => {
     const name = nameFilter.trim().toLowerCase();
@@ -653,6 +683,8 @@ export function ForecastClient({
               <CalendarGrid
                 forecast={forecast}
                 balances={balances}
+                recurringItems={recurringItems}
+                budgets={budgets}
                 currency={currency}
                 reminders={reminders}
                 previewMode={previewMode}
@@ -805,6 +837,7 @@ export function ForecastClient({
           currency={currency}
           balances={balances}
           accountBalanceAtRow={accountBalanceForRow(selectedRow, accountBalanceAfterRow)}
+          frequencySummary={frequencyForRow(selectedRow)}
           onClose={() => setSelectedRow(null)}
         />
       )}

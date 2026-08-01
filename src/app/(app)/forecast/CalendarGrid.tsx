@@ -6,10 +6,11 @@ import { formatFullDate, formatMonthYear, todayInManila } from "@/lib/date";
 import { daysInMonth, formatDate } from "@/lib/engine/date-utils";
 import { accountBalanceForRow, computeAccountBalancesAfterEachRow } from "@/lib/engine/accountBalances";
 import { TYPE_COLOR, TYPE_LABEL } from "@/lib/forecastLabels";
+import { summarizeRecurrence, budgetReplenishRuleSummary } from "@/lib/recurrenceSummary";
 import { ChevronIcon } from "@/components/navIcons";
 import { Modal } from "@/components/Modal";
 import { EditSettleModal } from "./EditSettleModal";
-import type { ForecastRow } from "@/lib/engine/types";
+import type { ForecastRow, Budget, RecurringItem } from "@/lib/engine/types";
 import type { BalanceRow } from "@/app/(app)/accounts/BalanceModal";
 import type { ReminderRow } from "./RemindersPanel";
 
@@ -39,12 +40,17 @@ function addMonths(monthStr: string, delta: number): string {
 export function CalendarGrid({
   forecast,
   balances,
+  recurringItems,
+  budgets,
   currency,
   reminders,
   previewMode = false,
 }: {
   forecast: ForecastRow[];
   balances: BalanceRow[];
+  // T199: same frequency lookup ForecastClient's table uses.
+  recurringItems: RecurringItem[];
+  budgets: Budget[];
   currency: string;
   reminders: ReminderRow[];
   previewMode?: boolean;
@@ -53,6 +59,22 @@ export function CalendarGrid({
   const [viewMonth, setViewMonth] = useState(() => monthKey(today));
   const [openDay, setOpenDay] = useState<string | null>(null);
   const [selectedRow, setSelectedRow] = useState<ForecastRow | null>(null);
+  const recurringItemsById = useMemo(
+    () => new Map(recurringItems.map((item) => [item.id, item])),
+    [recurringItems],
+  );
+  const budgetsById = useMemo(() => new Map(budgets.map((budget) => [budget.id, budget])), [budgets]);
+  function frequencyForRow(row: ForecastRow): string | null {
+    if (row.sourceType === "recurring") {
+      const item = recurringItemsById.get(row.sourceId);
+      return item ? summarizeRecurrence(item) : null;
+    }
+    if (row.sourceType === "budget_replenish" && row.budgetId) {
+      const budget = budgetsById.get(row.budgetId);
+      return budget ? budgetReplenishRuleSummary(budget, recurringItemsById) : null;
+    }
+    return null;
+  }
 
   const rowsByDate = useMemo(() => {
     const map = new Map<string, ForecastRow[]>();
@@ -240,6 +262,7 @@ export function CalendarGrid({
           currency={currency}
           balances={balances}
           accountBalanceAtRow={accountBalanceForRow(selectedRow, accountBalanceAfterRow)}
+          frequencySummary={frequencyForRow(selectedRow)}
           onClose={() => setSelectedRow(null)}
         />
       )}

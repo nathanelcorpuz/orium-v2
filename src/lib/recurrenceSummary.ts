@@ -1,4 +1,4 @@
-import type { RecurrenceRule } from "./engine/types";
+import type { Budget, RecurrenceRule, RecurringItem } from "./engine/types";
 import { MONTH_ABBR, formatFullDate, formatMonthYear } from "./date";
 
 // Display formatting for a recurrence rule (e.g. "Every 2 weeks on Sat ·
@@ -100,4 +100,49 @@ export function summarizeRecurrence(rule: RecurrenceRule): string {
         : `Every ${rule.interval} years on ${monthDay}${suffix}`;
     }
   }
+}
+
+// T199 (user request): a budget_replenish row's own "frequency" - an
+// income-linked budget borrows its linked income's rule (that's what
+// actually drives when it replenishes); an own-schedule budget already
+// carries the full rule shape itself. Returns null for a manual budget
+// (neither) - nothing to summarize. Lives here rather than budgetLedger.ts
+// since it's display formatting, same reasoning summarizeRecurrence itself
+// already documents at the top of this file.
+export function budgetReplenishRuleSummary(
+  budget: Pick<
+    Budget,
+    | "linkedIncomeId"
+    | "startDate"
+    | "interval"
+    | "unit"
+    | "weekdays"
+    | "daysOfMonth"
+    | "ordinal"
+    | "ordinalWeekday"
+    | "endsType"
+    | "endDate"
+    | "occurrenceCount"
+  >,
+  recurringItemsById: Map<string, RecurringItem>,
+): string | null {
+  if (budget.linkedIncomeId) {
+    const income = recurringItemsById.get(budget.linkedIncomeId);
+    return income ? summarizeRecurrence(income) : null;
+  }
+  if (budget.startDate && budget.interval !== null && budget.unit !== null && budget.endsType !== null) {
+    return summarizeRecurrence({
+      startDate: budget.startDate,
+      interval: budget.interval,
+      unit: budget.unit,
+      weekdays: budget.weekdays,
+      daysOfMonth: budget.daysOfMonth,
+      ordinal: budget.ordinal,
+      ordinalWeekday: budget.ordinalWeekday,
+      endsType: budget.endsType,
+      endDate: budget.endDate,
+      occurrenceCount: budget.occurrenceCount,
+    });
+  }
+  return null;
 }
