@@ -219,6 +219,15 @@ export async function settleOccurrence(
   // account can be moved once, by the net figure.
   type LinkedBudget = { id: string; name: string; allocation: number };
   let linkedBudgets: LinkedBudget[] = [];
+  // Bug #15: a budget's own per-instance override for *this exact
+  // occurrence* - if the user edited this replenishment's amount from the
+  // Forecast (T168, `budget_replenish_overrides.new_amount`), or it was
+  // already settled/skipped some other way, settling the income must
+  // respect that instead of blindly reapplying the budget's default
+  // `allocation`. Read alongside `linkedBudgets` above (before the cash side
+  // is touched) for the same reason T151 fetches budgets early - the net
+  // figure applied to the account below has to already reflect it.
+  const replenishOverrideByBudgetId = new Map<string, { newAmount: number | null; skipped: boolean }>();
   if (sourceType === "recurring" && type === "income") {
     const { data, error: linkedBudgetsError } = await supabase
       .from("budgets")
@@ -226,8 +235,33 @@ export async function settleOccurrence(
       .eq("linked_income_id", sourceId);
     if (linkedBudgetsError) return { error: linkedBudgetsError.message };
     linkedBudgets = data ?? [];
+
+    if (linkedBudgets.length > 0) {
+      const { data: overrideRows, error: overridesError } = await supabase
+        .from("budget_replenish_overrides")
+        .select("budget_id, new_amount, skipped")
+        .eq("original_date", originalDate)
+        .in(
+          "budget_id",
+          linkedBudgets.map((b) => b.id),
+        );
+      if (overridesError) return { error: overridesError.message };
+      for (const row of overrideRows ?? []) {
+        replenishOverrideByBudgetId.set(row.budget_id, { newAmount: row.new_amount, skipped: row.skipped });
+      }
+    }
   }
-  const totalAllocation = linkedBudgets.reduce((sum, budget) => sum + budget.allocation, 0);
+
+  // null means "already handled for this occurrence, don't replenish again" -
+  // the same "skip after settling" state `budget_replenish_overrides.skipped`
+  // already carries for the forecast's own projection (forecast.ts).
+  function replenishAmountFor(budget: LinkedBudget): number | null {
+    const override = replenishOverrideByBudgetId.get(budget.id);
+    if (override?.skipped) return null;
+    return override?.newAmount ?? budget.allocation;
+  }
+
+  const totalAllocation = linkedBudgets.reduce((sum, budget) => sum + (replenishAmountFor(budget) ?? 0), 0);
 
   // T71 (SPEC.md Phase 12): if an account is selected (pre-filled from the
   // item's own linked balance, but overridable per-settlement), apply the
@@ -288,18 +322,28 @@ export async function settleOccurrence(
     //
     // T151 (Bug #14): `linkedBudgets` is now fetched further up, before the
     // cash side is applied, so the account can be moved by the net figure in
-    // one write. The settlement row below records `actual_amount:
-    // -allocation`, which until T151 described a cash movement that never
-    // actually happened; it is now true.
+    // one write. The settlement row below records `actual_amount: -amount`,
+    // which until T151 described a cash movement that never actually
+    // happened; it is now true.
+    //
+    // Bug #15: uses `replenishAmountFor` (defaulting to the budget's plain
+    // `allocation` only when there's no per-instance override) rather than
+    // `linkedBudget.allocation` directly - the previous version always used
+    // the default, silently discarding an edited occurrence amount at the
+    // exact moment it was supposed to take effect. A budget already marked
+    // `skipped` for this occurrence (settled/skipped some other way) is left
+    // alone entirely, so this can't double-replenish it.
     if (type === "income") {
       for (const linkedBudget of linkedBudgets) {
+        const amount = replenishAmountFor(linkedBudget);
+        if (amount === null) continue;
         const replenishNote = `Replenished from ${name}`;
 
         const { error: entryError } = await supabase.from("budget_entries").insert({
           user_id: user.id,
           budget_id: linkedBudget.id,
           entry_date: fields.actualDate,
-          amount: linkedBudget.allocation,
+          amount,
           note: replenishNote,
           direction: "incoming",
         });
@@ -311,8 +355,8 @@ export async function settleOccurrence(
           source_id: linkedBudget.id,
           name: `${linkedBudget.name} - ${replenishNote}`,
           type: "budget",
-          forecasted_amount: -linkedBudget.allocation,
-          actual_amount: -linkedBudget.allocation,
+          forecasted_amount: -amount,
+          actual_amount: -amount,
           forecasted_date: originalDate,
           actual_date: fields.actualDate,
           forecasted_balance: 0,
@@ -334,7 +378,7 @@ export async function settleOccurrence(
           action: "create",
           entityType: "budget_entry",
           entityName: linkedBudget.name,
-          detail: `Replenished: ${formatCentavos(linkedBudget.allocation)}`,
+          detail: `Replenished: ${formatCentavos(amount)}`,
         });
       }
       if (linkedBudgets.length > 0) revalidatePath("/budgets");

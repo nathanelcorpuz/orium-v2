@@ -12,11 +12,13 @@ Two supporting files, added 2026-07-31, deliberately do *not* need reading at se
 - The user is the product owner: ask before making product or architecture decisions not covered by SPEC.md.
 
 ## Session workflow (always follow)
-1. **At session start:**
+1. **At session start, and every time the user says "continue" (including after a usage-limit gap):**
+   - Re-read REMINDER.md, SPEC.md, and this file before doing anything else - context may have changed since it was last loaded, and messages the user sent while a response was still generating can otherwise get silently lost.
    - Check REMINDER.md for pending items. Work through those first.
    - If a reminder item is substantial, ask the user whether to do it now or write it into SPEC.md first.
    - Once a reminder item is done or added to SPEC.md, remove it from REMINDER.md - never keep the same item listed in both files.
    - Check `git log`, the Roadmap checklists in SPEC.md, and BUGS.md (open bugs) to see where we left off.
+   - **If the previous turn was cut off mid-task** (e.g. a usage limit reset): before continuing, write a short note of what was interrupted into SPEC.md (under the in-progress task, or REMINDER.md if it hadn't been specced yet) so the interruption itself is never lost - then tell the user plainly what was interrupted and what has changed since, before resuming the work itself.
 2. **Pick the task:** work on exactly one task from SPEC.md per session unless told otherwise.
    - **Task order is non-negotiable: always the topmost unchecked (`- [ ]`) item in the Roadmap, top to bottom.**
    - Never skip ahead or cherry-pick a later task without the user explicitly saying so.
