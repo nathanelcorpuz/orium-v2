@@ -62,6 +62,20 @@ export function FundsModal({
             className="mt-1 w-full rounded border border-notion-hairline p-2 text-notion-text focus:border-notion-accent focus:outline-none"
           />
         </div>
+        {/* T195 (user request): matches Accounts' own Add/Take/Move funds
+            (T186) - the action already reads `note` (writeLedgerEntry,
+            budgets/actions.ts), only the field itself was missing here. */}
+        <div>
+          <label className="block text-sm text-slate-600" htmlFor="note">
+            Comment (optional)
+          </label>
+          <input
+            id="note"
+            name="note"
+            type="text"
+            className="mt-1 w-full rounded border border-notion-hairline p-2 text-notion-text focus:border-notion-accent focus:outline-none"
+          />
+        </div>
         {state.error && <p className="text-sm text-red-600">{state.error}</p>}
         <div className="flex justify-end gap-2">
           <button
