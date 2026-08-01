@@ -753,3 +753,112 @@ export async function moveBudgetAccountFunds(
   revalidatePath("/budgets");
   return { error: null };
 }
+
+// T203 (user request): Move funds between two *budgets* - distinct from
+// T209's moveBudgetAccountFunds above, which moves money between two
+// budget *accounts* (the separate storage concept, T204). This one writes
+// two budget_entries rows (outgoing/incoming), same two-leg shape every
+// other "move" in this app uses, plus the matching settlements rows every
+// other ledger entry gets (writeLedgerEntry above). If either budget is
+// itself linked to a budget account (T204), that account's balance moves
+// too, on its own leg - a move between two linked budgets therefore also
+// moves real money between their two budget accounts, keeping both layers
+// in sync the same way every other budget-ledger change already does.
+export async function moveBudgetFunds(
+  _prevState: BudgetActionState,
+  formData: FormData,
+): Promise<BudgetActionState> {
+  const fromId = formData.get("fromBudgetId") as string;
+  const toId = formData.get("toBudgetId") as string;
+  const fromName = formData.get("fromBudgetName") as string;
+  const toName = formData.get("toBudgetName") as string;
+  const fields = readLedgerEntryForm(formData);
+  if (fields.error) return { error: fields.error };
+  if (!toId) return { error: "Choose a budget to move funds to." };
+  if (fromId === toId) return { error: "Choose two different budgets." };
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Not signed in." };
+
+  const noteSuffix = fields.note ? ` (${fields.note})` : "";
+
+  const { error: outEntryError } = await supabase.from("budget_entries").insert({
+    user_id: user.id,
+    budget_id: fromId,
+    entry_date: fields.entryDate,
+    amount: fields.amount,
+    note: fields.note ?? `Moved to ${toName}`,
+    direction: "outgoing",
+  });
+  if (outEntryError) return { error: outEntryError.message };
+
+  const { data: fromBudget } = await supabase
+    .from("budgets")
+    .select("budget_account_id")
+    .eq("id", fromId)
+    .single();
+  if (fromBudget?.budget_account_id) {
+    const accountError = await applyToBudgetAccount(supabase, fromBudget.budget_account_id, -fields.amount);
+    if (accountError) return { error: accountError };
+  }
+
+  const { error: outSettlementError } = await supabase.from("settlements").insert({
+    user_id: user.id,
+    source_type: "budget",
+    source_id: fromId,
+    name: `${fromName} - Moved to ${toName}`,
+    type: "budget",
+    forecasted_amount: 0,
+    actual_amount: -fields.amount,
+    forecasted_date: fields.entryDate,
+    actual_date: fields.entryDate,
+    forecasted_balance: 0,
+  });
+  if (outSettlementError) return { error: outSettlementError.message };
+
+  const { error: inEntryError } = await supabase.from("budget_entries").insert({
+    user_id: user.id,
+    budget_id: toId,
+    entry_date: fields.entryDate,
+    amount: fields.amount,
+    note: fields.note ?? `Moved from ${fromName}`,
+    direction: "incoming",
+  });
+  if (inEntryError) return { error: inEntryError.message };
+
+  const { data: toBudget } = await supabase.from("budgets").select("budget_account_id").eq("id", toId).single();
+  if (toBudget?.budget_account_id) {
+    const accountError = await applyToBudgetAccount(supabase, toBudget.budget_account_id, fields.amount);
+    if (accountError) return { error: accountError };
+  }
+
+  const { error: inSettlementError } = await supabase.from("settlements").insert({
+    user_id: user.id,
+    source_type: "budget",
+    source_id: toId,
+    name: `${toName} - Moved from ${fromName}`,
+    type: "budget",
+    forecasted_amount: 0,
+    actual_amount: fields.amount,
+    forecasted_date: fields.entryDate,
+    actual_date: fields.entryDate,
+    forecasted_balance: 0,
+  });
+  if (inSettlementError) return { error: inSettlementError.message };
+
+  await logActivity(supabase, user.id, {
+    action: "update",
+    entityType: "budget",
+    entityName: fromName,
+    detail: `Moved ${formatCentavos(fields.amount)} to ${toName}${noteSuffix}`,
+  });
+
+  revalidatePath("/budgets");
+  revalidatePath("/history");
+  revalidatePath("/forecast");
+  revalidatePath("/");
+  return { error: null };
+}

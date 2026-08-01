@@ -69,7 +69,7 @@ export function toEngineEntries(entries: BudgetEntryRow[], budgetId: string): Bu
   }));
 }
 
-type ActiveModal = null | "entries" | "log" | "add" | "take";
+type ActiveModal = null | "entries" | "log" | "add" | "take" | "move";
 
 // T75: redesigned from always-inline entries/forms into a compact button
 // row (Entries / Log spend / Add funds / Take funds), each opening its own
@@ -81,6 +81,7 @@ export function BudgetCard({
   entries,
   incomes,
   balances,
+  budgets,
   onEdit,
   edited,
   handledDates = [],
@@ -92,6 +93,11 @@ export function BudgetCard({
   // connected main account by id - not the full `Balance`/`BalanceRow`
   // shape, since nothing here needs an amount or a fee.
   balances: { id: string; name: string }[];
+  // T203 (user request): the full budgets list, so Move funds has other
+  // budgets to move to. Optional so callers that never open move mode (there
+  // aren't any right now, but keeps this consistent with BudgetsClient's own
+  // BudgetAccountRow[] pattern) don't have to pass it.
+  budgets: BudgetRow[];
   onEdit: () => void;
   edited: boolean;
   // T167: replenish occurrences already settled, so the countdown below moves
@@ -297,6 +303,15 @@ export function BudgetCard({
         >
           Take funds
         </button>
+        {budgets.length > 1 && (
+          <button
+            type="button"
+            onClick={() => setActiveModal("move")}
+            className="rounded border border-notion-hairline px-3 py-1.5 text-sm text-notion-accent hover:bg-notion-hover"
+          >
+            Move funds
+          </button>
+        )}
       </div>
 
       {activeModal === "entries" && (
@@ -310,11 +325,12 @@ export function BudgetCard({
       {activeModal === "log" && (
         <LogSpendModal budgetId={budget.id} budgetName={budget.name} onClose={() => setActiveModal(null)} />
       )}
-      {(activeModal === "add" || activeModal === "take") && (
+      {(activeModal === "add" || activeModal === "take" || activeModal === "move") && (
         <FundsModal
           mode={activeModal}
           budgetId={budget.id}
           budgetName={budget.name}
+          budgets={budgets}
           onClose={() => setActiveModal(null)}
         />
       )}
