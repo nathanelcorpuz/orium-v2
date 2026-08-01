@@ -6,7 +6,8 @@ import { monthlyEquivalent } from "@/lib/engine/monthlyTotals";
 import { startDateLabel, summarizeRecurrence } from "@/lib/recurrenceSummary";
 import { DatePicker } from "@/components/DatePicker";
 import { AmountRangeFilter, matchesAmountFilter, type ComparisonOp } from "@/components/AmountRangeFilter";
-import { accountFilterOptions, matchesAccountFilter } from "@/lib/accountFilter";
+import { matchesAccountFilter } from "@/lib/accountFilter";
+import { AccountFilterDropdown } from "@/components/AccountFilterDropdown";
 import { AmountSortControl, sortByAmount, type SortOrder } from "@/components/AmountSortControl";
 import { MultiSelectChips } from "@/components/MultiSelectChips";
 import { PreviewModeBar } from "@/components/PreviewModeBar";
@@ -230,17 +231,10 @@ export function BillsClient({
                   className="rounded border border-notion-hairline px-1.5 py-1 text-left text-xs focus:border-notion-accent focus:outline-none"
                 />
               </div>
-              {/* T159: hidden when there are no accounts to filter by - an
-                  empty chip row under a label is just noise. */}
+              {/* T159/T206: hidden when there are no accounts to filter by -
+                  an empty dropdown under a label is just noise. */}
               {balances.length > 0 && (
-                <div className="flex flex-col gap-1">
-                  <label className="text-xs text-slate-500">Account</label>
-                  <MultiSelectChips
-                    options={accountFilterOptions(balances)}
-                    selected={selectedAccounts}
-                    onToggle={toggleAccount}
-                  />
-                </div>
+                <AccountFilterDropdown balances={balances} selected={selectedAccounts} onToggle={toggleAccount} />
               )}
               <AmountRangeFilter
                 label="Amount"

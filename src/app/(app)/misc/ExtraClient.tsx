@@ -5,8 +5,8 @@ import { formatCentavos } from "@/lib/money";
 import { formatFullDate, todayInManila } from "@/lib/date";
 import { DatePicker } from "@/components/DatePicker";
 import { AmountRangeFilter, matchesAmountFilter, type ComparisonOp } from "@/components/AmountRangeFilter";
-import { accountFilterOptions, matchesAccountFilter } from "@/lib/accountFilter";
-import { MultiSelectChips } from "@/components/MultiSelectChips";
+import { matchesAccountFilter } from "@/lib/accountFilter";
+import { AccountFilterDropdown } from "@/components/AccountFilterDropdown";
 import { AmountSortControl, sortByAmount, type SortOrder } from "@/components/AmountSortControl";
 import { ReorderButtons } from "@/components/ReorderButtons";
 import { SubmitButton } from "@/components/SubmitButton";
@@ -139,14 +139,7 @@ export function ExtraClient({ extras, balances }: { extras: ExtraRow[]; balances
                 />
               </div>
               {balances.length > 0 && (
-                <div className="flex flex-col gap-1">
-                  <label className="text-xs text-slate-500">Account</label>
-                  <MultiSelectChips
-                    options={accountFilterOptions(balances)}
-                    selected={selectedAccounts}
-                    onToggle={toggleAccount}
-                  />
-                </div>
+                <AccountFilterDropdown balances={balances} selected={selectedAccounts} onToggle={toggleAccount} />
               )}
               <AmountRangeFilter
                 label="Amount"

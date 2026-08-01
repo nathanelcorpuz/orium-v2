@@ -9,7 +9,8 @@ import { startDateLabel, summarizeRecurrence } from "@/lib/recurrenceSummary";
 import { todayInManila } from "@/lib/date";
 import { DatePicker } from "@/components/DatePicker";
 import { AmountRangeFilter, matchesAmountFilter, type ComparisonOp } from "@/components/AmountRangeFilter";
-import { accountFilterOptions, matchesAccountFilter } from "@/lib/accountFilter";
+import { matchesAccountFilter } from "@/lib/accountFilter";
+import { AccountFilterDropdown } from "@/components/AccountFilterDropdown";
 import { AmountSortControl, sortByAmount, type SortOrder } from "@/components/AmountSortControl";
 import { MultiSelectChips } from "@/components/MultiSelectChips";
 import { ProgressBar } from "@/components/ProgressBar";
@@ -312,14 +313,7 @@ export function MonthlyGoalsClient({
                 />
               </div>
               {balances.length > 0 && (
-                <div className="flex flex-col gap-1">
-                  <label className="text-xs text-slate-500">Account</label>
-                  <MultiSelectChips
-                    options={accountFilterOptions(balances)}
-                    selected={selectedAccounts}
-                    onToggle={toggleAccount}
-                  />
-                </div>
+                <AccountFilterDropdown balances={balances} selected={selectedAccounts} onToggle={toggleAccount} />
               )}
               <AmountRangeFilter
                 label="Amount"
