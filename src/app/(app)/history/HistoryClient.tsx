@@ -40,6 +40,12 @@ export type SettlementRow = {
   forecasted_date: string;
   actual_date: string;
   forecasted_balance: number;
+  // T217: which real account this settlement moved - at most one is ever
+  // set (a budget-type row can carry budget_account_id, everything else can
+  // carry balance_id), both null when the underlying item/budget wasn't
+  // connected to any account.
+  balance_id: string | null;
+  budget_account_id: string | null;
 };
 
 // T181: History's own filter bar - name search, type, amount range, and a
@@ -47,7 +53,27 @@ export type SettlementRow = {
 // matching the pattern every other finance-record page already uses
 // (T159/T178), so this was converted from a plain server component into a
 // client component the same shape as Bills/Income/Misc.
-export function HistoryClient({ rows, currency }: { rows: SettlementRow[]; currency: string }) {
+export function HistoryClient({
+  rows,
+  currency,
+  balances,
+  budgetAccounts,
+}: {
+  rows: SettlementRow[];
+  currency: string;
+  // T217: just id/name, resolved against each row's balance_id/
+  // budget_account_id below for the Account column.
+  balances: { id: string; name: string }[];
+  budgetAccounts: { id: string; name: string }[];
+}) {
+  function accountNameFor(row: SettlementRow): string | null {
+    if (row.balance_id) return balances.find((balance) => balance.id === row.balance_id)?.name ?? null;
+    if (row.budget_account_id) {
+      return budgetAccounts.find((account) => account.id === row.budget_account_id)?.name ?? null;
+    }
+    return null;
+  }
+
   const [nameFilter, setNameFilter] = useState("");
   const [selectedTypes, setSelectedTypes] = useState<Set<string>>(new Set());
   const [dateFrom, setDateFrom] = useState("");
@@ -177,6 +203,7 @@ export function HistoryClient({ rows, currency }: { rows: SettlementRow[]; curre
                   <th className="p-3">Forecasted date</th>
                   <th className="p-3">Actual date</th>
                   <th className="p-3 text-right">Balance</th>
+                  <th className="p-3">Account</th>
                 </tr>
               </thead>
               <tbody>
@@ -214,6 +241,7 @@ export function HistoryClient({ rows, currency }: { rows: SettlementRow[]; curre
                       <td className="p-3 text-right font-medium">
                         {isBudget ? "-" : formatCentavos(row.forecasted_balance, currency)}
                       </td>
+                      <td className="p-3 text-slate-500">{accountNameFor(row) ?? "-"}</td>
                     </tr>
                   );
                 })}

@@ -5,7 +5,8 @@ import { createClient } from "@/lib/supabase/server";
 import { formatCentavos, parseCentavos } from "@/lib/money";
 import { formatFullDate, todayInManila } from "@/lib/date";
 import { logActivity, type ActivityEntityType } from "@/lib/activityLog";
-import { applyToBudgetAccount } from "@/lib/budgetAccounts";
+import { applyToBudgetAccount, loadBudgetAccountLinks } from "@/lib/budgetAccounts";
+import { splitAmountByShares } from "@/lib/budgetSplit";
 
 // T162: maps a ForecastRow/settlement `type` ("bill"|"income"|"debt"|
 // "savings"|"extra") onto the activity log's vocabulary - only "extra" needs
@@ -207,6 +208,105 @@ async function applyToBalance(
   return updateError?.message ?? null;
 }
 
+// T218: writes a budget's replenishment as one leg per connected budget
+// account, splitting the settled amount proportional to each account's
+// configured share (splitAmountByShares) - degenerates to exactly one leg,
+// identical to pre-T218 behavior, when the budget has 0 or 1 connected
+// accounts. Shared by settleOccurrence's income-linked branch and
+// settleBudgetReplenish (own-schedule budgets) below, whose forecasted-
+// amount sign conventions differ (see each call site), so both are passed
+// in already correctly signed rather than negated here.
+async function writeBudgetReplenishLegs(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  userId: string,
+  budgetId: string,
+  budgetName: string,
+  actualMagnitude: number,
+  forecastedAmountSigned: number,
+  entryDate: string,
+  forecastedDate: string,
+  forecastedBalance: number,
+  noteLabel: string,
+): Promise<string | null> {
+  const links = await loadBudgetAccountLinks(supabase, budgetId);
+
+  if (links.length <= 1) {
+    const budgetAccountId = links[0]?.budgetAccountId ?? null;
+
+    const { error: entryError } = await supabase.from("budget_entries").insert({
+      user_id: userId,
+      budget_id: budgetId,
+      entry_date: entryDate,
+      amount: actualMagnitude,
+      note: noteLabel,
+      direction: "incoming",
+      budget_account_id: budgetAccountId,
+    });
+    if (entryError) return entryError.message;
+
+    if (budgetAccountId && actualMagnitude > 0) {
+      const accountError = await applyToBudgetAccount(supabase, budgetAccountId, actualMagnitude);
+      if (accountError) return accountError;
+    }
+
+    const { error: settlementError } = await supabase.from("settlements").insert({
+      user_id: userId,
+      source_type: "budget",
+      source_id: budgetId,
+      name: `${budgetName} - ${noteLabel}`,
+      type: "budget",
+      forecasted_amount: forecastedAmountSigned,
+      actual_amount: -actualMagnitude,
+      forecasted_date: forecastedDate,
+      actual_date: entryDate,
+      forecasted_balance: forecastedBalance,
+      budget_account_id: budgetAccountId,
+    });
+    return settlementError?.message ?? null;
+  }
+
+  const shares = links.map((link) => link.replenishAmount);
+  const actualLegs = splitAmountByShares(actualMagnitude, shares);
+  const forecastedLegs = splitAmountByShares(forecastedAmountSigned, shares);
+
+  for (let i = 0; i < links.length; i++) {
+    const link = links[i];
+    const legNote = `${noteLabel} - ${link.name}`;
+
+    const { error: entryError } = await supabase.from("budget_entries").insert({
+      user_id: userId,
+      budget_id: budgetId,
+      entry_date: entryDate,
+      amount: actualLegs[i],
+      note: legNote,
+      direction: "incoming",
+      budget_account_id: link.budgetAccountId,
+    });
+    if (entryError) return entryError.message;
+
+    if (actualLegs[i] > 0) {
+      const accountError = await applyToBudgetAccount(supabase, link.budgetAccountId, actualLegs[i]);
+      if (accountError) return accountError;
+    }
+
+    const { error: settlementError } = await supabase.from("settlements").insert({
+      user_id: userId,
+      source_type: "budget",
+      source_id: budgetId,
+      name: `${budgetName} - ${legNote}`,
+      type: "budget",
+      forecasted_amount: forecastedLegs[i],
+      actual_amount: -actualLegs[i],
+      forecasted_date: forecastedDate,
+      actual_date: entryDate,
+      forecasted_balance: forecastedBalance,
+      budget_account_id: link.budgetAccountId,
+    });
+    if (settlementError) return settlementError.message;
+  }
+  return null;
+}
+
 export async function settleOccurrence(
   _prevState: ForecastActionState,
   formData: FormData,
@@ -241,6 +341,8 @@ export async function settleOccurrence(
     forecasted_date: forecastedDate,
     actual_date: fields.actualDate,
     forecasted_balance: forecastedBalance,
+    // T217: which main account this settlement actually moved.
+    balance_id: fields.balanceId,
   });
   if (settlementError) return { error: settlementError.message };
 
@@ -249,7 +351,7 @@ export async function settleOccurrence(
   // account the income lands in. Fetched here rather than in the loop further
   // down (which used to be the only place that knew about them) so the
   // account can be moved once, by the net figure.
-  type LinkedBudget = { id: string; name: string; allocation: number; budget_account_id: string | null };
+  type LinkedBudget = { id: string; name: string; allocation: number };
   let linkedBudgets: LinkedBudget[] = [];
   // Bug #15: a budget's own per-instance override for *this exact
   // occurrence* - if the user edited this replenishment's amount from the
@@ -263,7 +365,7 @@ export async function settleOccurrence(
   if (sourceType === "recurring" && type === "income") {
     const { data, error: linkedBudgetsError } = await supabase
       .from("budgets")
-      .select("id, name, allocation, budget_account_id")
+      .select("id, name, allocation")
       .eq("linked_income_id", sourceId);
     if (linkedBudgetsError) return { error: linkedBudgetsError.message };
     linkedBudgets = data ?? [];
@@ -447,37 +549,22 @@ export async function settleOccurrence(
         if (amount === null) continue;
         const replenishNote = `Replenished from ${name}`;
 
-        const { error: entryError } = await supabase.from("budget_entries").insert({
-          user_id: user.id,
-          budget_id: linkedBudget.id,
-          entry_date: fields.actualDate,
+        // T204/T218: writes one leg per connected budget account (0 or 1
+        // connected: the same single-row behavior as before T218), splitting
+        // `amount` proportional to each account's configured share.
+        const legsError = await writeBudgetReplenishLegs(
+          supabase,
+          user.id,
+          linkedBudget.id,
+          linkedBudget.name,
           amount,
-          note: replenishNote,
-          direction: "incoming",
-        });
-        if (entryError) return { error: entryError.message };
-
-        // T204: this replenishment's real "home", if the budget has one -
-        // moves the same way a manual replenish (writeLedgerEntry,
-        // budgets/actions.ts) would.
-        if (linkedBudget.budget_account_id) {
-          const accountError = await applyToBudgetAccount(supabase, linkedBudget.budget_account_id, amount);
-          if (accountError) return { error: accountError };
-        }
-
-        const { error: budgetSettlementError } = await supabase.from("settlements").insert({
-          user_id: user.id,
-          source_type: "budget",
-          source_id: linkedBudget.id,
-          name: `${linkedBudget.name} - ${replenishNote}`,
-          type: "budget",
-          forecasted_amount: -amount,
-          actual_amount: -amount,
-          forecasted_date: originalDate,
-          actual_date: fields.actualDate,
-          forecasted_balance: 0,
-        });
-        if (budgetSettlementError) return { error: budgetSettlementError.message };
+          -amount,
+          fields.actualDate,
+          originalDate,
+          0,
+          replenishNote,
+        );
+        if (legsError) return { error: legsError };
 
         const { error: replenishOverrideError } = await supabase.from("budget_replenish_overrides").upsert(
           {
@@ -646,43 +733,22 @@ export async function settleBudgetReplenish(
   } = await supabase.auth.getUser();
   if (!user) return { error: "Not signed in." };
 
-  const { error: entryError } = await supabase.from("budget_entries").insert({
-    user_id: user.id,
-    budget_id: budgetId,
-    entry_date: fields.actualDate,
-    amount: fields.actualAmount,
-    note: "Replenished",
-    direction: "incoming",
-  });
-  if (entryError) return { error: entryError.message };
-
-  // T204: same real-storage-account effect as the income-linked replenish
-  // path above.
-  if (fields.actualAmount > 0) {
-    const { data: budgetRow } = await supabase
-      .from("budgets")
-      .select("budget_account_id")
-      .eq("id", budgetId)
-      .single();
-    if (budgetRow?.budget_account_id) {
-      const accountError = await applyToBudgetAccount(supabase, budgetRow.budget_account_id, fields.actualAmount);
-      if (accountError) return { error: accountError };
-    }
-  }
-
-  const { error: settlementError } = await supabase.from("settlements").insert({
-    user_id: user.id,
-    source_type: "budget",
-    source_id: budgetId,
-    name: `${budgetName} - Replenished`,
-    type: "budget",
-    forecasted_amount: forecastedAmount,
-    actual_amount: -fields.actualAmount,
-    forecasted_date: forecastedDate,
-    actual_date: fields.actualDate,
-    forecasted_balance: forecastedBalance,
-  });
-  if (settlementError) return { error: settlementError.message };
+  // T204/T218: writes one leg per connected budget account (0 or 1
+  // connected: the same single-row behavior as before T218), splitting the
+  // settled amount proportional to each account's configured share.
+  const legsError = await writeBudgetReplenishLegs(
+    supabase,
+    user.id,
+    budgetId,
+    budgetName,
+    fields.actualAmount,
+    forecastedAmount,
+    fields.actualDate,
+    forecastedDate,
+    forecastedBalance,
+    "Replenished",
+  );
+  if (legsError) return { error: legsError };
 
   const { error: overrideError } = await supabase.from("budget_replenish_overrides").upsert(
     {

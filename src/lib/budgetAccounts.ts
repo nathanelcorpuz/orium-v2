@@ -24,3 +24,33 @@ export async function applyToBudgetAccount(
     .eq("id", budgetAccountId);
   return updateError?.message ?? null;
 }
+
+export type BudgetAccountLink = {
+  budgetAccountId: string;
+  replenishAmount: number;
+  name: string;
+};
+
+// T218: every budget account currently connected to a budget, in the order
+// they were connected - the order both a manual-action picker and the
+// per-account breakdown line show accounts in. Replaces the single
+// `budgets.budget_account_id` lookup every caller used before T218.
+export async function loadBudgetAccountLinks(
+  supabase: SupabaseClient,
+  budgetId: string,
+): Promise<BudgetAccountLink[]> {
+  const { data } = await supabase
+    .from("budget_budget_accounts")
+    .select("budget_account_id, replenish_amount, budget_accounts(name)")
+    .eq("budget_id", budgetId)
+    .order("created_at", { ascending: true });
+
+  return (data ?? []).map((row) => ({
+    budgetAccountId: row.budget_account_id as string,
+    replenishAmount: row.replenish_amount as number,
+    // Untyped Supabase client infers the embedded relation as an array
+    // (the safe default without generated types), same as elsewhere in
+    // this app (see budgets/actions.ts's deleteBudgetEntry).
+    name: (row.budget_accounts as unknown as { name: string }[])[0]?.name ?? "",
+  }));
+}

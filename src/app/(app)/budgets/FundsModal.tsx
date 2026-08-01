@@ -21,6 +21,7 @@ export function FundsModal({
   budgetId,
   budgetName,
   budgets,
+  accounts,
   onClose,
 }: {
   mode: "add" | "take" | "move";
@@ -28,6 +29,10 @@ export function FundsModal({
   budgetName: string;
   // Only needed for move mode - the list of other budgets to move funds to.
   budgets?: BudgetRow[];
+  // T218: every budget account connected to this budget - only relevant for
+  // add/take (a real picked-transaction), not move (see moveBudgetFunds's
+  // own comment on why a 2+ side is left unresolved there).
+  accounts: { id: string; name: string }[];
   onClose: () => void;
 }) {
   const action = mode === "add" ? addFunds : mode === "take" ? takeFunds : moveBudgetFunds;
@@ -89,6 +94,32 @@ export function FundsModal({
             <input type="hidden" name="budgetId" value={budgetId} />
             <input type="hidden" name="budgetName" value={budgetName} />
           </>
+        )}
+        {/* T218: add/take only - a single connected account is used
+            automatically, same as before T218; move has no picker (see
+            FundsModal's own prop comment). */}
+        {mode !== "move" && accounts.length > 1 && (
+          <div>
+            <label className="block text-sm text-slate-600" htmlFor="budgetAccountId">
+              Budget account
+            </label>
+            <select
+              id="budgetAccountId"
+              name="budgetAccountId"
+              required
+              defaultValue=""
+              className="mt-1 w-full rounded border border-notion-hairline p-2 text-notion-text focus:border-notion-accent focus:outline-none"
+            >
+              <option value="" disabled>
+                Choose which account this affects…
+              </option>
+              {accounts.map((account) => (
+                <option key={account.id} value={account.id}>
+                  {account.name}
+                </option>
+              ))}
+            </select>
+          </div>
         )}
         <div>
           <label className="block text-sm text-slate-600" htmlFor="amountPesos">

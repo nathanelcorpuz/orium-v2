@@ -8,7 +8,7 @@ import { logActivity } from "@/lib/activityLog";
 import { todayInManila } from "@/lib/date";
 import { readRecurrenceRuleForm } from "@/lib/recurrenceForm";
 import { expandRecurrenceOccurrences } from "@/lib/engine/recurrence";
-import { applyToBudgetAccount } from "@/lib/budgetAccounts";
+import { applyToBudgetAccount, loadBudgetAccountLinks } from "@/lib/budgetAccounts";
 import type { RecurrenceEndsType, RecurrenceUnit } from "@/lib/engine/types";
 
 export type BudgetActionState = { error: string | null };
@@ -26,6 +26,8 @@ const EMPTY_SCHEDULE = {
   occurrenceCount: null,
 } as const;
 
+type BudgetAccountLinkField = { budgetAccountId: string; replenishAmount: number };
+
 type BudgetFormFields =
   | { error: string }
   | {
@@ -33,10 +35,12 @@ type BudgetFormFields =
       name: string;
       allocation: number;
       linkedIncomeId: string | null;
-      // T204: optional link to a budget_accounts row - the same "optional
-      // connection" pattern bills/income already use for a main account
-      // (T71), just to a separate storage account instead.
-      budgetAccountId: string | null;
+      // T218: zero or more connected budget accounts, replacing T204's
+      // single optional `budgetAccountId` - each with its own configured
+      // share of the replenishment (meaningless/unused for a manual budget,
+      // where every log spend/add/take funds picks one account per
+      // transaction instead, see writeLedgerEntry below).
+      budgetAccountLinks: BudgetAccountLinkField[];
       startDate: string | null;
       interval: number | null;
       unit: RecurrenceUnit | null;
@@ -59,14 +63,58 @@ type BudgetFormFields =
 // of leaving it behind - DB-enforced mutual exclusivity between
 // linked_income_id and start_date (migration 0011) means leaving stale data
 // in the unused mode would eventually violate that constraint anyway.
+// T218: zero or more repeated (budgetAccountId, replenishAmountPesos) pairs,
+// submitted as parallel same-name field lists (`BudgetModal.tsx` emits one
+// row of the two inputs per connected account, in order) - the simplest
+// shape a plain HTML form can post without client-side array serialization.
+function readBudgetAccountLinks(
+  formData: FormData,
+): { error: string } | { error: null; links: BudgetAccountLinkField[]; allocation: number | null } {
+  const ids = (formData.getAll("budgetAccountLinkIds") as string[]).filter((id) => id !== "");
+  const amountsRaw = formData.getAll("budgetAccountLinkAmountsPesos") as string[];
+
+  if (ids.length === 0) return { error: null, links: [], allocation: null };
+  if (ids.length !== amountsRaw.length) {
+    return { error: "Enter an amount for each connected budget account." };
+  }
+  if (new Set(ids).size !== ids.length) {
+    return { error: "Choose a different budget account for each row." };
+  }
+
+  const links: BudgetAccountLinkField[] = [];
+  for (let i = 0; i < ids.length; i++) {
+    const amount = parseCentavos(amountsRaw[i]);
+    if (amount === null || amount < 0) {
+      return { error: "Enter a valid amount for each connected budget account." };
+    }
+    links.push({ budgetAccountId: ids[i], replenishAmount: amount });
+  }
+
+  return { error: null, links, allocation: links.reduce((sum, link) => sum + link.replenishAmount, 0) };
+}
+
 function readBudgetForm(formData: FormData): BudgetFormFields {
   const name = (formData.get("name") as string).trim();
-  const allocation = parseCentavos(formData.get("allocationPesos") as string);
   const source = formData.get("replenishSource") as string;
-  const budgetAccountId = (formData.get("budgetAccountId") as string) || null;
+
+  const linksResult = readBudgetAccountLinks(formData);
+  if (linksResult.error !== null) return { error: linksResult.error };
+  const budgetAccountLinks = linksResult.links;
+
+  // T218: with 1+ connected accounts, the allocation is derived (the sum of
+  // each account's own share) rather than a directly-entered number - the
+  // form doesn't even show the plain allocation field in that state
+  // (BudgetModal.tsx). A budget with no connected accounts is unaffected.
+  let allocation: number;
+  if (budgetAccountLinks.length > 0) {
+    allocation = linksResult.allocation!;
+  } else {
+    const parsed = parseCentavos(formData.get("allocationPesos") as string);
+    if (parsed === null || parsed < 0) return { error: "Enter a valid allocation." };
+    allocation = parsed;
+  }
 
   if (!name) return { error: "Name is required." };
-  if (allocation === null || allocation < 0) return { error: "Enter a valid allocation." };
 
   if (source === "schedule") {
     const startDate = (formData.get("startDate") as string) || "";
@@ -80,7 +128,7 @@ function readBudgetForm(formData: FormData): BudgetFormFields {
       name,
       allocation,
       linkedIncomeId: null,
-      budgetAccountId,
+      budgetAccountLinks,
       startDate,
       interval: rule.interval,
       unit: rule.unit,
@@ -97,10 +145,35 @@ function readBudgetForm(formData: FormData): BudgetFormFields {
   if (source === "income") {
     const linkedIncomeId = (formData.get("linkedIncomeId") as string) || null;
     if (!linkedIncomeId) return { error: "Choose an income source." };
-    return { error: null, name, allocation, linkedIncomeId, budgetAccountId, ...EMPTY_SCHEDULE };
+    return { error: null, name, allocation, linkedIncomeId, budgetAccountLinks, ...EMPTY_SCHEDULE };
   }
 
-  return { error: null, name, allocation, linkedIncomeId: null, budgetAccountId, ...EMPTY_SCHEDULE };
+  return { error: null, name, allocation, linkedIncomeId: null, budgetAccountLinks, ...EMPTY_SCHEDULE };
+}
+
+// T218: mirrors the submitted set of connected accounts into
+// budget_budget_accounts - delete-then-reinsert rather than diffing, since
+// this table only ever mirrors the form's own current state and a budget
+// realistically has a handful of connected accounts at most.
+async function syncBudgetAccountLinks(
+  supabase: SupabaseClient,
+  userId: string,
+  budgetId: string,
+  links: BudgetAccountLinkField[],
+): Promise<string | null> {
+  const { error: deleteError } = await supabase.from("budget_budget_accounts").delete().eq("budget_id", budgetId);
+  if (deleteError) return deleteError.message;
+  if (links.length === 0) return null;
+
+  const { error: insertError } = await supabase.from("budget_budget_accounts").insert(
+    links.map((link) => ({
+      user_id: userId,
+      budget_id: budgetId,
+      budget_account_id: link.budgetAccountId,
+      replenish_amount: link.replenishAmount,
+    })),
+  );
+  return insertError?.message ?? null;
 }
 
 // Phase 11 (T60): mirrors deleteStaleOverrides (staleOverrides.ts, T42 part
@@ -142,27 +215,33 @@ export async function createBudget(
   } = await supabase.auth.getUser();
   if (!user) return { error: "Not signed in." };
 
-  const { error } = await supabase.from("budgets").insert({
-    user_id: user.id,
-    name: fields.name,
-    allocation: fields.allocation,
-    // Mirrors `allocation` - monthly_allocation is still NOT NULL until a
-    // (still-deferred, see SPEC.md) migration drops it.
-    monthly_allocation: fields.allocation,
-    linked_income_id: fields.linkedIncomeId,
-    budget_account_id: fields.budgetAccountId,
-    start_date: fields.startDate,
-    interval: fields.interval,
-    unit: fields.unit,
-    weekdays: fields.weekdays,
-    days_of_month: fields.daysOfMonth,
-    ordinal: fields.ordinal,
-    ordinal_weekday: fields.ordinalWeekday,
-    ends_type: fields.endsType,
-    end_date: fields.endDate,
-    occurrence_count: fields.occurrenceCount,
-  });
+  const { data: created, error } = await supabase
+    .from("budgets")
+    .insert({
+      user_id: user.id,
+      name: fields.name,
+      allocation: fields.allocation,
+      // Mirrors `allocation` - monthly_allocation is still NOT NULL until a
+      // (still-deferred, see SPEC.md) migration drops it.
+      monthly_allocation: fields.allocation,
+      linked_income_id: fields.linkedIncomeId,
+      start_date: fields.startDate,
+      interval: fields.interval,
+      unit: fields.unit,
+      weekdays: fields.weekdays,
+      days_of_month: fields.daysOfMonth,
+      ordinal: fields.ordinal,
+      ordinal_weekday: fields.ordinalWeekday,
+      ends_type: fields.endsType,
+      end_date: fields.endDate,
+      occurrence_count: fields.occurrenceCount,
+    })
+    .select("id")
+    .single();
   if (error) return { error: error.message };
+
+  const linksError = await syncBudgetAccountLinks(supabase, user.id, created.id, fields.budgetAccountLinks);
+  if (linksError) return { error: linksError };
 
   await logActivity(supabase, user.id, { action: "create", entityType: "budget", entityName: fields.name });
 
@@ -191,7 +270,6 @@ export async function updateBudget(
       allocation: fields.allocation,
       monthly_allocation: fields.allocation,
       linked_income_id: fields.linkedIncomeId,
-      budget_account_id: fields.budgetAccountId,
       start_date: fields.startDate,
       interval: fields.interval,
       unit: fields.unit,
@@ -205,6 +283,11 @@ export async function updateBudget(
     })
     .eq("id", id);
   if (error) return { error: error.message };
+
+  if (user) {
+    const linksError = await syncBudgetAccountLinks(supabase, user.id, id, fields.budgetAccountLinks);
+    if (linksError) return { error: linksError };
+  }
 
   if (user) await logActivity(supabase, user.id, { action: "update", entityType: "budget", entityName: fields.name });
 
@@ -264,6 +347,12 @@ function readLedgerEntryForm(formData: FormData) {
 // forecasted_amount and forecasted_balance have no meaningful value - both
 // are 0. actual_amount's sign follows direction, same convention
 // recurring-item settlements already use (income positive, bill negative).
+//
+// T218: which budget account (if any) this entry actually moved. 0
+// connected accounts: unchanged, no account touched. 1: auto-used, no
+// picker shown (`budgetAccountId` form field is ignored either way, since
+// there's only one possible answer). 2+: the form's picker is required, and
+// the submitted id must be one of the connected accounts.
 async function writeLedgerEntry(
   formData: FormData,
   direction: "incoming" | "outgoing",
@@ -280,6 +369,18 @@ async function writeLedgerEntry(
   } = await supabase.auth.getUser();
   if (!user) return { error: "Not signed in." };
 
+  const links = await loadBudgetAccountLinks(supabase, budgetId);
+  let budgetAccountId: string | null = null;
+  if (links.length === 1) {
+    budgetAccountId = links[0].budgetAccountId;
+  } else if (links.length > 1) {
+    const chosen = (formData.get("budgetAccountId") as string) || "";
+    if (!links.some((link) => link.budgetAccountId === chosen)) {
+      return { error: "Choose which budget account this affects." };
+    }
+    budgetAccountId = chosen;
+  }
+
   const { error: entryError } = await supabase.from("budget_entries").insert({
     user_id: user.id,
     budget_id: budgetId,
@@ -287,22 +388,16 @@ async function writeLedgerEntry(
     amount: fields.amount,
     note: fields.note,
     direction,
+    budget_account_id: budgetAccountId,
   });
   if (entryError) return { error: entryError.message };
 
-  // T204: if this budget is stored in a budget account, the account's own
-  // balance moves the same way the entry does - a real storage account,
-  // not just a label. Looked up here rather than threaded through every
-  // caller's hidden fields, same as deleteBudgetEntry's embedded select
-  // below does for the budget's name.
-  const { data: budgetRow } = await supabase
-    .from("budgets")
-    .select("budget_account_id")
-    .eq("id", budgetId)
-    .single();
-  if (budgetRow?.budget_account_id) {
+  // T204/T218: if this entry has a real account behind it, that account's
+  // own balance moves the same way the entry does - a real storage account,
+  // not just a label.
+  if (budgetAccountId) {
     const delta = direction === "incoming" ? fields.amount : -fields.amount;
-    const accountError = await applyToBudgetAccount(supabase, budgetRow.budget_account_id, delta);
+    const accountError = await applyToBudgetAccount(supabase, budgetAccountId, delta);
     if (accountError) return { error: accountError };
   }
 
@@ -317,6 +412,7 @@ async function writeLedgerEntry(
     forecasted_date: fields.entryDate,
     actual_date: fields.entryDate,
     forecasted_balance: 0,
+    budget_account_id: budgetAccountId,
   });
   if (settlementError) return { error: settlementError.message };
 
@@ -374,7 +470,7 @@ export async function updateBudgetEntry(
 
   const { data: oldEntry } = await supabase
     .from("budget_entries")
-    .select("entry_date, amount, direction")
+    .select("entry_date, amount, direction, budget_account_id")
     .eq("id", id)
     .single();
 
@@ -384,24 +480,19 @@ export async function updateBudgetEntry(
     .eq("id", id);
   if (entryError) return { error: entryError.message };
 
-  // T204: direction isn't editable here, only the amount - so the linked
-  // budget account (if any) only ever needs to move by the *difference*
-  // between the old and new amount, not the full new amount again.
-  if (oldEntry) {
-    const { data: budgetRow } = await supabase
-      .from("budgets")
-      .select("budget_account_id")
-      .eq("id", budgetId)
-      .single();
-    if (budgetRow?.budget_account_id) {
-      const sign = oldEntry.direction === "incoming" ? 1 : -1;
-      const accountError = await applyToBudgetAccount(
-        supabase,
-        budgetRow.budget_account_id,
-        sign * (fields.amount - oldEntry.amount),
-      );
-      if (accountError) return { error: accountError };
-    }
+  // T204/T218: direction and the connected account aren't editable here,
+  // only amount/date/note - so the entry's own `budget_account_id` (read
+  // directly, not re-derived from the budget - it can have several accounts
+  // now) only ever needs to move by the *difference* between the old and
+  // new amount, not the full new amount again.
+  if (oldEntry?.budget_account_id) {
+    const sign = oldEntry.direction === "incoming" ? 1 : -1;
+    const accountError = await applyToBudgetAccount(
+      supabase,
+      oldEntry.budget_account_id,
+      sign * (fields.amount - oldEntry.amount),
+    );
+    if (accountError) return { error: accountError };
   }
 
   if (user) {
@@ -464,18 +555,20 @@ export async function deleteBudgetEntry(
   // for a log line.
   const { data: entry } = await supabase
     .from("budget_entries")
-    .select("budget_id, entry_date, amount, direction, budgets(name, budget_account_id)")
+    .select("budget_id, entry_date, amount, direction, budget_account_id, budgets(name)")
     .eq("id", id)
     .single();
 
   const { error: deleteError } = await supabase.from("budget_entries").delete().eq("id", id);
   if (deleteError) return { error: deleteError.message };
 
-  // T204: reverse this entry's effect on its linked budget account, the
-  // same way deleting a settlement doesn't touch a main account (T151's own
-  // comment) - except here there's no separate settle step to have already
-  // skipped it, so this delete is the one place that reversal has to happen.
-  const linkedBudgetAccountId = entry?.budgets[0]?.budget_account_id;
+  // T204/T218: reverse this entry's effect on its own connected budget
+  // account (read directly off the entry, not re-derived from the budget),
+  // the same way deleting a settlement doesn't touch a main account (T151's
+  // own comment) - except here there's no separate settle step to have
+  // already skipped it, so this delete is the one place that reversal has
+  // to happen.
+  const linkedBudgetAccountId = entry?.budget_account_id;
   if (entry && linkedBudgetAccountId) {
     const sign = entry.direction === "incoming" ? 1 : -1;
     const accountError = await applyToBudgetAccount(supabase, linkedBudgetAccountId, -sign * entry.amount);
@@ -759,11 +852,11 @@ export async function moveBudgetAccountFunds(
 // budget *accounts* (the separate storage concept, T204). This one writes
 // two budget_entries rows (outgoing/incoming), same two-leg shape every
 // other "move" in this app uses, plus the matching settlements rows every
-// other ledger entry gets (writeLedgerEntry above). If either budget is
-// itself linked to a budget account (T204), that account's balance moves
-// too, on its own leg - a move between two linked budgets therefore also
-// moves real money between their two budget accounts, keeping both layers
-// in sync the same way every other budget-ledger change already does.
+// other ledger entry gets (writeLedgerEntry above). If either budget has
+// exactly one connected budget account (T204/T218), that account's balance
+// moves too, on its own leg; with zero or with 2+ connected accounts on a
+// side, only that side's own budget ledger moves - see the comment further
+// down for why 2+ is left unresolved here rather than guessed at.
 export async function moveBudgetFunds(
   _prevState: BudgetActionState,
   formData: FormData,
@@ -785,6 +878,16 @@ export async function moveBudgetFunds(
 
   const noteSuffix = fields.note ? ` (${fields.note})` : "";
 
+  // T218: moving funds between two *budgets* has no per-transaction account
+  // picker (unlike Log spend/Add/Take funds) - with exactly one connected
+  // account on a side, it's still unambiguous and auto-applies same as
+  // before T218; with zero or with 2+ (which one?), only the two budgets'
+  // own ledgers move and no physical budget account does, on that side.
+  const fromLinks = await loadBudgetAccountLinks(supabase, fromId);
+  const fromAccountId = fromLinks.length === 1 ? fromLinks[0].budgetAccountId : null;
+  const toLinks = await loadBudgetAccountLinks(supabase, toId);
+  const toAccountId = toLinks.length === 1 ? toLinks[0].budgetAccountId : null;
+
   const { error: outEntryError } = await supabase.from("budget_entries").insert({
     user_id: user.id,
     budget_id: fromId,
@@ -792,16 +895,12 @@ export async function moveBudgetFunds(
     amount: fields.amount,
     note: fields.note ?? `Moved to ${toName}`,
     direction: "outgoing",
+    budget_account_id: fromAccountId,
   });
   if (outEntryError) return { error: outEntryError.message };
 
-  const { data: fromBudget } = await supabase
-    .from("budgets")
-    .select("budget_account_id")
-    .eq("id", fromId)
-    .single();
-  if (fromBudget?.budget_account_id) {
-    const accountError = await applyToBudgetAccount(supabase, fromBudget.budget_account_id, -fields.amount);
+  if (fromAccountId) {
+    const accountError = await applyToBudgetAccount(supabase, fromAccountId, -fields.amount);
     if (accountError) return { error: accountError };
   }
 
@@ -816,6 +915,7 @@ export async function moveBudgetFunds(
     forecasted_date: fields.entryDate,
     actual_date: fields.entryDate,
     forecasted_balance: 0,
+    budget_account_id: fromAccountId,
   });
   if (outSettlementError) return { error: outSettlementError.message };
 
@@ -826,12 +926,12 @@ export async function moveBudgetFunds(
     amount: fields.amount,
     note: fields.note ?? `Moved from ${fromName}`,
     direction: "incoming",
+    budget_account_id: toAccountId,
   });
   if (inEntryError) return { error: inEntryError.message };
 
-  const { data: toBudget } = await supabase.from("budgets").select("budget_account_id").eq("id", toId).single();
-  if (toBudget?.budget_account_id) {
-    const accountError = await applyToBudgetAccount(supabase, toBudget.budget_account_id, fields.amount);
+  if (toAccountId) {
+    const accountError = await applyToBudgetAccount(supabase, toAccountId, fields.amount);
     if (accountError) return { error: accountError };
   }
 
@@ -846,6 +946,7 @@ export async function moveBudgetFunds(
     forecasted_date: fields.entryDate,
     actual_date: fields.entryDate,
     forecasted_balance: 0,
+    budget_account_id: toAccountId,
   });
   if (inSettlementError) return { error: inSettlementError.message };
 

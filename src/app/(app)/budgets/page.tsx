@@ -8,14 +8,22 @@ import type { BudgetAccountRow } from "./BudgetAccountModal";
 export default async function BudgetsPage() {
   const supabase = await createClient();
 
-  const [budgetsRes, entriesRes, incomesRes, replenishOverridesRes, incomeOverridesRes, budgetAccountsRes, balancesRes] =
-    await Promise.all([
-      supabase
-        .from("budgets")
-        .select(
-          "id, name, monthly_allocation, allocation, created_at, linked_income_id, budget_account_id, start_date, interval, unit, weekdays, days_of_month, ordinal, ordinal_weekday, ends_type, end_date, occurrence_count, active",
-        )
-        .order("name", { ascending: true }),
+  const [
+    budgetsRes,
+    entriesRes,
+    incomesRes,
+    replenishOverridesRes,
+    incomeOverridesRes,
+    budgetAccountsRes,
+    balancesRes,
+    budgetAccountLinksRes,
+  ] = await Promise.all([
+    supabase
+      .from("budgets")
+      .select(
+        "id, name, monthly_allocation, allocation, created_at, linked_income_id, start_date, interval, unit, weekdays, days_of_month, ordinal, ordinal_weekday, ends_type, end_date, occurrence_count, active",
+      )
+      .order("name", { ascending: true }),
       // Every entry, not just the current month - a budget's running total
       // (SPEC.md Phase 10, budgetLedger.ts) needs its full history; the month
       // filter in BudgetCard narrows what's *displayed* client-side.
@@ -60,6 +68,10 @@ export default async function BudgetsPage() {
       // account connected to the income connected to it" - just id/name,
       // resolved against each income's own `balance_id` in BudgetCard.tsx.
       supabase.from("balances").select("id, name"),
+      // T218: every budget's connected budget account(s) - replaces T204's
+      // single `budgets.budget_account_id` column, for both the manual
+      // Log spend/Add/Take funds picker and the per-account breakdown line.
+      supabase.from("budget_budget_accounts").select("budget_id, budget_account_id, replenish_amount"),
     ]);
 
   if (budgetsRes.error) {
@@ -97,10 +109,27 @@ export default async function BudgetsPage() {
   if (balancesRes.error) {
     return <p className="p-8 text-red-600">Could not load accounts: {balancesRes.error.message}</p>;
   }
+  if (budgetAccountLinksRes.error) {
+    return (
+      <p className="p-8 text-red-600">
+        Could not load connected budget accounts: {budgetAccountLinksRes.error.message}
+      </p>
+    );
+  }
 
   const budgets: BudgetRow[] = budgetsRes.data ?? [];
   const budgetAccounts: BudgetAccountRow[] = budgetAccountsRes.data ?? [];
   const balances = balancesRes.data ?? [];
+
+  // T218: every connected budget account per budget, in insert order -
+  // BudgetCard resolves each link's live name/amount against `budgetAccounts`
+  // above; BudgetModal uses the same list to prefill its edit form.
+  const accountLinksByBudgetId: Record<string, { budgetAccountId: string; replenishAmount: number }[]> = {};
+  for (const link of budgetAccountLinksRes.data ?? []) {
+    const list = accountLinksByBudgetId[link.budget_id] ?? [];
+    list.push({ budgetAccountId: link.budget_account_id, replenishAmount: link.replenish_amount });
+    accountLinksByBudgetId[link.budget_id] = list;
+  }
 
   const entriesByBudgetId: Record<string, BudgetEntryRow[]> = {};
   for (const entry of entriesRes.data ?? []) {
@@ -175,6 +204,7 @@ export default async function BudgetsPage() {
       editedIds={editedIds}
       handledDatesByBudgetId={handledDatesByBudgetId}
       budgetAccounts={budgetAccounts}
+      accountLinksByBudgetId={accountLinksByBudgetId}
     />
   );
 }

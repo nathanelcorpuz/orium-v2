@@ -36,6 +36,7 @@ export function BudgetsClient({
   editedIds,
   handledDatesByBudgetId,
   budgetAccounts,
+  accountLinksByBudgetId,
 }: {
   budgets: BudgetRow[];
   entriesByBudgetId: Record<string, BudgetEntryRow[]>;
@@ -50,6 +51,8 @@ export function BudgetsClient({
   // T204: separate storage accounts for budgets - own sub-section below,
   // and threaded into BudgetModal for the optional per-budget picker.
   budgetAccounts: BudgetAccountRow[];
+  // T218: every budget's connected budget account(s), keyed by budget id.
+  accountLinksByBudgetId: Record<string, { budgetAccountId: string; replenishAmount: number }[]>;
 }) {
   const [modalState, setModalState] = useState<null | "new" | BudgetRow>(null);
 
@@ -232,6 +235,7 @@ export function BudgetsClient({
                     balances={balances}
                     budgets={budgets}
                     budgetAccounts={budgetAccounts}
+                    accountLinks={accountLinksByBudgetId[budget.id] ?? []}
                     onEdit={() => setModalState(budget)}
                     edited={editedIds.has(budget.id)}
                     handledDates={handledDatesByBudgetId[budget.id] ?? []}
@@ -247,6 +251,7 @@ export function BudgetsClient({
             budget={modalState === "new" ? null : modalState}
             incomes={incomes}
             budgetAccounts={budgetAccounts}
+            initialAccountLinks={modalState === "new" ? [] : (accountLinksByBudgetId[modalState.id] ?? [])}
             onClose={() => setModalState(null)}
           />
         )}

@@ -84,6 +84,7 @@ export function BudgetCard({
   balances,
   budgets,
   budgetAccounts,
+  accountLinks,
   onEdit,
   edited,
   handledDates = [],
@@ -100,10 +101,11 @@ export function BudgetCard({
   // aren't any right now, but keeps this consistent with BudgetsClient's own
   // BudgetAccountRow[] pattern) don't have to pass it.
   budgets: BudgetRow[];
-  // User request 2026-08-01: resolve budget.budget_account_id (T204) to its
-  // own name, so the card shows which budget account it's linked to - not
-  // just the unrelated "From account" (the linked income's main account).
+  // T204: resolves each connected link's own name/live amount below.
   budgetAccounts: BudgetAccountRow[];
+  // T218: every budget account currently connected to this budget, in
+  // connection order - replaces T204's single `budget.budget_account_id`.
+  accountLinks: { budgetAccountId: string; replenishAmount: number }[];
   onEdit: () => void;
   edited: boolean;
   // T167: replenish occurrences already settled, so the countdown below moves
@@ -167,12 +169,17 @@ export function BudgetCard({
   const linkedAccountName = linkedIncome?.balanceId
     ? (balances.find((balance) => balance.id === linkedIncome.balanceId)?.name ?? null)
     : null;
-  // User request 2026-08-01: the budget account this budget itself is
-  // linked to (T204's storage layer) - distinct from linkedAccountName
-  // above, which is the linked income's own main account.
-  const budgetAccountName = budget.budget_account_id
-    ? (budgetAccounts.find((account) => account.id === budget.budget_account_id)?.name ?? null)
-    : null;
+  // T218: every budget account this budget is connected to (T204's storage
+  // layer, now many-to-many) - distinct from linkedAccountName above, which
+  // is the linked income's own main account. Resolved against the live
+  // `budgetAccounts` list so the breakdown always shows the current amount,
+  // not a stale snapshot.
+  const resolvedAccountLinks = accountLinks
+    .map((link) => ({
+      ...link,
+      account: budgetAccounts.find((account) => account.id === link.budgetAccountId),
+    }))
+    .filter((link): link is typeof link & { account: BudgetAccountRow } => link.account !== undefined);
   // T175: undefined (older rows, or a fixture that never set it) means active.
   const isActive = budget.active !== false;
 
@@ -197,8 +204,21 @@ export function BudgetCard({
           {linkedAccountName && (
             <p className="mt-0.5 text-xs text-slate-400">From account: {linkedAccountName}</p>
           )}
-          {budgetAccountName && (
-            <p className="mt-0.5 text-xs text-slate-400">Budget account: {budgetAccountName}</p>
+          {/* T218: a single connected account keeps T211's plain label; 2+
+              shows a live per-account breakdown instead, e.g. "GCash Tatay
+              ₱300 · Cash Tatay ₱1,000" (user's own example). */}
+          {resolvedAccountLinks.length === 1 && (
+            <p className="mt-0.5 text-xs text-slate-400">
+              Budget account: {resolvedAccountLinks[0].account.name}
+            </p>
+          )}
+          {resolvedAccountLinks.length > 1 && (
+            <p className="mt-0.5 text-xs text-slate-400">
+              Budget accounts:{" "}
+              {resolvedAccountLinks
+                .map((link) => `${link.account.name} ${formatCentavos(link.account.amount)}`)
+                .join(" · ")}
+            </p>
           )}
           <p className={`text-xl font-semibold ${balance < 0 ? "text-red-600" : "text-notion-text"}`}>
             {formatCentavos(balance)}
@@ -346,7 +366,12 @@ export function BudgetCard({
         />
       )}
       {activeModal === "log" && (
-        <LogSpendModal budgetId={budget.id} budgetName={budget.name} onClose={() => setActiveModal(null)} />
+        <LogSpendModal
+          budgetId={budget.id}
+          budgetName={budget.name}
+          accounts={resolvedAccountLinks.map((link) => ({ id: link.account.id, name: link.account.name }))}
+          onClose={() => setActiveModal(null)}
+        />
       )}
       {(activeModal === "add" || activeModal === "take" || activeModal === "move") && (
         <FundsModal
@@ -354,6 +379,7 @@ export function BudgetCard({
           budgetId={budget.id}
           budgetName={budget.name}
           budgets={budgets}
+          accounts={resolvedAccountLinks.map((link) => ({ id: link.account.id, name: link.account.name }))}
           onClose={() => setActiveModal(null)}
         />
       )}

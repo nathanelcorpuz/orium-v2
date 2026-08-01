@@ -14,10 +14,14 @@ const initialState: BudgetActionState = { error: null };
 export function LogSpendModal({
   budgetId,
   budgetName,
+  accounts,
   onClose,
 }: {
   budgetId: string;
   budgetName: string;
+  // T218: every budget account connected to this budget. 0/1: no picker
+  // (auto or nothing, same as before T218). 2+: a required picker below.
+  accounts: { id: string; name: string }[];
   onClose: () => void;
 }) {
   const [state, formAction, pending] = useActionState(logSpend, initialState);
@@ -40,6 +44,31 @@ export function LogSpendModal({
       >
         <input type="hidden" name="budgetId" value={budgetId} />
         <input type="hidden" name="budgetName" value={budgetName} />
+        {/* T218: only shown when there's a real choice to make - a single
+            connected account is used automatically, same as before T218. */}
+        {accounts.length > 1 && (
+          <div>
+            <label className="block text-sm text-slate-600" htmlFor="budgetAccountId">
+              Budget account
+            </label>
+            <select
+              id="budgetAccountId"
+              name="budgetAccountId"
+              required
+              defaultValue=""
+              className="mt-1 w-full rounded border border-notion-hairline p-2 text-notion-text focus:border-notion-accent focus:outline-none"
+            >
+              <option value="" disabled>
+                Choose which account this spend comes from…
+              </option>
+              {accounts.map((account) => (
+                <option key={account.id} value={account.id}>
+                  {account.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
         <div>
           <label className="block text-sm text-slate-600" htmlFor="amountPesos">
             Amount (₱)

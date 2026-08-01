@@ -5,7 +5,7 @@ import { Modal } from "@/components/Modal";
 import { FormTip } from "@/components/FormTip";
 import { DatePicker } from "@/components/DatePicker";
 import { SegmentedControl } from "@/components/SegmentedControl";
-import { blockNegativeKey, centavosToPesosString } from "@/lib/money";
+import { blockNegativeKey, centavosToPesosString, formatCentavos, parseCentavos } from "@/lib/money";
 import { todayInManila } from "@/lib/date";
 import { RecurrencePicker, type RecurrenceValue } from "@/components/recurring/RecurrencePicker";
 import { summarizeRecurrence } from "@/lib/recurrenceSummary";
@@ -50,10 +50,13 @@ const REPLENISH_OPTIONS: { value: ReplenishSource; label: string }[] = [
 
 const initialState: BudgetActionState = { error: null };
 
+type AccountLinkRow = { budgetAccountId: string; replenishPesos: string };
+
 export function BudgetModal({
   budget,
   incomes,
   budgetAccounts = [],
+  initialAccountLinks = [],
   onClose,
   // T115: fired only on a genuine successful save, distinct from onClose
   // (which also fires on Cancel/X). NOTE: proved unreliable for the wizard
@@ -67,10 +70,13 @@ export function BudgetModal({
   // the selected income's own frequency (summarizeRecurrence) - optional,
   // see IncomeOption above.
   incomes: IncomeOption[];
-  // T204: optional storage account picker - default `[]` keeps every
+  // T204: storage account list to choose from - default `[]` keeps every
   // existing caller (e.g. the onboarding wizard, if it ever creates budgets)
   // valid without threading this everywhere at once.
   budgetAccounts?: BudgetAccountRow[];
+  // T218: this budget's currently connected accounts (edit mode only -
+  // empty for a new budget), each with its own configured replenish share.
+  initialAccountLinks?: { budgetAccountId: string; replenishAmount: number }[];
   onClose: () => void;
   onSaved?: () => void;
   createActionOverride?: typeof createBudget;
@@ -90,6 +96,35 @@ export function BudgetModal({
   // its frequency line live, not just on the next render.
   const [selectedIncomeId, setSelectedIncomeId] = useState(budget?.linked_income_id ?? "");
   const selectedIncome = incomes.find((income) => income.id === selectedIncomeId) ?? null;
+
+  // T218: zero or more connected budget accounts, each with its own
+  // configured replenish share - replaces T204's single `budgetAccountId`
+  // select. Submitted as parallel hidden-input lists (readBudgetAccountLinks,
+  // budgets/actions.ts) since a plain form can't post a nested array.
+  const [accountLinks, setAccountLinks] = useState<AccountLinkRow[]>(
+    initialAccountLinks.map((link) => ({
+      budgetAccountId: link.budgetAccountId,
+      replenishPesos: centavosToPesosString(link.replenishAmount),
+    })),
+  );
+  const connectedIds = new Set(accountLinks.map((link) => link.budgetAccountId));
+  const availableToAdd = budgetAccounts.filter((account) => !connectedIds.has(account.id));
+  const totalAllocationCentavos = accountLinks.reduce(
+    (sum, link) => sum + (parseCentavos(link.replenishPesos) ?? 0),
+    0,
+  );
+
+  function addAccountRow() {
+    const next = availableToAdd[0];
+    if (!next) return;
+    setAccountLinks((rows) => [...rows, { budgetAccountId: next.id, replenishPesos: "" }]);
+  }
+  function removeAccountRow(index: number) {
+    setAccountLinks((rows) => rows.filter((_, i) => i !== index));
+  }
+  function updateAccountRow(index: number, patch: Partial<AccountLinkRow>) {
+    setAccountLinks((rows) => rows.map((row, i) => (i === index ? { ...row, ...patch } : row)));
+  }
 
   const initialRecurrenceValue: RecurrenceValue | null =
     budget && budget.start_date && budget.interval !== null && budget.unit !== null && budget.ends_type !== null
@@ -145,48 +180,102 @@ export function BudgetModal({
             className="mt-1 w-full rounded border border-notion-hairline p-2 text-notion-text focus:border-notion-accent focus:outline-none"
           />
         </div>
-        <div>
-          <label className="block text-sm text-slate-600" htmlFor="allocationPesos">
-            Replenish amount (₱)
-          </label>
-          <input
-            id="allocationPesos"
-            name="allocationPesos"
-            type="number"
-            step="0.01"
-            min="0"
-            required
-            onKeyDown={blockNegativeKey}
-            defaultValue={budget ? centavosToPesosString(budget.allocation) : undefined}
-            className="mt-1 w-full rounded border border-notion-hairline p-2 text-notion-text focus:border-notion-accent focus:outline-none"
-          />
-          <p className="mt-1 text-sm text-slate-400">
-            How much gets added when this budget replenishes.
-          </p>
-        </div>
+        {/* T218: with 0 connected accounts, the allocation is still a plain
+            entered number, exactly as before T218. Once 1+ accounts are
+            connected below, the total is derived from their own shares
+            instead - the field itself goes away rather than staying visible
+            and unused. */}
+        {accountLinks.length === 0 && (
+          <div>
+            <label className="block text-sm text-slate-600" htmlFor="allocationPesos">
+              Replenish amount (₱)
+            </label>
+            <input
+              id="allocationPesos"
+              name="allocationPesos"
+              type="number"
+              step="0.01"
+              min="0"
+              required
+              onKeyDown={blockNegativeKey}
+              defaultValue={budget ? centavosToPesosString(budget.allocation) : undefined}
+              className="mt-1 w-full rounded border border-notion-hairline p-2 text-notion-text focus:border-notion-accent focus:outline-none"
+            />
+            <p className="mt-1 text-sm text-slate-400">
+              How much gets added when this budget replenishes.
+            </p>
+          </div>
+        )}
 
-        {/* T204: optional - a budget account is separate storage, not a
-            requirement, same as bills/income's own optional account link. */}
+        {/* T218: a budget can now connect to more than one budget account -
+            each gets its own share of the replenishment, and Log spend/Add
+            funds/Take funds pick one per transaction once there's more than
+            one to choose from. Optional, same as T204's original single
+            link - connecting accounts (and their shares) can be done any
+            time, including before an income link even exists. */}
         <div>
-          <label className="block text-sm text-slate-600" htmlFor="budgetAccountId">
-            Budget account (optional)
-          </label>
-          <select
-            id="budgetAccountId"
-            name="budgetAccountId"
-            defaultValue={budget?.budget_account_id ?? ""}
-            className="mt-1 w-full rounded border border-notion-hairline p-2 text-notion-text focus:border-notion-accent focus:outline-none"
-          >
-            <option value="">No account</option>
-            {budgetAccounts.map((account) => (
-              <option key={account.id} value={account.id}>
-                {account.name}
-              </option>
-            ))}
-          </select>
-          <p className="mt-1 text-sm text-slate-400">
-            Replenishing, spending, or adding/taking funds here also moves this account&rsquo;s balance.
-          </p>
+          <p className="mb-1 block text-sm text-slate-600">Budget accounts (optional)</p>
+          {accountLinks.length === 0 ? (
+            <p className="text-sm text-slate-400">
+              Not connected to any budget account - this budget just tracks its own running total.
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {accountLinks.map((link, index) => (
+                <div key={index} className="flex items-center gap-2">
+                  <select
+                    value={link.budgetAccountId}
+                    onChange={(event) => updateAccountRow(index, { budgetAccountId: event.target.value })}
+                    required
+                    className="min-w-0 flex-1 rounded border border-notion-hairline p-2 text-notion-text focus:border-notion-accent focus:outline-none"
+                  >
+                    {budgetAccounts
+                      .filter((account) => account.id === link.budgetAccountId || !connectedIds.has(account.id))
+                      .map((account) => (
+                        <option key={account.id} value={account.id}>
+                          {account.name}
+                        </option>
+                      ))}
+                  </select>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    required
+                    placeholder="Share (₱)"
+                    value={link.replenishPesos}
+                    onKeyDown={blockNegativeKey}
+                    onChange={(event) => updateAccountRow(index, { replenishPesos: event.target.value })}
+                    className="w-28 rounded border border-notion-hairline p-2 text-notion-text focus:border-notion-accent focus:outline-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => removeAccountRow(index)}
+                    className="rounded border border-notion-hairline px-2 py-2 text-xs text-slate-500 hover:bg-notion-hover"
+                  >
+                    Remove
+                  </button>
+                  <input type="hidden" name="budgetAccountLinkIds" value={link.budgetAccountId} />
+                  <input type="hidden" name="budgetAccountLinkAmountsPesos" value={link.replenishPesos} />
+                </div>
+              ))}
+            </div>
+          )}
+          {availableToAdd.length > 0 && (
+            <button
+              type="button"
+              onClick={addAccountRow}
+              className="mt-2 rounded border border-notion-hairline px-3 py-1.5 text-sm text-notion-text hover:bg-notion-hover"
+            >
+              + Add budget account
+            </button>
+          )}
+          {accountLinks.length > 0 && (
+            <p className="mt-1 text-sm text-slate-500">
+              Total: {formatCentavos(totalAllocationCentavos)} - added when this budget replenishes, split
+              across each connected account by its own share above.
+            </p>
+          )}
         </div>
 
         <div>
