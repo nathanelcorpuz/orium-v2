@@ -6,12 +6,22 @@ import { logActivity } from "@/lib/activityLog";
 
 export type ReminderActionState = { error: string | null };
 
+// T190: an optional due date - blank means "list-only," exactly as every
+// reminder behaved before this column existed. Read the same way everywhere
+// a truly-optional date field appears in this app (empty string -> null,
+// never an error - unlike a required date field).
+function readDueDate(formData: FormData): string | null {
+  const raw = (formData.get("dueDate") as string) || "";
+  return raw.trim() || null;
+}
+
 export async function createReminder(
   _prevState: ReminderActionState,
   formData: FormData,
 ): Promise<ReminderActionState> {
   const text = (formData.get("text") as string).trim();
   if (!text) return { error: "Reminder text is required." };
+  const dueDate = readDueDate(formData);
 
   const supabase = await createClient();
   const {
@@ -19,7 +29,7 @@ export async function createReminder(
   } = await supabase.auth.getUser();
   if (!user) return { error: "Not signed in." };
 
-  const { error } = await supabase.from("reminders").insert({ user_id: user.id, text });
+  const { error } = await supabase.from("reminders").insert({ user_id: user.id, text, due_date: dueDate });
   if (error) return { error: error.message };
 
   await logActivity(supabase, user.id, { action: "create", entityType: "reminder", entityName: text });
@@ -35,12 +45,13 @@ export async function updateReminder(
   const id = formData.get("id") as string;
   const text = (formData.get("text") as string).trim();
   if (!text) return { error: "Reminder text is required." };
+  const dueDate = readDueDate(formData);
 
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  const { error } = await supabase.from("reminders").update({ text }).eq("id", id);
+  const { error } = await supabase.from("reminders").update({ text, due_date: dueDate }).eq("id", id);
   if (error) return { error: error.message };
 
   if (user) await logActivity(supabase, user.id, { action: "update", entityType: "reminder", entityName: text });

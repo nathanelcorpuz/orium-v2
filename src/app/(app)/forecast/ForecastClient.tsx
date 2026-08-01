@@ -21,6 +21,7 @@ import type { ForecastRow } from "@/lib/engine/types";
 import type { ConnectedItem } from "@/lib/connectedItems";
 import type { LowestBalancePoint } from "@/lib/engine/lowestBalance";
 import { EditSettleModal } from "./EditSettleModal";
+import { CalendarGrid } from "./CalendarGrid";
 import { RemindersPanel, type ReminderRow } from "./RemindersPanel";
 
 // T49: the forecast list can grow into the hundreds of rows across a 3-year
@@ -196,6 +197,10 @@ export function ForecastClient({
   const [selectedRow, setSelectedRow] = useState<ForecastRow | null>(null);
   const [insightsCollapsed, setInsightsCollapsed] = useState(false);
   const [scenariosPanelOpen, setScenariosPanelOpen] = useState(false);
+  // T190: Table/Calendar toggle, replacing the old standalone /calendar page
+  // (T164) per user request - the calendar view is unfiltered (same as the
+  // old page), so the Filter button/badge only make sense in table mode.
+  const [viewMode, setViewMode] = useState<"table" | "calendar">("table");
   const activeScenarios = allScenarios.filter((s) => s.is_active);
 
   useEffect(() => {
@@ -507,7 +512,25 @@ export function ForecastClient({
 
           {(forecast.length > 0 || allScenarios.length > 0) && (
             <div className="mb-4 flex flex-wrap items-center gap-3" data-tour="forecast-filter">
-              {forecast.length > 0 && (
+              {/* T190: Table/Calendar toggle, replacing the old standalone
+                  /calendar page. */}
+              <div className="flex overflow-hidden rounded border border-notion-hairline text-xs">
+                <button
+                  type="button"
+                  onClick={() => setViewMode("table")}
+                  className={`px-3 py-1.5 ${viewMode === "table" ? "bg-notion-text text-white" : "bg-white text-notion-text hover:bg-notion-hover"}`}
+                >
+                  Table
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setViewMode("calendar")}
+                  className={`border-l border-notion-hairline px-3 py-1.5 ${viewMode === "calendar" ? "bg-notion-text text-white" : "bg-white text-notion-text hover:bg-notion-hover"}`}
+                >
+                  Calendar
+                </button>
+              </div>
+              {viewMode === "table" && forecast.length > 0 && (
                 <button
                   type="button"
                   onClick={() => setFilterModalOpen(true)}
@@ -539,7 +562,7 @@ export function ForecastClient({
                   )}
                 </button>
               )}
-              {filtersActive && (
+              {viewMode === "table" && filtersActive && (
                 <>
                   <button
                     type="button"
@@ -556,7 +579,7 @@ export function ForecastClient({
             </div>
           )}
 
-          {filterModalOpen && (
+          {viewMode === "table" && filterModalOpen && (
             <Modal title="Filter transactions" onClose={() => setFilterModalOpen(false)}>
               <div className="flex flex-col gap-4">
                 <div className="flex gap-2">
@@ -613,7 +636,19 @@ export function ForecastClient({
             </Modal>
           )}
 
-          {forecast.length === 0 ? (
+          {viewMode === "calendar" ? (
+            forecast.length === 0 ? (
+              <p className="text-slate-500">No upcoming transactions yet.</p>
+            ) : (
+              <CalendarGrid
+                forecast={forecast}
+                balances={balances}
+                currency={currency}
+                reminders={reminders}
+                previewMode={previewMode}
+              />
+            )
+          ) : forecast.length === 0 ? (
             <p className="text-slate-500">No upcoming transactions yet.</p>
           ) : filteredForecast.length === 0 ? (
             <p className="text-slate-500">No transactions match these filters.</p>

@@ -13,6 +13,8 @@ import {
 } from "@/components/navIcons";
 import { MobileDrawer } from "@/components/MobileDrawer";
 import { SubmitButton } from "@/components/SubmitButton";
+import { DatePicker } from "@/components/DatePicker";
+import { formatFullDate } from "@/lib/date";
 import { useOrderedList } from "@/lib/useOrderedList";
 import {
   createReminder,
@@ -22,7 +24,10 @@ import {
   type ReminderActionState,
 } from "./reminderActions";
 
-export type ReminderRow = { id: string; text: string; completed: boolean };
+// T190: `due_date` is optional - when set, this reminder is also plotted on
+// the calendar (green); when null, it behaves exactly as before this field
+// existed (list-only).
+export type ReminderRow = { id: string; text: string; completed: boolean; due_date: string | null };
 
 const initialState: ReminderActionState = { error: null };
 
@@ -30,10 +35,16 @@ function AddReminderForm() {
   const [state, formAction, pending] = useActionState(createReminder, initialState);
   const formRef = useRef<HTMLFormElement>(null);
   const submitted = useRef(false);
+  // T190: `form.reset()` below only resets plain native inputs - DatePicker
+  // is an uncontrolled component with its own React state, which a native
+  // reset doesn't touch. Remounting it via a changing `key` on success is
+  // the simplest way to actually clear the picked date back to blank.
+  const [datePickerResetKey, setDatePickerResetKey] = useState(0);
 
   useEffect(() => {
     if (submitted.current && !pending && !state.error) {
       formRef.current?.reset();
+      setDatePickerResetKey((k) => k + 1);
       submitted.current = false;
     }
   }, [pending, state]);
@@ -63,6 +74,16 @@ function AddReminderForm() {
           Add
         </button>
       </div>
+      {/* T190: optional - a reminder with no date is unchanged from before
+          this field existed. Placeholder text ("Optional date") since this
+          is the one truly-optional date field in the app; a blank
+          DatePicker could otherwise read as an error waiting to happen. */}
+      <DatePicker
+        key={datePickerResetKey}
+        name="dueDate"
+        placeholder="Optional date (shows on calendar)"
+        className="mt-1.5 w-full rounded border border-notion-hairline px-2 py-1 text-left text-xs text-slate-500 focus:border-notion-accent focus:outline-none"
+      />
       {state.error && <p className="mt-1 text-sm text-red-600">{state.error}</p>}
     </form>
   );
@@ -173,6 +194,12 @@ function ReminderItem({ reminder, readOnly }: { reminder: ReminderRow; readOnly?
             <CloseIcon className="h-3.5 w-3.5" />
           </button>
         </div>
+        <DatePicker
+          name="dueDate"
+          defaultValue={reminder.due_date ?? undefined}
+          placeholder="Optional date (shows on calendar)"
+          className="mt-1.5 w-full rounded border border-notion-hairline px-2 py-1 text-left text-xs text-slate-500 focus:border-notion-accent focus:outline-none"
+        />
         {editState.error && <p className="mt-1 text-xs text-red-600">{editState.error}</p>}
       </form>
     );
@@ -211,7 +238,12 @@ function ReminderItem({ reminder, readOnly }: { reminder: ReminderRow; readOnly?
   if (reminder.completed) {
     return (
       <div className="flex items-start justify-between gap-2 text-sm">
-        <span className="flex-1 break-words text-slate-400 line-through">{reminder.text}</span>
+        <div className="min-w-0 flex-1">
+          <span className="break-words text-slate-400 line-through">{reminder.text}</span>
+          {reminder.due_date && (
+            <span className="mt-0.5 block text-xs text-slate-400">{formatFullDate(reminder.due_date)}</span>
+          )}
+        </div>
         <div className="flex shrink-0 items-center gap-1">
           <form action={setReminderCompleted}>
             <input type="hidden" name="id" value={reminder.id} />
@@ -241,7 +273,15 @@ function ReminderItem({ reminder, readOnly }: { reminder: ReminderRow; readOnly?
 
   return (
     <div className="flex items-start justify-between gap-2 text-sm">
-      <span className="flex-1 break-words text-notion-text">{reminder.text}</span>
+      <div className="min-w-0 flex-1">
+        <span className="break-words text-notion-text">{reminder.text}</span>
+        {reminder.due_date && (
+          <span className="mt-0.5 flex items-center gap-1 text-xs text-emerald-600">
+            <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-500" aria-hidden="true" />
+            {formatFullDate(reminder.due_date)}
+          </span>
+        )}
+      </div>
       <div className="flex shrink-0 items-center gap-1">
         <form action={setReminderCompleted}>
           <input type="hidden" name="id" value={reminder.id} />

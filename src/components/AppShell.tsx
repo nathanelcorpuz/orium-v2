@@ -45,9 +45,6 @@ const NAV_ITEMS = [
   // those same finance types, not reviewing what already happened.
   { href: "/scenarios", label: "Scenarios", tourKey: "scenarios" },
   { href: "/history", label: "History", tourKey: "history" },
-  // T164: sits next to History/Updates - all three are supporting views over
-  // the same forecast/settlement data, not primary entry pages.
-  { href: "/calendar", label: "Calendar", tourKey: "calendar" },
   // T163: sits next to History - both are "look back" pages - rather than
   // up with Dashboard/Forecast, which are forward-looking.
   { href: "/updates", label: "Updates", tourKey: "updates" },

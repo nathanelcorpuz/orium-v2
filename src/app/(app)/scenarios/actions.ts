@@ -13,7 +13,7 @@ export type ScenarioActionState = { error: string | null };
 // place scenario data affects anything real-data-facing is loadForecast()'s
 // merge and this "activate permanently" copy. Revalidating broadly here is
 // cheap insurance against missing one.
-const AFFECTED_PATHS = ["/", "/forecast", "/calendar", "/scenarios"];
+const AFFECTED_PATHS = ["/", "/forecast", "/scenarios"];
 
 export async function createScenario(
   _prevState: ScenarioActionState,

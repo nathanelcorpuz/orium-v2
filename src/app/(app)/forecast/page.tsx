@@ -36,7 +36,7 @@ export default async function ForecastPage({
     const supabase = await createClient();
     const [data, remindersRes, connected, scenariosRes] = await Promise.all([
       loadForecast(),
-      supabase.from("reminders").select("id, text, completed").order("created_at", { ascending: true }),
+      supabase.from("reminders").select("id, text, completed, due_date").order("created_at", { ascending: true }),
       loadConnectedItems(),
       supabase.from("scenarios").select("id, name, is_active").order("created_at", { ascending: true }),
     ]);

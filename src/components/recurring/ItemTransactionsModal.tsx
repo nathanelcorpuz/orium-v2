@@ -25,8 +25,9 @@ export type SettlementRow = {
 // T188 (user request): a row with the "edited from its usual schedule" mark
 // (✎) needed a way to actually change that occurrence from here, not just
 // see that it was changed - clicking an upcoming row now opens the exact
-// same `EditSettleModal` the Forecast/Calendar pages already use, rather
-// than a second edit surface for the same occurrence_overrides row.
+// same `EditSettleModal` the Forecast page (table and calendar views alike)
+// already uses, rather than a second edit surface for the same
+// occurrence_overrides row.
 export function ItemTransactionsModal({
   name,
   upcoming,
@@ -48,7 +49,7 @@ export function ItemTransactionsModal({
   // T174: a scenario-sourced row's sourceId belongs to scenario_recurring_items,
   // not recurring_items - EditSettleModal's actions would write against an id
   // that doesn't exist in the tables they actually know about. Same guard
-  // ForecastClient/CalendarClient already apply.
+  // ForecastClient/CalendarGrid already apply.
   if (editingRow) {
     return (
       <EditSettleModal row={editingRow} currency={currency} balances={balances} onClose={() => setEditingRow(null)} />

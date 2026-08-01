@@ -231,6 +231,6 @@ export function getSampleFixtureData(): ForecastData {
 }
 
 export const SAMPLE_FIXTURE_REMINDERS: ReminderRow[] = [
-  { id: "preview-reminder-1", text: "Try adding your own reminder here!", completed: false },
-  { id: "preview-reminder-2", text: "Ask about the car loan's payoff date", completed: true },
+  { id: "preview-reminder-1", text: "Try adding your own reminder here!", completed: false, due_date: null },
+  { id: "preview-reminder-2", text: "Ask about the car loan's payoff date", completed: true, due_date: null },
 ];

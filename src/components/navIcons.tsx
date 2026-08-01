@@ -389,7 +389,6 @@ export const NAV_ICONS: Record<string, (props: IconProps) => React.JSX.Element> 
   "/scenarios": ScenariosIcon,
   "/forecast": ForecastIcon,
   "/history": HistoryIcon,
-  "/calendar": CalendarIcon,
   "/updates": UpdatesIcon,
   "/settings": SettingsIcon,
 };

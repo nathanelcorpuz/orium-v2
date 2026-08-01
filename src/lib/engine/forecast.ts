@@ -218,7 +218,7 @@ export function generateForecast(input: GenerateForecastInput): ForecastRow[] {
         edited: editedAmount !== null || editedDate !== null ? true : undefined,
         // T182: pass-through, same as recurring/one-off rows (T174) - lets
         // the UI badge it and (via the existing fromScenario click-guards
-        // already in ForecastClient/CalendarClient) keeps it unclickable,
+        // already in ForecastClient/CalendarGrid) keeps it unclickable,
         // since its sourceId is a scenario_budgets id, not a real budgets one.
         fromScenario: budget.fromScenario,
       });
