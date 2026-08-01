@@ -14,6 +14,7 @@ Scratchpad for things raised between sessions. Write anything here, in any shape
 
 ## Last triage
 
+- **2026-08-01, seventh pass**: 1 item (account filter should be a dropdown) → **T206** (SPEC.md Phase 27, not yet built).
 - **2026-08-01, sixth pass**: 1 item (mobile Forecast table height) → **T205** (SPEC.md Phase 27, not yet built). Same session: built the budget-accounts feature the user asked about directly (T204, SPEC.md Phase 28) - a separate `budget_accounts` table, storage for budgets, optionally linked, never counted in Total Balance/the forecast, managed from the Budgets page itself.
 - **2026-08-01, fifth pass**: 1 item ("move funds in budgets") → **T203** (SPEC.md Phase 27, not yet built). Same session: fixed a real bug found while testing against the newly-duplicated staging data - "Pocket Money" (a budget linked to an income after that income's occurrence already settled) kept saying "Replenishes today" - now **Bug #16** in BUGS.md, fixed.
 - **2026-08-01, fourth pass**: 3 UI polish items (collapsed-sidebar layout for the help icons and the Updates badge; Dashboard loading state) → **T200-T202** (SPEC.md Phase 27, not yet built). Also this session: confirmed the production account (`nathanelcorpuz@gmail.com`, ₱89,211.17 total balance) and duplicated it one-way into the staging Supabase project under the same email, for local testing without touching production again - see STAGING.md's "Progress" section for the mechanism, repeatable on request.

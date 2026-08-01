@@ -148,12 +148,21 @@ function readSettleForm(formData: FormData) {
   const actualAmount = parseCentavos(formData.get("actualAmountPesos") as string);
   const actualDate = formData.get("actualDate") as string;
   const balanceId = (formData.get("balanceId") as string) || null;
+  // T194 (user request): the account fee is now a real, editable field for
+  // this one settlement - blank means "use whatever the connected account's
+  // own fee setting currently is," the same behavior as before this field
+  // existed. Ignored by settleBudgetReplenish (it never touches a main
+  // account at all), harmless since it just goes unread there.
+  const feeAmountRaw = ((formData.get("feeAmountPesos") as string) || "").trim();
+  const feeAmount = feeAmountRaw === "" ? null : parseCentavos(feeAmountRaw);
+  if (feeAmountRaw !== "" && feeAmount === null) return { error: "Enter a valid fee amount." } as const;
+  if (feeAmount !== null && feeAmount < 0) return { error: "Enter a valid fee amount." } as const;
 
   if (actualAmount === null) return { error: "Enter a valid actual amount." } as const;
   if (!actualDate) return { error: "Actual date is required." } as const;
   if (actualDate > todayInManila()) return { error: "Actual date can't be in the future." } as const;
 
-  return { error: null, actualAmount, actualDate, balanceId } as const;
+  return { error: null, actualAmount, actualDate, balanceId, feeAmount } as const;
 }
 
 // T71 (SPEC.md Phase 12): applies a settlement's signed actual amount to its
@@ -177,6 +186,10 @@ async function applyToBalance(
   supabase: Awaited<ReturnType<typeof createClient>>,
   balanceId: string,
   delta: number,
+  // T194: an explicit fee for this one settlement, overriding the account's
+  // own stored fee - null/omitted keeps the original behavior (use whatever
+  // the account is currently set to).
+  feeOverride?: number | null,
 ): Promise<string | null> {
   const { data: balance, error: fetchError } = await supabase
     .from("balances")
@@ -185,7 +198,7 @@ async function applyToBalance(
     .single();
   if (fetchError) return fetchError.message;
 
-  const fee = balance.transaction_fee_centavos ?? 0;
+  const fee = feeOverride ?? balance.transaction_fee_centavos ?? 0;
 
   const { error: updateError } = await supabase
     .from("balances")
@@ -301,7 +314,12 @@ export async function settleOccurrence(
   // that matches both the projection and the ledger model, which lets a
   // budget go negative rather than clamping.
   if (fields.balanceId) {
-    const balanceError = await applyToBalance(supabase, fields.balanceId, actualAmount - totalAllocation);
+    const balanceError = await applyToBalance(
+      supabase,
+      fields.balanceId,
+      actualAmount - totalAllocation,
+      fields.feeAmount,
+    );
     if (balanceError) return { error: balanceError };
   }
 

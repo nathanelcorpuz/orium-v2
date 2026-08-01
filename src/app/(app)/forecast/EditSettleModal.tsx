@@ -600,15 +600,28 @@ export function EditSettleModal({
           <p className="text-sm text-slate-500">
             Forecasted: {formatFullDate(row.dueDate)}, {centavosToPesosString(row.amount)} {currency}
           </p>
-          {/* T172: the connected account's fee, shown for transparency - the
-              user's own request specifically asked for this to be visible
-              "in editing/settling a transaction." Already reflected in the
-              projected running balance; there is nothing to edit here, it's
-              a property of the account, not this occurrence. */}
+          {/* T172, made editable by T194 (user request): the connected
+              account's fee, auto-populated from the account's own fee
+              setting but overridable for this one settlement - e.g. a fee
+              that was waived, or came out higher than usual. Only shown
+              when this row's own account already carries a fee; unlike the
+              account picker just below (T193), this doesn't live-update if
+              a different account is chosen here. */}
           {row.feeAmount ? (
-            <p className="text-sm text-slate-500">
-              Plus a {centavosToPesosString(row.feeAmount)} {currency} account fee
-            </p>
+            <div>
+              <label className="block text-sm text-slate-600" htmlFor="feeAmountPesos">
+                Account fee ({currency})
+              </label>
+              <input
+                id="feeAmountPesos"
+                name="feeAmountPesos"
+                type="number"
+                step="0.01"
+                min="0"
+                defaultValue={centavosToPesosString(row.feeAmount)}
+                className="mt-1 w-full rounded border border-notion-hairline p-2 text-notion-text focus:border-notion-accent focus:outline-none"
+              />
+            </div>
           ) : null}
           <div>
             <label className="block text-sm text-slate-600" htmlFor="actualAmountPesos">
