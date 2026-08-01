@@ -56,6 +56,15 @@ export function generateForecast(input: GenerateForecastInput): ForecastRow[] {
     budgetReplenishOverridesByKey.set(budgetOverrideKey(override.budgetId, override.originalDate), override);
   }
 
+  // T191 (user request): an income-linked budget's replenishment is real
+  // money leaving *that income's own connected account* - settleOccurrence
+  // already applies it that way (`actualAmount - totalAllocation` in one
+  // write to the income's account, T151/Bug #14) - so the projected
+  // budget_replenish row should carry that same account as its `balanceId`,
+  // not go unattributed. Looked up by id once here rather than re-scanning
+  // `recurringItems` per budget below.
+  const balanceIdByRecurringItemId = new Map(recurringItems.map((item) => [item.id, item.balanceId]));
+
   const rows: Omit<ForecastRow, "runningBalance">[] = [];
 
   // Phase 11 (T59): an income's *effective* (override-applied, non-skipped)
@@ -216,6 +225,18 @@ export function generateForecast(input: GenerateForecastInput): ForecastRow[] {
         budgetName: budget.name,
         budgetSettleable: budget.linkedIncomeId === null ? true : undefined,
         edited: editedAmount !== null || editedDate !== null ? true : undefined,
+        // T191: an own-schedule budget (no linked income) isn't funded from
+        // any particular account in this model - it stays unattributed,
+        // same as before. `?? undefined` covers both "no linked income" and
+        // "linked income has no connected account of its own".
+        balanceId: budget.linkedIncomeId ? (balanceIdByRecurringItemId.get(budget.linkedIncomeId) ?? undefined) : undefined,
+        // Deliberately no `feeAmount` here even when the line above resolves
+        // an account with its own fee - the income row occurring alongside
+        // this one already carries that account's fee (T172), and
+        // `settleOccurrence` only ever deducts it once, in the same single
+        // net write that applies this allocation (T151/Bug #14). Charging it
+        // again here would double it, in projection only, the same class of
+        // forecast-versus-reality drift Bug #14 was about.
         // T182: pass-through, same as recurring/one-off rows (T174) - lets
         // the UI badge it and (via the existing fromScenario click-guards
         // already in ForecastClient/CalendarGrid) keeps it unclickable,

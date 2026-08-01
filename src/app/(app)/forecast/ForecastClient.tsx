@@ -5,7 +5,7 @@ import Link from "next/link";
 import { formatCentavos } from "@/lib/money";
 import { formatFullDate, todayInManila } from "@/lib/date";
 import { balanceRangeColorClass, balanceRangeTier, firstDangerLabel, lowestBalanceLabel } from "@/lib/balanceColor";
-import { findAccountLowestPoints } from "@/lib/engine/accountBalances";
+import { accountBalanceForRow, computeAccountBalancesAfterEachRow, findAccountLowestPoints } from "@/lib/engine/accountBalances";
 import { BalanceModal, type BalanceRow } from "@/app/(app)/accounts/BalanceModal";
 import { AmountRangeFilter, matchesAmountFilter, type ComparisonOp } from "@/components/AmountRangeFilter";
 import { MultiSelectChips } from "@/components/MultiSelectChips";
@@ -289,6 +289,16 @@ export function ForecastClient({
   // a new prop through forecast/page.tsx.
   const accountLowestPoints = useMemo(
     () => findAccountLowestPoints(forecast, balances, todayInManila()),
+    [forecast, balances],
+  );
+
+  // T191 (user request): "if a forecasted transaction has an account
+  // connected to it, show me what that account's balance will be at that
+  // point in time" - computed once per data load (like the lowest-point map
+  // above) so opening the modal is an O(1) lookup by row identity, not a
+  // fresh walk over the whole forecast per click.
+  const accountBalanceAfterRow = useMemo(
+    () => computeAccountBalancesAfterEachRow(forecast, balances),
     [forecast, balances],
   );
 
@@ -794,6 +804,7 @@ export function ForecastClient({
           row={selectedRow}
           currency={currency}
           balances={balances}
+          accountBalanceAtRow={accountBalanceForRow(selectedRow, accountBalanceAfterRow)}
           onClose={() => setSelectedRow(null)}
         />
       )}

@@ -26,13 +26,23 @@ export function EditSettleModal({
   row,
   currency,
   balances,
+  accountBalanceAtRow = null,
   onClose,
 }: {
   row: ForecastRow;
   currency: string;
   balances: { id: string; name: string }[];
+  // T191 (user request): when this row is actually connected to an account,
+  // what that account's own balance will be once this transaction happens -
+  // computed by the caller (it needs every account's starting `amount`,
+  // which this modal's own `balances` prop deliberately doesn't carry) via
+  // `computeAccountBalancesAfterEachRow`/`accountBalanceForRow`
+  // (accountBalances.ts). Null covers every case where there's nothing to
+  // show: no connected account, or a stale/deleted one.
+  accountBalanceAtRow?: number | null;
   onClose: () => void;
 }) {
+  const connectedAccountName = row.balanceId ? (balances.find((b) => b.id === row.balanceId)?.name ?? null) : null;
   // Future-dated budget entries (SPEC.md T43/T57) are editable directly from
   // the Forecast - a real budget_entries row (spend, replenishment, or
   // manual add/take), not a projected occurrence, so they skip the edit/
@@ -142,6 +152,19 @@ export function EditSettleModal({
 
   return (
     <Modal title={row.name} onClose={onClose}>
+      {/* T191 (user request): shown up front, not tucked behind "See more" -
+          the whole point is knowing this without an extra click. Only
+          renders when there's actually a connected account with something
+          to report (see the prop's own comment for the null cases). */}
+      {connectedAccountName && accountBalanceAtRow !== null && (
+        <p className="mb-4 rounded border border-notion-hairline bg-notion-hover/40 p-2 text-sm text-slate-600">
+          <span className="font-medium text-notion-text">{connectedAccountName}</span> will be{" "}
+          <span className="font-medium text-notion-text">
+            {centavosToPesosString(accountBalanceAtRow)} {currency}
+          </span>{" "}
+          after this.
+        </p>
+      )}
       {/* T158: the table shows only name and amount, so everything else about
           a row required opening the underlying record on another page.
           Collapsed by default - this is reference detail, not the reason the
@@ -175,9 +198,7 @@ export function EditSettleModal({
             </div>
             <div className="flex justify-between gap-4">
               <dt className="text-slate-500">Account</dt>
-              <dd className="text-notion-text">
-                {row.balanceId ? (balances.find((b) => b.id === row.balanceId)?.name ?? "-") : "-"}
-              </dd>
+              <dd className="text-notion-text">{connectedAccountName ?? "-"}</dd>
             </div>
             <div className="flex justify-between gap-4">
               <dt className="text-slate-500">Forecasted balance</dt>

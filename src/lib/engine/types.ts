@@ -205,9 +205,19 @@ export interface ForecastRow {
   // explicit `undefined`).
   edited?: true;
   // T71 (SPEC.md Phase 12): the source item's linked account, for
-  // "recurring"/"one_off" rows only - lets the Forecast settle modal
-  // pre-select it. Omitted (not null) when unset, same convention as
-  // `edited`, so existing toEqual literals without it are unaffected.
+  // "recurring"/"one_off" rows - lets the Forecast settle modal pre-select
+  // it. Omitted (not null) when unset, same convention as `edited`, so
+  // existing toEqual literals without it are unaffected.
+  //
+  // T191: also set on a "budget_replenish" row when its budget is linked to
+  // an income that itself has a connected account - that account is where
+  // the replenishment's money actually comes from (settleOccurrence nets the
+  // allocation out of it in one write alongside the income, T151/Bug #14),
+  // so it's a real connection, not a guess. An own-schedule budget (no
+  // linked income) has nothing to attribute here and stays unset, same as
+  // before this existed. Never set on "budget_entry" rows - a ledger entry
+  // (spend/manual add/take) only ever moves money within the budget's own
+  // ledger, never a main account.
   balanceId?: string;
   // T172: the connected account's flat transaction fee, already folded into
   // `runningBalance` but kept as its own field so the UI can show it as a
@@ -215,6 +225,13 @@ export interface ForecastRow {
   // match the underlying bill/income/misc record's real value). Omitted
   // (not 0) when the row has no connected account or that account has no
   // fee, same convention as every other optional flag here.
+  //
+  // T191: deliberately omitted on an income-linked "budget_replenish" row
+  // even when `balanceId` above resolves an account with its own fee - the
+  // income row landing alongside it already carries that fee, and
+  // `settleOccurrence` only ever deducts it once. Charging it twice here
+  // would be the same class of forecast-versus-reality drift Bug #14 was
+  // about, just reintroduced in projection.
   feeAmount?: number;
   // T174: true when this row comes from an active "what-if" scenario rather
   // than real data - only ever set for "recurring"/"one_off" rows, since

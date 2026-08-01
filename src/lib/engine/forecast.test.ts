@@ -385,6 +385,56 @@ describe("generateForecast budget replenish schedule (Phase 11, T59)", () => {
     ]);
   });
 
+  it("attributes an income-linked budget's replenishment to that income's own connected account", () => {
+    const income = monthlyItem({
+      id: "income-1",
+      type: "income",
+      amount: 2000000,
+      daysOfMonth: [5],
+      balanceId: "bal-1",
+    });
+    const linkedBudget = testBudget({ linkedIncomeId: "income-1" });
+
+    const result = generateForecast({
+      balances: [{ id: "bal-1", name: "GCash", amount: 0, transactionFeeCentavos: 1000 }],
+      recurringItems: [income],
+      overrides: [],
+      oneOffs: [],
+      budgets: [linkedBudget],
+      budgetEntries: [],
+      today: "2026-01-01",
+      horizon: "2026-01-31",
+    });
+
+    const incomeRow = result.find((row) => row.sourceType === "recurring");
+    const replenishRow = result.find((row) => row.sourceType === "budget_replenish");
+    expect(replenishRow?.balanceId).toBe("bal-1");
+    // T151/Bug #14: settleOccurrence deducts this allocation from the
+    // account in the same single net write as the income's own settlement,
+    // fee included exactly once (already reflected on the income row) - the
+    // projection must not also charge the account's fee a second time here.
+    expect(incomeRow?.feeAmount).toBe(1000);
+    expect(replenishRow?.feeAmount).toBeUndefined();
+  });
+
+  it("leaves an own-schedule budget's replenishment unattributed to any account", () => {
+    const weeklyBudget = testBudget(weeklyMonday);
+
+    const result = generateForecast({
+      balances: [{ id: "bal-1", name: "GCash", amount: 0 }],
+      recurringItems: [],
+      overrides: [],
+      oneOffs: [],
+      budgets: [weeklyBudget],
+      budgetEntries: [],
+      today: "2026-01-01",
+      horizon: "2026-01-31",
+    });
+
+    const replenishRow = result.find((row) => row.sourceType === "budget_replenish");
+    expect(replenishRow?.balanceId).toBeUndefined();
+  });
+
   it("moves the linked budget's deduction along with a moved income occurrence, keyed by the original date", () => {
     const income = monthlyItem({ id: "income-1", type: "income", amount: 2000000, daysOfMonth: [5] });
     const linkedBudget = testBudget({ linkedIncomeId: "income-1" });

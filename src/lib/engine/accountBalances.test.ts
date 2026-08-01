@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { findAccountLowestPoints } from "./accountBalances";
+import { accountBalanceForRow, computeAccountBalancesAfterEachRow, findAccountLowestPoints } from "./accountBalances";
 import type { ForecastRow } from "./types";
 
 function row(
@@ -86,5 +86,47 @@ describe("findAccountLowestPoints", () => {
     const rows = [row("2026-01-05", -10000)];
     const result = findAccountLowestPoints(rows, [], "2026-01-01");
     expect(result.size).toBe(0);
+  });
+});
+
+describe("computeAccountBalancesAfterEachRow / accountBalanceForRow", () => {
+  it("records the connected account's own balance immediately after each of its rows, leaving the other account untouched", () => {
+    const rowA1 = row("2026-01-05", -80000, { balanceId: "a" });
+    const rowA2 = row("2026-01-10", 20000, { balanceId: "a" });
+    const timeline = computeAccountBalancesAfterEachRow([rowA1, rowA2], accounts);
+    expect(accountBalanceForRow(rowA1, timeline)).toBe(20000);
+    expect(accountBalanceForRow(rowA2, timeline)).toBe(40000);
+  });
+
+  it("subtracts the connected account's own fee before recording the balance", () => {
+    const target = row("2026-01-05", 20000, { balanceId: "a", feeAmount: 500 });
+    const timeline = computeAccountBalancesAfterEachRow([target], accounts);
+    expect(accountBalanceForRow(target, timeline)).toBe(119500);
+  });
+
+  it("returns null for a row with no connected account at all", () => {
+    const unlinked = row("2026-01-05", -10000);
+    const timeline = computeAccountBalancesAfterEachRow([unlinked], accounts);
+    // Still attributed internally (to the highest-balance account, same
+    // fallback as findAccountLowestPoints), but this feature only answers
+    // "what will *this row's own* connected account hold" - a row with no
+    // connection of its own has nothing to report.
+    expect(accountBalanceForRow(unlinked, timeline)).toBeNull();
+  });
+
+  it("returns null when the row's balanceId no longer matches a tracked account", () => {
+    const stale = row("2026-01-05", -10000, { balanceId: "does-not-exist" });
+    const timeline = computeAccountBalancesAfterEachRow([stale], accounts);
+    // Falls back to the highest-balance account internally, but that isn't
+    // the account this row claims to be connected to - showing it would be
+    // misleading, so this reports null rather than someone else's balance.
+    expect(accountBalanceForRow(stale, timeline)).toBeNull();
+  });
+
+  it("returns null for a row the timeline was never computed over", () => {
+    const known = row("2026-01-05", -10000, { balanceId: "a" });
+    const unknown = row("2026-01-06", -10000, { balanceId: "a" });
+    const timeline = computeAccountBalancesAfterEachRow([known], accounts);
+    expect(accountBalanceForRow(unknown, timeline)).toBeNull();
   });
 });

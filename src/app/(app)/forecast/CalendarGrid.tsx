@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { formatCentavos } from "@/lib/money";
 import { formatFullDate, formatMonthYear, todayInManila } from "@/lib/date";
 import { daysInMonth, formatDate } from "@/lib/engine/date-utils";
+import { accountBalanceForRow, computeAccountBalancesAfterEachRow } from "@/lib/engine/accountBalances";
 import { TYPE_COLOR, TYPE_LABEL } from "@/lib/forecastLabels";
 import { ChevronIcon } from "@/components/navIcons";
 import { Modal } from "@/components/Modal";
@@ -62,6 +63,14 @@ export function CalendarGrid({
     }
     return map;
   }, [forecast]);
+
+  // T191: same per-row account-balance lookup ForecastClient's table uses -
+  // see that file's own comment for why it's a precomputed map rather than
+  // a fresh walk per click.
+  const accountBalanceAfterRow = useMemo(
+    () => computeAccountBalancesAfterEachRow(forecast, balances),
+    [forecast, balances],
+  );
 
   const remindersByDate = useMemo(() => {
     const map = new Map<string, ReminderRow[]>();
@@ -230,6 +239,7 @@ export function CalendarGrid({
           row={selectedRow}
           currency={currency}
           balances={balances}
+          accountBalanceAtRow={accountBalanceForRow(selectedRow, accountBalanceAfterRow)}
           onClose={() => setSelectedRow(null)}
         />
       )}
