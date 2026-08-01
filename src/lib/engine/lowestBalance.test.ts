@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { findFirstDangerPoint, findLowestBalancePoint } from "./lowestBalance";
+import { findFirstDangerPoint, findLowestBalancePoint, findNextTransactionBatch } from "./lowestBalance";
 import type { ForecastRow } from "./types";
 
 function row(dueDate: string, runningBalance: number): ForecastRow {
@@ -107,5 +107,46 @@ describe("findFirstDangerPoint", () => {
 
   it("returns null when there are no rows and the starting balance is fine", () => {
     expect(findFirstDangerPoint([], 500, 0, "2026-01-01")).toBeNull();
+  });
+});
+
+describe("findNextTransactionBatch (SPEC.md T215)", () => {
+  it("returns null when there are no rows", () => {
+    expect(findNextTransactionBatch([])).toBeNull();
+  });
+
+  it("finds the single earliest date and counts just that one row", () => {
+    const rows = [row("2026-01-05", 90000), row("2026-01-12", 80000)];
+    expect(findNextTransactionBatch(rows)).toEqual({ date: "2026-01-05", count: 1 });
+  });
+
+  it("counts every row sharing the earliest date, e.g. a payday and a bill on the same day", () => {
+    const rows = [row("2026-01-05", 90000), row("2026-01-05", 70000), row("2026-01-12", 80000)];
+    expect(findNextTransactionBatch(rows)).toEqual({ date: "2026-01-05", count: 2 });
+  });
+
+  it("is order-independent - the earliest date wins regardless of array order", () => {
+    const rows = [row("2026-03-01", 1000), row("2026-01-05", 90000), row("2026-01-05", 70000)];
+    expect(findNextTransactionBatch(rows)).toEqual({ date: "2026-01-05", count: 2 });
+  });
+
+  it("excludes hidden rows (T214's auto-move legs) from both the date search and the count", () => {
+    const hiddenRow: ForecastRow = { ...row("2026-01-03", 50000), hidden: true };
+    const rows = [hiddenRow, row("2026-01-05", 90000)];
+    expect(findNextTransactionBatch(rows)).toEqual({ date: "2026-01-05", count: 1 });
+  });
+
+  it("excludes fromScenario rows - hypothetical, not a real obligation to settle", () => {
+    const scenarioRow: ForecastRow = { ...row("2026-01-02", 50000), fromScenario: true };
+    const rows = [scenarioRow, row("2026-01-05", 90000)];
+    expect(findNextTransactionBatch(rows)).toEqual({ date: "2026-01-05", count: 1 });
+  });
+
+  it("returns null when every row is hidden or from a scenario", () => {
+    const rows: ForecastRow[] = [
+      { ...row("2026-01-03", 50000), hidden: true },
+      { ...row("2026-01-04", 50000), fromScenario: true },
+    ];
+    expect(findNextTransactionBatch(rows)).toBeNull();
   });
 });

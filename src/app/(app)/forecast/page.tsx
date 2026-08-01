@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { loadForecast } from "@/lib/forecastData";
-import { findFirstDangerPoint, findLowestBalancePoint } from "@/lib/engine/lowestBalance";
+import { findFirstDangerPoint, findLowestBalancePoint, findNextTransactionBatch } from "@/lib/engine/lowestBalance";
 import { splitPastDue } from "@/lib/engine/forecast";
 import { getSampleFixtureData, SAMPLE_FIXTURE_REMINDERS } from "@/lib/sampleFixture";
 import { connectedItemsFromFixture, type ConnectedItem } from "@/lib/connectedItems";
@@ -57,6 +57,9 @@ export default async function ForecastPage({
   const { pastDueTotal, balanceAfterPastDue, pastDue, upcoming } = splitPastDue(forecast, totalBalance);
   const lowestBalance = findLowestBalancePoint(upcoming, balanceAfterPastDue, today);
   const firstDanger = findFirstDangerPoint(upcoming, balanceAfterPastDue, balanceRanges[0], today);
+  // T215 (user request 2026-08-01): "days until next transaction(s) to
+  // settle" - same `upcoming` rows the two stats above already use.
+  const nextTransactionBatch = findNextTransactionBatch(upcoming);
 
   return (
     <ForecastClient
@@ -74,6 +77,7 @@ export default async function ForecastPage({
       balanceAfterPastDue={balanceAfterPastDue}
       lowestBalance={lowestBalance}
       firstDanger={firstDanger}
+      nextTransactionBatch={nextTransactionBatch}
       previewMode={preview}
       allScenarios={allScenarios}
       incomeAutoMoves={incomeAutoMoves}

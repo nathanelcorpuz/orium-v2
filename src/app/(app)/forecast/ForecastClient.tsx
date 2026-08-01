@@ -4,6 +4,7 @@ import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { formatCentavos } from "@/lib/money";
 import { formatFullDate, todayInManila } from "@/lib/date";
+import { daysBetween } from "@/lib/engine/date-utils";
 import { balanceRangeColorClass, balanceRangeTier, firstDangerLabel, lowestBalanceLabel } from "@/lib/balanceColor";
 import { accountBalanceForRow, computeAccountBalancesAfterEachRow, findAccountLowestPoints } from "@/lib/engine/accountBalances";
 import { BalanceModal, type BalanceRow } from "@/app/(app)/accounts/BalanceModal";
@@ -20,7 +21,7 @@ import { TYPE_COLOR, TYPE_LABEL } from "@/lib/forecastLabels";
 import { summarizeRecurrence, budgetReplenishRuleSummary } from "@/lib/recurrenceSummary";
 import type { ForecastRow, Budget, IncomeAutoMove, RecurringItem } from "@/lib/engine/types";
 import type { ConnectedItem } from "@/lib/connectedItems";
-import type { LowestBalancePoint } from "@/lib/engine/lowestBalance";
+import type { LowestBalancePoint, NextTransactionBatch } from "@/lib/engine/lowestBalance";
 import { EditSettleModal } from "./EditSettleModal";
 import { CalendarGrid } from "./CalendarGrid";
 import { RemindersPanel, type ReminderRow } from "./RemindersPanel";
@@ -158,6 +159,7 @@ export function ForecastClient({
   balanceAfterPastDue,
   lowestBalance,
   firstDanger,
+  nextTransactionBatch,
   previewMode = false,
   allScenarios,
   incomeAutoMoves = [],
@@ -186,6 +188,10 @@ export function ForecastClient({
   balanceAfterPastDue: number;
   lowestBalance: LowestBalancePoint;
   firstDanger: LowestBalancePoint | null;
+  // T215 (user request 2026-08-01): "days until next transaction(s) to
+  // settle" - null when there's nothing real left to settle (findNextTransactionBatch
+  // excludes hidden auto-move legs and scenario rows, same as the two stats above).
+  nextTransactionBatch: NextTransactionBatch | null;
   // T103: opt-in sample-data preview - real financial data isn't touched by
   // any of this page's mutating controls while it's on, since `forecast`/
   // `balances`/etc. are themselves already a static fixture in that case
@@ -572,6 +578,17 @@ export function ForecastClient({
                       {formatCentavos(Math.abs(firstDanger.balance), currency)}
                     </span>{" "}
                     on {formatFullDate(firstDanger.date)}
+                  </p>
+                )}
+                {/* T215 (user request 2026-08-01): "days until next
+                    transaction(s) to settle" - null when nothing real is
+                    left in the horizon (findNextTransactionBatch already
+                    excludes hidden auto-move legs and scenario rows). */}
+                {nextTransactionBatch && (
+                  <p className="text-sm text-slate-500">
+                    {daysBetween(todayInManila(), nextTransactionBatch.date)} day
+                    {daysBetween(todayInManila(), nextTransactionBatch.date) === 1 ? "" : "s"} until{" "}
+                    {nextTransactionBatch.count} transaction{nextTransactionBatch.count === 1 ? "" : "s"} to settle
                   </p>
                 )}
               </div>

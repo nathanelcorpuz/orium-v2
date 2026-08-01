@@ -63,3 +63,38 @@ export function findFirstDangerPoint(
 
   return null;
 }
+
+export interface NextTransactionBatch {
+  date: string; // YYYY-MM-DD
+  count: number; // how many real transactions share this date
+}
+
+/**
+ * SPEC.md T215 (user request 2026-08-01): "days until next transaction(s) to
+ * settle" - the earliest upcoming date with at least one real, settleable
+ * transaction, and how many share it (a payday and a bill due the same day
+ * count as 2, not one generic "something's due"). Excludes `hidden` rows
+ * (T214's auto-move legs - bookkeeping for the balance, not their own
+ * transaction) and `fromScenario` rows (hypothetical, not a real obligation
+ * to settle). Callers pass the same `upcoming` (past-due already excluded)
+ * rows findLowestBalancePoint/findFirstDangerPoint already use, so "next"
+ * here means "next not-yet-due-or-overdue," matching this card's other two
+ * stats. Order-independent (tracks the earliest date seen, not the first
+ * row), same as those two.
+ */
+export function findNextTransactionBatch(rows: ForecastRow[]): NextTransactionBatch | null {
+  let nextDate: string | null = null;
+  let count = 0;
+
+  for (const row of rows) {
+    if (row.hidden || row.fromScenario) continue;
+    if (nextDate === null || row.dueDate < nextDate) {
+      nextDate = row.dueDate;
+      count = 1;
+    } else if (row.dueDate === nextDate) {
+      count += 1;
+    }
+  }
+
+  return nextDate === null ? null : { date: nextDate, count };
+}
