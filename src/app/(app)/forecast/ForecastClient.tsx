@@ -698,7 +698,14 @@ export function ForecastClient({
             <div
               ref={scrollContainerRef}
               data-tour="forecast-table"
-              className="max-h-[50vh] overflow-auto rounded-lg border border-notion-hairline bg-white md:max-h-[70vh]"
+              // T205: mobile was capped at 50vh, leaving a lot of empty page
+              // below the table before the user even started scrolling
+              // through rows. 80vh keeps a little space above for the
+              // Table/Calendar toggle and Filter/Scenarios buttons to stay
+              // in view, while the table itself still scrolls internally
+              // (this container, not the page) so the user can scroll back
+              // to its own top without losing their place on the page.
+              className="max-h-[80vh] overflow-auto rounded-lg border border-notion-hairline bg-white md:max-h-[70vh]"
             >
               {/* T161 (user request 2026-07-30, "make desktop match
                   mobile"): the two-table split (T90) is gone - this one
