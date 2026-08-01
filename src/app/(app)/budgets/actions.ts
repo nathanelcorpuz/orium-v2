@@ -240,7 +240,9 @@ function readLedgerEntryForm(formData: FormData) {
   const entryDate = (formData.get("entryDate") as string) || todayInManila();
   const note = ((formData.get("note") as string) || "").trim() || null;
 
-  if (amount === null || amount <= 0) return { error: "Enter a valid amount." } as const;
+  // T192 (user request): 0 is a valid amount - only negative or unparseable
+  // is rejected.
+  if (amount === null || amount < 0) return { error: "Enter a valid amount." } as const;
   if (!entryDate) return { error: "Date is required." } as const;
 
   return { error: null, amount, entryDate, note } as const;

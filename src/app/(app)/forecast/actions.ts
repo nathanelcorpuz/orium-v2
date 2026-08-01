@@ -373,7 +373,9 @@ export async function editBudgetReplenish(
   const amount = parseCentavos(formData.get("amountPesos") as string);
   const date = formData.get("date") as string;
 
-  if (amount === null || amount <= 0) return { error: "Enter a valid amount." };
+  // T192 (user request): 0 is a valid amount - only negative or unparseable
+  // is rejected.
+  if (amount === null || amount < 0) return { error: "Enter a valid amount." };
   if (!date) return { error: "Date is required." };
   if (date < todayInManila()) return { error: "Date can't be in the past." };
 
@@ -474,8 +476,9 @@ export async function settleBudgetReplenish(
   if (fields.error) return { error: fields.error };
   // budget_entries.amount is always a positive magnitude (direction carries
   // the sign) - unlike a bill/income occurrence, a replenishment can't
-  // settle for a negative or zero amount.
-  if (fields.actualAmount <= 0) return { error: "Enter a valid actual amount." };
+  // settle for a negative amount. T192 (user request): 0 is now allowed -
+  // e.g. a period where nothing was actually replenished.
+  if (fields.actualAmount < 0) return { error: "Enter a valid actual amount." };
 
   const supabase = await createClient();
   const {

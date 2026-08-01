@@ -18,7 +18,9 @@ function readExtraForm(formData: FormData, isCreate: boolean) {
   const balanceId = (formData.get("balanceId") as string) || null;
 
   if (!name) return { error: "Name is required." } as const;
-  if (magnitude === null || magnitude === 0) {
+  // T192 (user request): 0 is a valid amount. Only an unparseable value is
+  // rejected.
+  if (magnitude === null) {
     return { error: "Enter a valid amount." } as const;
   }
   if (direction !== "in" && direction !== "out") {

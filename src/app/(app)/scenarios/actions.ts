@@ -220,7 +220,9 @@ function readScenarioItemForm(formData: FormData) {
 
   if (!name) return { error: "Name is required." } as const;
   if (!["bill", "income", "debt", "savings"].includes(type)) return { error: "Choose a type." } as const;
-  if (amountPesos === null || amountPesos === 0) return { error: "Enter a valid amount." } as const;
+  // T192 (user request): 0 is a valid amount. Only an unparseable value is
+  // rejected.
+  if (amountPesos === null) return { error: "Enter a valid amount." } as const;
   if (!startDate) return { error: "Start date is required." } as const;
 
   // T174 items are hypothetical by definition, so unlike every real create
@@ -337,7 +339,9 @@ function readScenarioOneOffForm(formData: FormData) {
   const balanceId = (formData.get("balanceId") as string) || null;
 
   if (!name) return { error: "Name is required." } as const;
-  if (magnitude === null || magnitude === 0) return { error: "Enter a valid amount." } as const;
+  // T192 (user request): 0 is a valid amount. Only an unparseable value is
+  // rejected.
+  if (magnitude === null) return { error: "Enter a valid amount." } as const;
   if (direction !== "in" && direction !== "out") return { error: "Choose money in or money out." } as const;
   if (!dueDate) return { error: "Due date is required." } as const;
 
@@ -482,7 +486,9 @@ function readScenarioBudgetEntryForm(formData: FormData) {
   const entryDate = formData.get("entryDate") as string;
   const note = ((formData.get("note") as string) || "").trim() || null;
 
-  if (magnitude === null || magnitude <= 0) return { error: "Enter a valid amount." } as const;
+  // T192 (user request): 0 is a valid amount - only negative or unparseable
+  // is rejected.
+  if (magnitude === null || magnitude < 0) return { error: "Enter a valid amount." } as const;
   if (direction !== "incoming" && direction !== "outgoing") {
     return { error: "Choose money in or money out." } as const;
   }

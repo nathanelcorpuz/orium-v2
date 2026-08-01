@@ -17,7 +17,9 @@ function readIncomeForm(formData: FormData, isCreate: boolean) {
   const balanceId = (formData.get("balanceId") as string) || null;
 
   if (!name) return { error: "Name is required." } as const;
-  if (amountPesos === null || amountPesos === 0) {
+  // T192 (user request): 0 is a valid amount. Only an unparseable value is
+  // rejected.
+  if (amountPesos === null) {
     return { error: "Enter a valid amount." } as const;
   }
   if (!startDate) return { error: "Start date is required." } as const;
