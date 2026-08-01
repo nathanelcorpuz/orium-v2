@@ -284,6 +284,12 @@ export function generateForecast(input: GenerateForecastInput): ForecastRow[] {
     const source = balanceById.get(sourceBalanceId);
 
     for (const { originalDate, effectiveDate } of incomeEffectiveOccurrences.get(autoMove.incomeId) ?? []) {
+      // User follow-up (2026-08-01): "the auto move doesn't have to appear
+      // as a forecast transaction" - these two rows still exist and still
+      // count toward runningBalance/per-account attribution (so Total
+      // Balance and the destination account's own projected balance stay
+      // correct), but `hidden` keeps them out of every visible list/
+      // calendar view. The income's own row carries the indicator instead.
       rows.push({
         sourceType: "income_auto_move",
         sourceId: autoMove.id,
@@ -294,6 +300,7 @@ export function generateForecast(input: GenerateForecastInput): ForecastRow[] {
         type: "auto_move",
         balanceId: sourceBalanceId,
         linkedIncomeId: autoMove.incomeId,
+        hidden: true,
         // T172: the source account's own fee, same as any other transaction
         // touching it - a genuinely separate transfer, not a same-money
         // split like a budget replenishment (which deliberately carries no
@@ -310,6 +317,7 @@ export function generateForecast(input: GenerateForecastInput): ForecastRow[] {
         type: "auto_move",
         balanceId: autoMove.destinationBalanceId,
         linkedIncomeId: autoMove.incomeId,
+        hidden: true,
       });
     }
   }

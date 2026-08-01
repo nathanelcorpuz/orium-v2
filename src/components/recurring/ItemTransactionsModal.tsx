@@ -1,21 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Modal } from "@/components/Modal";
 import { SegmentedControl } from "@/components/SegmentedControl";
 import { formatCentavos } from "@/lib/money";
 import { formatFullDate } from "@/lib/date";
 import { EditSettleModal } from "@/app/(app)/forecast/EditSettleModal";
-import type { ForecastRow } from "@/lib/engine/types";
+import { getItemTransactions, type ItemSettlementRow } from "@/lib/itemTransactions";
+import type { ForecastRow, RecurringItemType } from "@/lib/engine/types";
 
-export type SettlementRow = {
-  id: string;
-  name: string;
-  forecasted_amount: number;
-  actual_amount: number;
-  forecasted_date: string;
-  actual_date: string;
-};
+export type SettlementRow = ItemSettlementRow;
 
 // Debt/Savings item detail (user request 2026-07-24): clicking an item shows
 // its upcoming (still-forecasted) occurrences and its paid (settled)
@@ -28,23 +22,52 @@ export type SettlementRow = {
 // same `EditSettleModal` the Forecast page (table and calendar views alike)
 // already uses, rather than a second edit surface for the same
 // occurrence_overrides row.
+//
+// Lazy loading (user request 2026-08-01): used to receive `upcoming`/`paid`
+// as props, precomputed for every item on the page's own initial load. Now
+// fetches just this one item's data itself, on mount - i.e. only once this
+// modal is actually opened. See itemTransactions.ts's own comment for why
+// the underlying engine call isn't itself cheaper, just deferred and
+// narrowed to one item.
 export function ItemTransactionsModal({
   name,
-  upcoming,
-  paid,
+  itemId,
+  itemType,
   currency,
   balances,
+  // T212 follow-up: only ever non-empty when this modal was opened for an
+  // income (IncomeClient.tsx passes its own already-computed map; Bills/
+  // Debt/Savings never do, since only income has auto-move rules) - lets a
+  // clicked upcoming occurrence show the same "Auto-moves:" line
+  // EditSettleModal shows from the Forecast page itself.
+  autoMovesByIncomeId = new Map(),
   onClose,
 }: {
   name: string;
-  upcoming: ForecastRow[];
-  paid: SettlementRow[];
+  itemId: string;
+  itemType: RecurringItemType;
   currency: string;
   balances: { id: string; name: string }[];
+  autoMovesByIncomeId?: Map<string, { destinationName: string; amount: number }[]>;
   onClose: () => void;
 }) {
   const [tab, setTab] = useState<"upcoming" | "paid">("upcoming");
   const [editingRow, setEditingRow] = useState<ForecastRow | null>(null);
+  const [data, setData] = useState<{ upcoming: ForecastRow[]; paid: ItemSettlementRow[] } | null>(null);
+
+  // No `setData(null)` reset here: this modal only ever mounts fresh for a
+  // given item (the caller renders it from `{viewingItem && <...>}`, never
+  // swapping `itemId` on an already-mounted instance), so the initial
+  // `useState(null)` above already covers the "nothing loaded yet" state.
+  useEffect(() => {
+    let cancelled = false;
+    getItemTransactions(itemId, itemType).then((result) => {
+      if (!cancelled) setData(result);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [itemId, itemType]);
 
   // T174: a scenario-sourced row's sourceId belongs to scenario_recurring_items,
   // not recurring_items - EditSettleModal's actions would write against an id
@@ -52,9 +75,22 @@ export function ItemTransactionsModal({
   // ForecastClient/CalendarGrid already apply.
   if (editingRow) {
     return (
-      <EditSettleModal row={editingRow} currency={currency} balances={balances} onClose={() => setEditingRow(null)} />
+      <EditSettleModal
+        row={editingRow}
+        currency={currency}
+        balances={balances}
+        autoMoves={
+          editingRow.sourceType === "recurring" && editingRow.type === "income"
+            ? (autoMovesByIncomeId.get(editingRow.sourceId) ?? null)
+            : null
+        }
+        onClose={() => setEditingRow(null)}
+      />
     );
   }
+
+  const upcoming = data?.upcoming ?? [];
+  const paid = data?.paid ?? [];
 
   return (
     <Modal title={`${name} - Transactions`} onClose={onClose}>
@@ -69,7 +105,9 @@ export function ItemTransactionsModal({
         />
       </div>
 
-      {tab === "upcoming" ? (
+      {!data ? (
+        <p className="text-sm text-slate-400">Loading…</p>
+      ) : tab === "upcoming" ? (
         upcoming.length === 0 ? (
           <p className="text-sm text-slate-500">No upcoming occurrences.</p>
         ) : (

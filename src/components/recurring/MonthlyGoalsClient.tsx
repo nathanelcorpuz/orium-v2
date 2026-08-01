@@ -18,11 +18,11 @@ import { ReorderButtons } from "@/components/ReorderButtons";
 import { SubmitButton } from "@/components/SubmitButton";
 import { ActiveToggle } from "@/components/ActiveToggle";
 import { ChevronIcon } from "@/components/navIcons";
-import type { ForecastRow, RecurrenceUnit } from "@/lib/engine/types";
+import type { RecurrenceUnit, RecurringItemType } from "@/lib/engine/types";
 import type { RecurringItemActionState } from "@/lib/recurringItem";
 import { useOrderedList } from "@/lib/useOrderedList";
 import { MonthlyGoalModal, type BalanceOption } from "./MonthlyGoalModal";
-import { ItemTransactionsModal, type SettlementRow } from "./ItemTransactionsModal";
+import { ItemTransactionsModal } from "./ItemTransactionsModal";
 import type { MonthlyGoalRow } from "./MonthlyGoalRow";
 
 type GoalAction = (
@@ -57,6 +57,7 @@ export function MonthlyGoalsClient({
   items,
   pageTitle,
   noun,
+  itemType,
   amountLabel,
   amountColorClass,
   createAction,
@@ -64,13 +65,17 @@ export function MonthlyGoalsClient({
   deleteAction,
   editedIds,
   balances,
-  upcomingByItemId,
-  paidByItemId,
+  paidCountByItemId,
   currency,
 }: {
   items: MonthlyGoalRow[];
   pageTitle: string;
   noun: string;
+  // T188 lazy-loading follow-up (user request 2026-08-01): which recurring
+  // item type this instance is rendering ("debt" or "savings") - needed by
+  // ItemTransactionsModal's on-demand fetch, which `noun`/`pageTitle` (pure
+  // display strings) were never meant to carry.
+  itemType: RecurringItemType;
   amountLabel: string;
   amountColorClass: string;
   createAction: GoalAction;
@@ -78,8 +83,12 @@ export function MonthlyGoalsClient({
   deleteAction: DeleteAction;
   editedIds: Set<string>;
   balances: BalanceOption[];
-  upcomingByItemId: Map<string, ForecastRow[]>;
-  paidByItemId: Map<string, SettlementRow[]>;
+  // T72: `goalProgress` only ever needs a *count* of paid settlements per
+  // item, always visible (drives the active/completed split and progress
+  // bar) - unlike the full upcoming/paid detail, this can't be deferred to
+  // the modal's own on-demand fetch, but it's far lighter than the old
+  // full-row map (a count instead of every settlement's dates/amounts).
+  paidCountByItemId: Map<string, number>;
   // T188: threaded through to `ItemTransactionsModal` so an upcoming row can
   // open the real `EditSettleModal`, which needs it for display.
   currency: string;
@@ -199,11 +208,11 @@ export function MonthlyGoalsClient({
     const active: MonthlyGoalRow[] = [];
     const completed: MonthlyGoalRow[] = [];
     for (const item of sortedItems) {
-      const progress = goalProgress(goalRule(item), paidByItemId.get(item.id)?.length ?? 0);
+      const progress = goalProgress(goalRule(item), paidCountByItemId.get(item.id) ?? 0);
       (progress.total > 0 && progress.fraction === 1 ? completed : active).push(item);
     }
     return [active, completed];
-  }, [sortedItems, paidByItemId]);
+  }, [sortedItems, paidCountByItemId]);
 
   // T160: reordering has to stay off whenever a completed item exists, even
   // with no filter or sort active. `moveUp`/`moveDown` reorder within the
@@ -365,7 +374,7 @@ export function MonthlyGoalsClient({
               }`;
               // T72: debt/savings items always have a finite end (DB-enforced),
               // so settled/total occurrences is always computable.
-              const progress = goalProgress(goalRule(item), paidByItemId.get(item.id)?.length ?? 0);
+              const progress = goalProgress(goalRule(item), paidCountByItemId.get(item.id) ?? 0);
               return (
                 <li
                   key={item.id}
@@ -575,8 +584,8 @@ export function MonthlyGoalsClient({
         {viewingItem && (
           <ItemTransactionsModal
             name={viewingItem.name}
-            upcoming={upcomingByItemId.get(viewingItem.id) ?? []}
-            paid={paidByItemId.get(viewingItem.id) ?? []}
+            itemId={viewingItem.id}
+            itemType={itemType}
             currency={currency}
             balances={balances}
             onClose={() => setViewingItem(null)}

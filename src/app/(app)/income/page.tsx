@@ -1,20 +1,16 @@
 import { createClient } from "@/lib/supabase/server";
 import { idSetFromColumn } from "@/lib/editedItems";
 import { groupBy } from "@/lib/groupBy";
-import { loadForecast } from "@/lib/forecastData";
+import { getCurrency } from "@/lib/forecastData";
 import { IncomeClient } from "./IncomeClient";
 
 export default async function IncomePage() {
   const supabase = await createClient();
-  const [
-    { data: incomes, error },
-    overridesRes,
-    balancesRes,
-    budgetsRes,
-    settlementsRes,
-    autoMovesRes,
-    { forecast, currency },
-  ] = await Promise.all([
+  // Lazy loading (user request 2026-08-01): each income's own upcoming/paid
+  // transactions moved to an on-demand fetch (itemTransactions.ts), fired
+  // only when a specific income's "view transactions" modal actually opens.
+  const [{ data: incomes, error }, overridesRes, balancesRes, budgetsRes, autoMovesRes, currency] =
+    await Promise.all([
       supabase
         .from("recurring_items")
         .select(
@@ -29,19 +25,10 @@ export default async function IncomePage() {
       supabase.from("balances").select("id, name").order("name", { ascending: true }),
       // T71 follow-up: which budgets replenish from each income, for display.
       supabase.from("budgets").select("id, name, linked_income_id").not("linked_income_id", "is", null),
-      // T188: settled transactions for each item's "Paid" view, same
-      // pattern MonthlyGoalsClient's Debt/Savings pages already use.
-      supabase
-        .from("settlements")
-        .select("id, source_id, name, forecasted_amount, actual_amount, forecasted_date, actual_date")
-        .eq("type", "income")
-        .order("actual_date", { ascending: false }),
       // T212: every income's auto-move rules, for both display (the "Auto-
       // moves: X" pill) and prefilling IncomeModal's edit form.
       supabase.from("income_auto_moves").select("id, income_id, destination_balance_id, amount"),
-      // Reused for each item's "Upcoming" view - already override-aware, so
-      // no separate expansion logic is needed here.
-      loadForecast(),
+      getCurrency(),
     ]);
 
   if (error) {
@@ -49,11 +36,6 @@ export default async function IncomePage() {
   }
 
   const editedIds = idSetFromColumn(overridesRes.data, "recurring_item_id");
-  const upcomingByItemId = groupBy(
-    forecast.filter((row) => row.sourceType === "recurring" && row.type === "income" && !row.pastDue),
-    (row) => row.sourceId,
-  );
-  const paidByItemId = groupBy(settlementsRes.data ?? [], (row) => row.source_id);
   const autoMovesByIncomeId = groupBy(autoMovesRes.data ?? [], (row) => row.income_id);
 
   return (
@@ -62,8 +44,6 @@ export default async function IncomePage() {
       editedIds={editedIds}
       balances={balancesRes.data ?? []}
       linkedBudgets={budgetsRes.data ?? []}
-      upcomingByItemId={upcomingByItemId}
-      paidByItemId={paidByItemId}
       autoMovesByIncomeId={autoMovesByIncomeId}
       currency={currency}
     />

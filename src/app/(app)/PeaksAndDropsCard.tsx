@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { SegmentedControl } from "@/components/SegmentedControl";
 import { formatCentavos } from "@/lib/money";
 import { formatMonthYear } from "@/lib/date";
@@ -10,6 +10,16 @@ type MonthEntry = { month: string; peak: number; drop: number };
 type YearGroup = { year: number; months: MonthEntry[] };
 
 const MAX_BAR_HEIGHT = 96;
+
+// Lazy loading (user request 2026-08-01): with T171's 50-year tracking
+// horizon, this card could otherwise render up to 50 year-groups (600
+// month-cards) into the DOM at once for a card that only ever shows a
+// ~260-420px scrollable window. Same incremental-reveal shape the Forecast
+// table already established (ForecastClient.tsx's INITIAL_VISIBLE_ROWS/
+// ROWS_PER_BATCH/IntersectionObserver) - batched by year here rather than
+// by row, since a year-group is this card's own natural unit.
+const INITIAL_VISIBLE_YEARS = 3;
+const YEARS_PER_BATCH = 3;
 
 // T117 (user request 2026-07-26): a second, toggleable view of the same
 // peaks-and-drops data as a bar chart, alongside the existing T63 month-card
@@ -39,6 +49,34 @@ export function PeaksAndDropsCard({
   hasAnyFinancialData: boolean;
 }) {
   const [view, setView] = useState<"grid" | "graph">("grid");
+  const [visibleYearCount, setVisibleYearCount] = useState(INITIAL_VISIBLE_YEARS);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const sentinelRef = useRef<HTMLDivElement>(null);
+
+  const visibleYears = useMemo(
+    () => peaksAndDropsByYear.slice(0, visibleYearCount),
+    [peaksAndDropsByYear, visibleYearCount],
+  );
+
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    const root = scrollContainerRef.current;
+    if (!sentinel || !root) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setVisibleYearCount((count) => Math.min(count + YEARS_PER_BATCH, peaksAndDropsByYear.length));
+        }
+      },
+      { root, rootMargin: "200px" },
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+    // Re-attaches on `view` too - switching Grid/Graph mounts a new
+    // scrollable container (a different DOM node), so the observer has to
+    // re-bind to whichever one is current.
+  }, [peaksAndDropsByYear.length, view]);
 
   return (
     <div className="mb-6 rounded-lg border border-notion-hairline bg-white" data-tour="dashboard-peaks-drops">
@@ -66,8 +104,8 @@ export function PeaksAndDropsCard({
           highest and lowest balance for every month ahead.
         </p>
       ) : view === "grid" ? (
-        <div className="max-h-64 space-y-4 overflow-y-auto p-4 pt-2 md:max-h-[420px]">
-          {peaksAndDropsByYear.map(({ year, months }) => (
+        <div ref={scrollContainerRef} className="max-h-64 space-y-4 overflow-y-auto p-4 pt-2 md:max-h-[420px]">
+          {visibleYears.map(({ year, months }) => (
             <div key={year}>
               <p className="mb-2 text-sm font-medium text-notion-text">{year}</p>
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
@@ -93,11 +131,16 @@ export function PeaksAndDropsCard({
               </div>
             </div>
           ))}
+          {visibleYearCount < peaksAndDropsByYear.length && (
+            <div ref={sentinelRef} className="text-center text-xs text-slate-400">
+              Loading more…
+            </div>
+          )}
         </div>
       ) : (
-        <div className="max-h-64 space-y-4 overflow-y-auto p-4 pt-2 md:max-h-[420px]">
+        <div ref={scrollContainerRef} className="max-h-64 space-y-4 overflow-y-auto p-4 pt-2 md:max-h-[420px]">
           <p className="text-xs text-slate-400">Each month: peak on the left, drop on the right.</p>
-          {peaksAndDropsByYear.map(({ year, months }) => {
+          {visibleYears.map(({ year, months }) => {
             // Scaled per year, not against the whole horizon: a household's
             // balance typically trends upward over a multi-year forecast, so
             // a single shared scale would shrink an early, more troubled
@@ -134,6 +177,11 @@ export function PeaksAndDropsCard({
               </div>
             );
           })}
+          {visibleYearCount < peaksAndDropsByYear.length && (
+            <div ref={sentinelRef} className="text-center text-xs text-slate-400">
+              Loading more…
+            </div>
+          )}
         </div>
       )}
     </div>

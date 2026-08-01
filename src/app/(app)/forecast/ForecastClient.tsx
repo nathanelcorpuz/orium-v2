@@ -18,7 +18,7 @@ import { SubmitButton } from "@/components/SubmitButton";
 import { toggleScenarioActive } from "@/app/(app)/scenarios/actions";
 import { TYPE_COLOR, TYPE_LABEL } from "@/lib/forecastLabels";
 import { summarizeRecurrence, budgetReplenishRuleSummary } from "@/lib/recurrenceSummary";
-import type { ForecastRow, Budget, RecurringItem } from "@/lib/engine/types";
+import type { ForecastRow, Budget, IncomeAutoMove, RecurringItem } from "@/lib/engine/types";
 import type { ConnectedItem } from "@/lib/connectedItems";
 import type { LowestBalancePoint } from "@/lib/engine/lowestBalance";
 import { EditSettleModal } from "./EditSettleModal";
@@ -48,7 +48,6 @@ const TYPE_OPTIONS: { value: ForecastRow["type"]; label: string }[] = [
   { value: "savings", label: "Savings" },
   { value: "extra", label: "Misc" },
   { value: "budget", label: "Budget" },
-  { value: "auto_move", label: "Auto-move" },
 ];
 
 // T90, one table since T161: drives a row's clickability -
@@ -84,23 +83,9 @@ function forecastRowProps(row: ForecastRow, isClickable: boolean, onSelect: (row
 // "auto"-replenish italic+badge treatment meant specifically for that one
 // row kind.
 function ForecastNameCell({ row, isAutoReplenish }: { row: ForecastRow; isAutoReplenish: boolean }) {
-  // T212: an auto-move row settles automatically with its income, the same
-  // "never independently editable here" shape as isAutoReplenish above - so
-  // it gets the same italic treatment, plus a direct link to the one place
-  // it actually can be changed (the income's own edit form).
-  const isAutoMove = row.sourceType === "income_auto_move";
   return (
     <>
-      {isAutoReplenish || isAutoMove ? <span className="italic text-slate-500">{row.name}</span> : row.name}
-      {isAutoMove && row.linkedIncomeId && (
-        <Link
-          href={`/income?editIncome=${row.linkedIncomeId}`}
-          onClick={(event) => event.stopPropagation()}
-          className="ml-1.5 text-xs text-notion-accent underline"
-        >
-          edit income
-        </Link>
-      )}
+      {isAutoReplenish ? <span className="italic text-slate-500">{row.name}</span> : row.name}
       {row.edited && (
         <span className="ml-1.5 text-slate-400" title="Edited from its usual schedule">
           ✎
@@ -175,6 +160,7 @@ export function ForecastClient({
   firstDanger,
   previewMode = false,
   allScenarios,
+  incomeAutoMoves = [],
 }: {
   forecast: ForecastRow[];
   balances: BalanceRow[];
@@ -215,6 +201,11 @@ export function ForecastClient({
   // "Scenarios" button/panel and the banner, never for deciding what to
   // merge (that already happened server-side).
   allScenarios: { id: string; name: string; is_active: boolean }[];
+  // T212 follow-up (user request 2026-08-01): "the auto move doesn't have to
+  // appear as a forecast transaction, it just needs to indicate that in the
+  // transaction of the income itself" - resolved into a tag on the income's
+  // own row (see `autoMovesByIncomeId` below) rather than a row of its own.
+  incomeAutoMoves?: IncomeAutoMove[];
 }) {
   const [editingBalance, setEditingBalance] = useState<BalanceRow | null>(null);
   const [selectedRow, setSelectedRow] = useState<ForecastRow | null>(null);
@@ -304,6 +295,22 @@ export function ForecastClient({
   // column.
   const balanceNameById = useMemo(() => new Map(balances.map((b) => [b.id, b.name])), [balances]);
 
+  // T212 follow-up: which income (by recurring_items id) has auto-move
+  // rules, and where they go - resolved into a hover tag on that income's
+  // own row's Account column, rather than a separate visible row.
+  const autoMovesByIncomeId = useMemo(() => {
+    const map = new Map<string, { destinationName: string; amount: number }[]>();
+    for (const autoMove of incomeAutoMoves) {
+      const list = map.get(autoMove.incomeId) ?? [];
+      list.push({
+        destinationName: balanceNameById.get(autoMove.destinationBalanceId) ?? "another account",
+        amount: autoMove.amount,
+      });
+      map.set(autoMove.incomeId, list);
+    }
+    return map;
+  }, [incomeAutoMoves, balanceNameById]);
+
   // T180: per-account forecasted balance, resolving the "Before MVP launch"
   // discussion item of the same name - always over the full, unfiltered
   // forecast (same convention Total Balance/Peaks and Drops already use;
@@ -350,6 +357,12 @@ export function ForecastClient({
   const filteredForecast = useMemo(() => {
     const name = nameFilter.trim().toLowerCase();
     return forecast.filter((row) => {
+      // T212 follow-up: a `hidden` row (an auto-move's own debit/credit leg)
+      // still counts toward runningBalance/per-account attribution above -
+      // both of which walk the full unfiltered `forecast` prop - but never
+      // renders as its own list item. The income row it's attached to
+      // carries a tag instead (see the Account column below).
+      if (row.hidden) return false;
       if (dateFrom && row.dueDate < dateFrom) return false;
       if (dateTo && row.dueDate > dateTo) return false;
       if (name && !row.name.toLowerCase().includes(name)) return false;
@@ -703,6 +716,7 @@ export function ForecastClient({
                 currency={currency}
                 reminders={reminders}
                 previewMode={previewMode}
+                incomeAutoMoves={incomeAutoMoves}
               />
             )
           ) : forecast.length === 0 ? (
@@ -788,14 +802,7 @@ export function ForecastClient({
                         // settlement referencing an id that doesn't exist in
                         // the real tables. Must stay non-clickable here;
                         // editing happens on /scenarios instead.
-                        // T212: an auto-move row settles automatically with
-                        // its income and has no independent edit/settle form
-                        // of its own - EditSettleModal would have nothing
-                        // real to do with it (see ForecastNameCell's "edit
-                        // income" link above for the actual way to change
-                        // it).
-                        const isClickable =
-                          !previewMode && !row.fromScenario && row.sourceType !== "income_auto_move";
+                        const isClickable = !previewMode && !row.fromScenario;
                         return (
                           <tr
                             key={`${row.sourceType}-${row.sourceId}-${row.originalDate}-${index}`}
@@ -810,6 +817,24 @@ export function ForecastClient({
                             </td>
                             <td className="hidden px-2 py-1.5 text-slate-500 md:table-cell">
                               {row.balanceId ? (balanceNameById.get(row.balanceId) ?? "-") : "-"}
+                              {/* T212 follow-up: a tag rather than a second
+                                  visible row - hover for the destination(s)
+                                  and amount(s), same information the
+                                  EditSettleModal detail panel shows when
+                                  this row is actually clicked. */}
+                              {row.sourceType === "recurring" &&
+                                row.type === "income" &&
+                                (autoMovesByIncomeId.get(row.sourceId)?.length ?? 0) > 0 && (
+                                  <span
+                                    className="ml-1 rounded-full bg-notion-hover px-1.5 py-0.5 text-[10px] font-medium text-notion-accent"
+                                    title={autoMovesByIncomeId
+                                      .get(row.sourceId)!
+                                      .map((m) => `Auto-moves ${formatCentavos(m.amount, currency)} to ${m.destinationName}`)
+                                      .join("; ")}
+                                  >
+                                    auto-move
+                                  </span>
+                                )}
                             </td>
                             <td className="px-2 py-1.5 text-right">
                               {formatCentavos(row.amount, currency)}
@@ -867,6 +892,11 @@ export function ForecastClient({
           balances={balances}
           accountBalanceAtRow={accountBalanceForRow(selectedRow, accountBalanceAfterRow)}
           frequencySummary={frequencyForRow(selectedRow)}
+          autoMoves={
+            selectedRow.sourceType === "recurring" && selectedRow.type === "income"
+              ? (autoMovesByIncomeId.get(selectedRow.sourceId) ?? null)
+              : null
+          }
           onClose={() => setSelectedRow(null)}
         />
       )}

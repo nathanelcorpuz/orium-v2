@@ -14,9 +14,9 @@ import { PreviewModeBar } from "@/components/PreviewModeBar";
 import { ReorderButtons } from "@/components/ReorderButtons";
 import { SubmitButton } from "@/components/SubmitButton";
 import { ActiveToggle } from "@/components/ActiveToggle";
-import type { ForecastRow, RecurrenceUnit } from "@/lib/engine/types";
+import type { RecurrenceUnit } from "@/lib/engine/types";
 import { useOrderedList } from "@/lib/useOrderedList";
-import { ItemTransactionsModal, type SettlementRow } from "@/components/recurring/ItemTransactionsModal";
+import { ItemTransactionsModal } from "@/components/recurring/ItemTransactionsModal";
 import { deleteBill } from "./actions";
 import { BillModal, type BalanceOption, type BillRow } from "./BillModal";
 
@@ -46,8 +46,6 @@ export function BillsClient({
   bills,
   editedIds,
   balances,
-  upcomingByItemId,
-  paidByItemId,
   currency,
   // T120: `?preview=1` renders a read-only sample fixture (see page.tsx) -
   // every mutating control is hidden so a tour/preview session can never
@@ -57,12 +55,6 @@ export function BillsClient({
   bills: BillRow[];
   editedIds: Set<string>;
   balances: BalanceOption[];
-  // T188: same "view its upcoming/paid transactions" detail Debt/Savings
-  // already had (MonthlyGoalsClient) - Bills gets it too, so a bill with the
-  // ✎ "edited from schedule" mark has somewhere to actually change that
-  // occurrence from, not just see that it happened.
-  upcomingByItemId: Map<string, ForecastRow[]>;
-  paidByItemId: Map<string, SettlementRow[]>;
   currency: string;
   previewMode?: boolean;
 }) {
@@ -388,8 +380,8 @@ export function BillsClient({
         {viewingItem && (
           <ItemTransactionsModal
             name={viewingItem.name}
-            upcoming={upcomingByItemId.get(viewingItem.id) ?? []}
-            paid={paidByItemId.get(viewingItem.id) ?? []}
+            itemId={viewingItem.id}
+            itemType="bill"
             currency={currency}
             balances={balances}
             onClose={() => setViewingItem(null)}

@@ -28,6 +28,7 @@ export function EditSettleModal({
   balances,
   accountBalanceAtRow = null,
   frequencySummary = null,
+  autoMoves = null,
   onClose,
 }: {
   row: ForecastRow;
@@ -48,6 +49,12 @@ export function EditSettleModal({
   // Null for a one-off, a budget entry, or a manual budget - nothing to
   // summarize.
   frequencySummary?: string | null;
+  // T212 follow-up (user request 2026-08-01): this income's own auto-move
+  // rules, if it's an income row that has any - computed by the caller
+  // (ForecastClient.tsx/CalendarGrid.tsx already build this map for the
+  // Account-column tag) rather than fetched here. Null for every non-income
+  // row, and for an income row with no rules.
+  autoMoves?: { destinationName: string; amount: number }[] | null;
   onClose: () => void;
 }) {
   const connectedAccountName = row.balanceId ? (balances.find((b) => b.id === row.balanceId)?.name ?? null) : null;
@@ -166,7 +173,10 @@ export function EditSettleModal({
           missing one (e.g. an own-schedule budget has no account balance
           line, a plain bill has no "goes to budget" line) just shows
           whichever apply. */}
-      {((connectedAccountName && accountBalanceAtRow !== null) || row.budgetName || frequencySummary) && (
+      {((connectedAccountName && accountBalanceAtRow !== null) ||
+        row.budgetName ||
+        frequencySummary ||
+        (autoMoves && autoMoves.length > 0)) && (
         <div className="mb-4 space-y-1 rounded border border-notion-hairline bg-notion-hover/40 p-2 text-sm text-slate-600">
           {connectedAccountName && accountBalanceAtRow !== null && (
             <p>
@@ -189,6 +199,21 @@ export function EditSettleModal({
           {frequencySummary && (
             <p>
               Frequency: <span className="font-medium text-notion-text">{frequencySummary}</span>
+            </p>
+          )}
+          {/* T212 follow-up (user request 2026-08-01): "when the income
+              forecast transaction is clicked it should show it there as
+              well" - the same auto-move info the Account column's hover tag
+              carries, spelled out here since a click is a stronger signal
+              of interest than a hover. */}
+          {autoMoves && autoMoves.length > 0 && (
+            <p>
+              Auto-moves:{" "}
+              <span className="font-medium text-notion-text">
+                {autoMoves
+                  .map((m) => `${centavosToPesosString(m.amount)} ${currency} to ${m.destinationName}`)
+                  .join(", ")}
+              </span>
             </p>
           )}
         </div>

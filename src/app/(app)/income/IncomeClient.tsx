@@ -14,9 +14,9 @@ import { MultiSelectChips } from "@/components/MultiSelectChips";
 import { ReorderButtons } from "@/components/ReorderButtons";
 import { SubmitButton } from "@/components/SubmitButton";
 import { ActiveToggle } from "@/components/ActiveToggle";
-import type { ForecastRow, RecurrenceUnit } from "@/lib/engine/types";
+import type { RecurrenceUnit } from "@/lib/engine/types";
 import { useOrderedList } from "@/lib/useOrderedList";
-import { ItemTransactionsModal, type SettlementRow } from "@/components/recurring/ItemTransactionsModal";
+import { ItemTransactionsModal } from "@/components/recurring/ItemTransactionsModal";
 import { deleteIncome } from "./actions";
 import { IncomeModal, type BalanceOption, type IncomeAutoMoveRow, type IncomeRow } from "./IncomeModal";
 
@@ -51,8 +51,6 @@ export function IncomeClient({
   editedIds,
   balances,
   linkedBudgets,
-  upcomingByItemId,
-  paidByItemId,
   autoMovesByIncomeId = new Map(),
   currency,
 }: {
@@ -60,10 +58,6 @@ export function IncomeClient({
   editedIds: Set<string>;
   balances: BalanceOption[];
   linkedBudgets: LinkedBudget[];
-  // T188: same "view its upcoming/paid transactions" detail Debt/Savings
-  // already had (MonthlyGoalsClient).
-  upcomingByItemId: Map<string, ForecastRow[]>;
-  paidByItemId: Map<string, SettlementRow[]>;
   // T212: this income's own auto-move rules, keyed by income id - for the
   // "Auto-moves: X" pill and prefilling the edit form.
   autoMovesByIncomeId?: Map<string, IncomeAutoMoveRow[]>;
@@ -150,6 +144,23 @@ export function IncomeClient({
   // T71 follow-up: connected account name, and budget names replenished from
   // each income, for display on each row.
   const balanceNameById = useMemo(() => new Map(balances.map((b) => [b.id, b.name])), [balances]);
+
+  // T212 follow-up: name-resolved version of `autoMovesByIncomeId`, shared
+  // by this page's own pill and by the "Upcoming" modal's EditSettleModal -
+  // same shape ForecastClient.tsx/CalendarGrid.tsx build for their own tag.
+  const autoMoveSummaryByIncomeId = useMemo(() => {
+    const map = new Map<string, { destinationName: string; amount: number }[]>();
+    for (const [incomeId, rules] of autoMovesByIncomeId) {
+      map.set(
+        incomeId,
+        rules.map((rule) => ({
+          destinationName: balanceNameById.get(rule.destination_balance_id) ?? "another account",
+          amount: rule.amount,
+        })),
+      );
+    }
+    return map;
+  }, [autoMovesByIncomeId, balanceNameById]);
   const budgetNamesByIncomeId = useMemo(() => {
     const map = new Map<string, string[]>();
     for (const budget of linkedBudgets) {
@@ -428,10 +439,11 @@ export function IncomeClient({
         {viewingItem && (
           <ItemTransactionsModal
             name={viewingItem.name}
-            upcoming={upcomingByItemId.get(viewingItem.id) ?? []}
-            paid={paidByItemId.get(viewingItem.id) ?? []}
+            itemId={viewingItem.id}
+            itemType="income"
             currency={currency}
             balances={balances}
+            autoMovesByIncomeId={autoMoveSummaryByIncomeId}
             onClose={() => setViewingItem(null)}
           />
         )}

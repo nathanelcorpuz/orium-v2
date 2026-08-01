@@ -1,13 +1,19 @@
 import { createClient } from "@/lib/supabase/server";
 import { idSetFromColumn } from "@/lib/editedItems";
-import { groupBy } from "@/lib/groupBy";
-import { loadForecast } from "@/lib/forecastData";
+import { getCurrency } from "@/lib/forecastData";
+import { getSettlementCountsByItemId } from "@/lib/itemTransactions";
 import { MonthlyGoalsClient } from "@/components/recurring/MonthlyGoalsClient";
 import { createDebt, updateDebt, deleteDebt } from "./actions";
 
 export default async function DebtPage() {
   const supabase = await createClient();
-  const [{ data: items, error }, overridesRes, balancesRes, settlementsRes, { forecast, currency }] = await Promise.all([
+  // Lazy loading (user request 2026-08-01): each debt's own upcoming/paid
+  // transaction detail moved to an on-demand fetch (itemTransactions.ts),
+  // fired only when a specific debt's "view transactions" modal actually
+  // opens. `paidCounts` stays eager - the active/completed split and
+  // progress bar below need it on every render, but it's just a count, far
+  // lighter than the old full settlement-row fetch.
+  const [{ data: items, error }, overridesRes, balancesRes, paidCounts, currency] = await Promise.all([
     supabase
       .from("recurring_items")
       .select(
@@ -20,16 +26,8 @@ export default async function DebtPage() {
     supabase.from("occurrence_overrides").select("recurring_item_id"),
     // T71: options for the optional "connected account" dropdown.
     supabase.from("balances").select("id, name").order("name", { ascending: true }),
-    // User request 2026-07-24: settled transactions for each item's
-    // "Paid" view.
-    supabase
-      .from("settlements")
-      .select("id, source_id, name, forecasted_amount, actual_amount, forecasted_date, actual_date")
-      .eq("type", "debt")
-      .order("actual_date", { ascending: false }),
-    // Reused for each item's "Upcoming" view - already override-aware, so
-    // no separate expansion logic is needed here.
-    loadForecast(),
+    getSettlementCountsByItemId("debt"),
+    getCurrency(),
   ]);
 
   if (error) {
@@ -37,24 +35,13 @@ export default async function DebtPage() {
   }
 
   const editedIds = idSetFromColumn(overridesRes.data, "recurring_item_id");
-  const upcomingByItemId = groupBy(
-    // T150 (Bug #11): the forecast now opens with any unsettled past-due
-    // backlog. This list is specifically "what is coming up" for each item -
-    // a missed payment from months ago showing as the next one would read as
-    // a bug - so past-due rows are filtered out here deliberately, keeping
-    // this page exactly as it was. Surfacing overdue goals here is a
-    // reasonable follow-up, but it is a product decision, not part of
-    // this fix.
-    forecast.filter((row) => row.sourceType === "recurring" && row.type === "debt" && !row.pastDue),
-    (row) => row.sourceId,
-  );
-  const paidByItemId = groupBy(settlementsRes.data ?? [], (row) => row.source_id);
 
   return (
     <MonthlyGoalsClient
       items={items ?? []}
       pageTitle="Debt"
       noun="debt"
+      itemType="debt"
       amountLabel="Amount (₱)"
       amountColorClass="text-orange-700"
       createAction={createDebt}
@@ -62,8 +49,7 @@ export default async function DebtPage() {
       deleteAction={deleteDebt}
       editedIds={editedIds}
       balances={balancesRes.data ?? []}
-      upcomingByItemId={upcomingByItemId}
-      paidByItemId={paidByItemId}
+      paidCountByItemId={paidCounts}
       currency={currency}
     />
   );

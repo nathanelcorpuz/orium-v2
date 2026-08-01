@@ -1426,6 +1426,36 @@ describe("generateForecast income auto-move (SPEC.md T212)", () => {
     expect(result[result.length - 1].runningBalance).toBe(1700000);
   });
 
+  it("marks both legs hidden - they count toward the balance but never render as their own row (user follow-up 2026-08-01)", () => {
+    const result = generateForecast({
+      balances: [
+        { id: "wise", name: "Wise Nanay", amount: 1000000 },
+        { id: "bdo", name: "BDO Tatay", amount: 200000 },
+      ],
+      recurringItems: [
+        monthlyItem({
+          id: "income-1",
+          name: "TNIT",
+          type: "income",
+          amount: 500000,
+          daysOfMonth: [5],
+          balanceId: "wise",
+        }),
+      ],
+      overrides: [],
+      oneOffs: [],
+      incomeAutoMoves: [{ id: "move-1", incomeId: "income-1", destinationBalanceId: "bdo", amount: 100000 }],
+      today: "2026-01-01",
+      horizon: "2026-01-31",
+    });
+
+    const incomeRow = result.find((row) => row.sourceType === "recurring")!;
+    const autoMoveRows = result.filter((row) => row.sourceType === "income_auto_move");
+    expect(incomeRow.hidden).toBeUndefined();
+    expect(autoMoveRows).toHaveLength(2);
+    expect(autoMoveRows.every((row) => row.hidden === true)).toBe(true);
+  });
+
   it("attributes the debit to the source account and the credit to the destination, independently", () => {
     const result = generateForecast({
       balances: [

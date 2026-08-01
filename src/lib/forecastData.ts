@@ -23,6 +23,18 @@ const BUDGET_COLUMNS =
 const DEFAULT_BALANCE_RANGES = [0, 500000, 2000000, 5000000, 10000000];
 const DEFAULT_CURRENCY = "₱";
 
+// Lazy loading (user request 2026-08-01): Bills/Income/Debt/Savings only
+// ever needed `loadForecast()` for two things - each item's own upcoming/
+// paid transactions (now fetched on demand, see itemTransactions.ts) and
+// this currency string. Running the whole engine just for a formatting
+// string was the bigger waste of the two; this is the same query
+// `loadForecast()` already makes, just without everything else around it.
+export async function getCurrency(): Promise<string> {
+  const supabase = await createClient();
+  const { data } = await supabase.from("preferences").select("currency").single();
+  return data?.currency ?? DEFAULT_CURRENCY;
+}
+
 // Balance plus `comments`, since the Forecast page reuses the Balances
 // page's edit modal (which needs it), unlike the engine's minimal Balance.
 // T172: also carries the snake_case `transaction_fee_centavos`, alongside

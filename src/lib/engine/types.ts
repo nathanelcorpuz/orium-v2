@@ -273,11 +273,20 @@ export interface ForecastRow {
   // ordinary future rows, same convention as every other flag here.
   dueToday?: true;
   // T212: "income_auto_move" rows only - the income the rule is attached
-  // to, so the UI can link back to editing it. These rows aren't
-  // independently editable (they settle automatically with the income,
-  // same as an income-linked budget_replenish row), so this is the only way
-  // back to the thing that actually controls them.
+  // to. Carried through even though these rows are `hidden` (below) in case
+  // a future caller needs to trace a row back to its income.
   linkedIncomeId?: string;
+  // T212 (user follow-up 2026-08-01): "the auto move doesn't have to appear
+  // as a forecast transaction" - a hidden row still exists and still counts
+  // toward runningBalance/per-account attribution (accountBalances.ts), so
+  // Total Balance and the destination account's own projected balance stay
+  // correct, but the UI never renders it as a visible list item. The
+  // income's own row carries a tag/indicator instead (ForecastClient.tsx,
+  // CalendarGrid.tsx, EditSettleModal.tsx each resolve this independently
+  // from `GenerateForecastInput.incomeAutoMoves`, keyed by the income's own
+  // id - not a flag on the row itself, since any "recurring"+"income" row
+  // needs it, not just this one).
+  hidden?: true;
 }
 
 export interface GenerateForecastInput {
