@@ -225,6 +225,9 @@ Bug reports from the same batch went straight to BUGS.md (Bug #15) instead - thi
 - [ ] **T197.** New Misc stat cards on the Dashboard: total money in (incoming one-offs) and total money out (outgoing one-offs), as their own cards alongside T196's restructure.
 - [ ] **T198.** Show a linked income's recurrence frequency (e.g. "Every 2 weeks on Tue") when adding or editing a budget on the Budgets page. Same `summarizeRecurrence` helper (`src/lib/recurrenceSummary.ts`) T199 below would also use.
 - [ ] **T199.** Two follow-ups to T191 raised the same day, before T191's own commit: (1) show a forecasted transaction's recurrence frequency when it's clicked, for any recurring-sourced row (bill/income/debt/savings, and a budget replenishment via its linked income's own rule) - not built despite being scoped mid-session (`ForecastData` already exposes `recurringItems`/`budgets` with full rule fields, so this only needs threading + a `summarizeRecurrence` call, no new data). (2) an explicit "Goes to budget: X" label on a budget replenishment's modal, distinct from the account-balance line T191 already shows - the modal's title already carries the budget's name, but the user asked for it as its own labeled value, not just the title text.
+- [ ] **T200.** Fix: the sidebar's purple help/tip icons don't lay out correctly when the sidebar is collapsed - they should stack vertically like everything else in the collapsed rail, not keep their expanded-width arrangement.
+- [ ] **T201.** Fix: the Updates nav item's unseen-count badge (T163) is oversized when the sidebar is collapsed - should shrink to fit the narrow rail like every other collapsed-state element.
+- [ ] **T202.** Add a loading state for the Dashboard - clicking into it currently shows nothing while its data fetches.
 
 ### Completed work (T1-T192)
 Full build write-ups live in **ARCHIVE.md**, in this same order. This index exists so a task number can be found quickly without opening it.
