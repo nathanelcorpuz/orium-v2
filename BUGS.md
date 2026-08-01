@@ -15,6 +15,13 @@ Format per bug: steps to reproduce → what happened → what was expected. Clau
 
 ## Fixed
 
+### Bug #17 - Editing a reminder with a long name hides the Cancel button (sometimes Save too)
+- **Reproduce**: in the Reminders panel, click Edit on a reminder with a reasonably long name.
+- **Reported** by the user 2026-08-01: "editing a reminder UI gets broken, I can only see the check icon."
+- **What happened**: the edit row's text `<input>` had `flex-1` but no minimum-width constraint, so its default `min-width: auto` refused to let it shrink below its content's width - it pushed its sibling buttons (Cancel, and past a certain length, Save too) out of the panel instead of shrinking itself to fit.
+- **Expected**: the input shrinks to fit the available space; both Save and Cancel stay visible regardless of how long the reminder's text is.
+- **Fixed by**: added `min-w-0` to the input in `RemindersPanel.tsx`'s `ReminderItem` edit form - the standard fix for this exact Flexbox pitfall. Same class added to the Add-reminder form's own text input while touching this file for T190's follow-up work, as cheap insurance against the identical failure mode there.
+
 ### Bug #16 - A budget linked to an income after that income's occurrence already settled still says "Replenishes today"
 - **Reproduce**: create a new budget and link it to an income whose occurrence for today has already been settled (so a `budget_replenish_overrides` row for today exists for *other* budgets linked to that income, but not this new one, since it didn't exist at settle time). Open the Budgets page.
 - **Reported** by the user 2026-08-01 against real production/staging data: "Pocket Money" (linked to "Nanay - TNIT", created after that income's Aug 1 occurrence was already settled) said "Replenishes today" when nothing was actually replenishing that day.

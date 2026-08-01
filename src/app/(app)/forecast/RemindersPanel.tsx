@@ -31,7 +31,14 @@ export type ReminderRow = { id: string; text: string; completed: boolean; due_da
 
 const initialState: ReminderActionState = { error: null };
 
+// Bug fix + UX request (user report, 2026-08-01): "adding a new reminder
+// should have an add button instead that shows the form instead of showing
+// it outright." Previously always rendered inline, taking up permanent
+// space above the list even when not in use - now collapsed to a single
+// "Add reminder" button by default, same "click to reveal a form" shape
+// ReminderItem's own edit/delete modes already use.
 function AddReminderForm() {
+  const [open, setOpen] = useState(false);
   const [state, formAction, pending] = useActionState(createReminder, initialState);
   const formRef = useRef<HTMLFormElement>(null);
   const submitted = useRef(false);
@@ -45,9 +52,22 @@ function AddReminderForm() {
     if (submitted.current && !pending && !state.error) {
       formRef.current?.reset();
       setDatePickerResetKey((k) => k + 1);
+      setOpen(false);
       submitted.current = false;
     }
   }, [pending, state]);
+
+  if (!open) {
+    return (
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="mb-4 w-full rounded border border-dashed border-notion-hairline p-2 text-sm text-slate-500 hover:border-notion-accent hover:text-notion-text"
+      >
+        + Add reminder
+      </button>
+    );
+  }
 
   return (
     <form
@@ -64,14 +84,24 @@ function AddReminderForm() {
           type="text"
           placeholder="New reminder"
           required
-          className="flex-1 rounded border border-notion-hairline p-2 text-sm text-notion-text focus:border-notion-accent focus:outline-none"
+          autoFocus
+          className="min-w-0 flex-1 rounded border border-notion-hairline p-2 text-sm text-notion-text focus:border-notion-accent focus:outline-none"
         />
         <button
           type="submit"
           disabled={pending}
-          className="rounded bg-notion-text px-3 py-2 text-sm text-white hover:opacity-90 disabled:opacity-50"
+          className="shrink-0 rounded bg-notion-text px-3 py-2 text-sm text-white hover:opacity-90 disabled:opacity-50"
         >
           Add
+        </button>
+        <button
+          type="button"
+          onClick={() => setOpen(false)}
+          title="Cancel"
+          aria-label="Cancel"
+          className="shrink-0 rounded p-2 text-slate-400 hover:bg-notion-hover hover:text-notion-text"
+        >
+          <CloseIcon className="h-3.5 w-3.5" />
         </button>
       </div>
       {/* T190: optional - a reminder with no date is unchanged from before
@@ -173,7 +203,13 @@ function ReminderItem({ reminder, readOnly }: { reminder: ReminderRow; readOnly?
             type="text"
             defaultValue={reminder.text}
             required
-            className="flex-1 rounded border border-notion-hairline p-1 text-sm text-notion-text focus:border-notion-accent focus:outline-none"
+            // Bug fix (user report, 2026-08-01): a flex-1 child with no
+            // min-width has an implicit `min-width: auto`, so a long
+            // reminder's text refused to shrink and pushed the Cancel
+            // button (and sometimes Save too) out of the panel entirely -
+            // "editing a reminder gets broken, I can only see the check
+            // icon." min-w-0 lets it actually shrink to fit.
+            className="min-w-0 flex-1 rounded border border-notion-hairline p-1 text-sm text-notion-text focus:border-notion-accent focus:outline-none"
           />
           <button
             type="submit"

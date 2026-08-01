@@ -14,6 +14,7 @@ Scratchpad for things raised between sessions. Write anything here, in any shape
 
 ## Last triage
 
+- **2026-08-01, eighth pass**: 1 item (reminders add/edit UX) → built directly, same session: the add-reminder form now collapses behind a button (**T207**, SPEC.md Phase 29), and the reported edit-mode breakage is **Bug #17** (BUGS.md, fixed - a missing `min-w-0` on the edit input).
 - **2026-08-01, seventh pass**: 1 item (account filter should be a dropdown) → **T206** (SPEC.md Phase 27, not yet built).
 - **2026-08-01, sixth pass**: 1 item (mobile Forecast table height) → **T205** (SPEC.md Phase 27, not yet built). Same session: built the budget-accounts feature the user asked about directly (T204, SPEC.md Phase 28) - a separate `budget_accounts` table, storage for budgets, optionally linked, never counted in Total Balance/the forecast, managed from the Budgets page itself.
 - **2026-08-01, fifth pass**: 1 item ("move funds in budgets") → **T203** (SPEC.md Phase 27, not yet built). Same session: fixed a real bug found while testing against the newly-duplicated staging data - "Pocket Money" (a budget linked to an income after that income's occurrence already settled) kept saying "Replenishes today" - now **Bug #16** in BUGS.md, fixed.

@@ -489,6 +489,10 @@ Full build write-ups live in **ARCHIVE.md**, in this same order. This index exis
 
 - **T204.** "I want to create accounts specified for budgets as well. The main accounts used in the cash flow will be separate, and I need another set of accounts that will be used as storage for the budgets." New `budget_accounts` table (migration 0040), separate from `balances` and never counted toward Total Balance or the forecast. A budget optionally links to one (same "optional connection" shape bills/income already use for a main account); once linked, every ledger change on that budget - replenish (auto from a settled income, or its own schedule), spend, manual add/take - moves the linked account's balance too, the same way settling a bill moves a connected main account. Managed from a collapsible "Budget Accounts" sub-section on the Budgets page itself, per the user's own answer, not a new nav item.
 
+**Phase 29 — Reminders UX (done 2026-08-01)**
+
+- **T207.** "Adding a new reminder should have an add button instead that shows the form instead of showing it outright." The add-reminder form is now collapsed behind a dashed "+ Add reminder" button by default, opening (with autofocus) on click and collapsing again on a successful add or Cancel - same "click to reveal a form" shape `ReminderItem`'s own edit/delete modes already use. Bundled with **Bug #17** (BUGS.md) - a long reminder name's edit-mode text input lacked `min-w-0`, so it refused to shrink and pushed the Cancel/Save buttons out of view.
+
 ### Out of scope
 Payments/subscriptions, mobile app, notifications, bank sync, multi-user families.
 
