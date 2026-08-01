@@ -588,6 +588,13 @@ export default async function Home({
                   asOf: today,
                 });
 
+                // T210 (user request): the quick Dashboard view showed
+                // nothing at all for a manual budget (no linked income or
+                // schedule means no progress bar/countdown either) - the
+                // Budgets page's own "Replenished manually" pill
+                // (BudgetCard.tsx) had no equivalent here.
+                const isManual = !linkedIncome && !rule;
+
                 return (
                   <li key={budget.id} className="text-sm">
                     <div className="flex items-center justify-between gap-2">
@@ -596,6 +603,7 @@ export default async function Home({
                         {formatCentavos(balance, currency)}
                       </span>
                     </div>
+                    {isManual && <p className="mt-0.5 text-xs text-slate-400">Replenished manually</p>}
                     {barFraction !== null && (
                       <div className="mt-1">
                         <ProgressBar percent={barFraction * 100} over={false} />

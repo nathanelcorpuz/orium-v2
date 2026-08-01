@@ -140,7 +140,15 @@ export function BudgetCard({
   // present (shouldn't happen - DB-enforced mutually exclusive); a
   // schedule-mode budget shows its own human-readable rule the same way
   // Bills/Income/Debt/Savings rows already do (recurrenceSummary.ts).
-  const replenishLabel = incomeName ? `Connected to ${incomeName}` : rule ? summarizeRecurrence(rule) : "Manual";
+  // T210 (user request): "Manual" alone didn't say *what* was manual - a
+  // budget replenished by hand vs. one just missing a schedule read the
+  // same. "Replenished manually" is the same information, worded as an
+  // action rather than a state.
+  const replenishLabel = incomeName
+    ? `Connected to ${incomeName}`
+    : rule
+      ? summarizeRecurrence(rule)
+      : "Replenished manually";
   // T167: for an income-linked budget the pill above only names the income,
   // so how often it actually arrives was invisible - the user had to open the
   // income itself to find out. The rule is already resolved (it drives the
