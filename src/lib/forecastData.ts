@@ -258,11 +258,12 @@ export async function loadForecast(): Promise<ForecastData> {
           .in("scenario_id", activeScenarioIds),
         // T182, full parity added by T218 follow-up (2026-08-02): a
         // scenario budget now carries the same allocation/replenish-source
-        // fields a real budget does (migration 0046).
+        // fields a real budget does (migration 0046); real-data linking
+        // (linked_income_id, migration 0047) added by T223, same day.
         supabase
           .from("scenario_budgets")
           .select(
-            "id, name, created_at, allocation, linked_scenario_income_id, start_date, interval, unit, weekdays, days_of_month, ordinal, ordinal_weekday, ends_type, end_date, occurrence_count",
+            "id, name, created_at, allocation, linked_income_id, linked_scenario_income_id, start_date, interval, unit, weekdays, days_of_month, ordinal, ordinal_weekday, ends_type, end_date, occurrence_count",
           )
           .in("scenario_id", activeScenarioIds),
         supabase
@@ -307,20 +308,26 @@ export async function loadForecast(): Promise<ForecastData> {
 
     // T218 follow-up (2026-08-02): a scenario budget now carries its real
     // allocation/replenish source (migration 0046), pushed into the exact
-    // same `Budget` shape a real budget uses - `linkedIncomeId` here points
-    // at a `scenario_recurring_items` id, already merged into the same
-    // `recurringItems` array above with `fromScenario: true`, so
-    // BudgetCard-style display (progress bar, "days until replenish") works
-    // identically for a scenario budget. This is display-only, same as it
-    // is for a real budget (Budgets v3, Phase 10) - the forecast's actual
+    // same `Budget` shape a real budget uses. T223 (same day): a scenario
+    // budget can link to either a *scenario* income (already merged into
+    // the same `recurringItems` array above with `fromScenario: true`) or
+    // a *real* one (already a real id, present in that array from its own
+    // query) - either way `linkedIncomeId` here resolves correctly against
+    // `incomeEffectiveOccurrences` (forecast.ts), so BudgetCard-style
+    // display (progress bar, "days until replenish") and the Forecast's
+    // projected replenish row both work identically regardless of which
+    // kind of income it is. This is display/projection-only, same as it is
+    // for a real budget (Budgets v3, Phase 10) - the forecast's actual
     // money effect still comes entirely from future-dated entries below
-    // (futureBudgetLedgerEntries), never from this schedule alone.
+    // (futureBudgetLedgerEntries), never from this schedule alone; linking
+    // to a real income does not make settling it write into scenario data
+    // (see migration 0047's own comment).
     for (const row of scenarioBudgetsRes.data ?? []) {
       budgets.push({
         id: row.id,
         name: row.name,
         allocation: row.allocation,
-        linkedIncomeId: row.linked_scenario_income_id,
+        linkedIncomeId: row.linked_income_id ?? row.linked_scenario_income_id,
         createdAt: row.created_at,
         startDate: row.start_date,
         interval: row.interval,

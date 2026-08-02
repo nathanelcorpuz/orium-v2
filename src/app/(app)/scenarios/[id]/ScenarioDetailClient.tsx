@@ -14,6 +14,7 @@ import {
   type ScenarioBudgetRow,
   type ScenarioIncomeOption,
 } from "../ScenarioBudgetModal";
+import type { BudgetAccountRow } from "../../budgets/BudgetAccountModal";
 import {
   deleteScenarioBudget,
   deleteScenarioBudgetEntry,
@@ -48,11 +49,20 @@ function itemRule(item: ScenarioItemRow) {
 // T218 follow-up: a scenario budget's replenish label, matching the real
 // BudgetCard's own "Connected to X" / recurrence summary / "Manual"
 // wording - simplified here (no progress bar/countdown, since a scenario
-// item never settles and there's nothing to count down to).
-function scenarioBudgetReplenishLabel(budget: ScenarioBudgetRow, incomes: ScenarioIncomeOption[]): string {
+// item never settles and there's nothing to count down to). T223: resolves
+// against whichever kind of income is actually linked, real or scenario.
+function scenarioBudgetReplenishLabel(
+  budget: ScenarioBudgetRow,
+  incomes: ScenarioIncomeOption[],
+  realIncomes: ScenarioIncomeOption[],
+): string {
+  if (budget.linked_income_id) {
+    const income = realIncomes.find((i) => i.id === budget.linked_income_id);
+    return income ? `Connected to ${income.name}` : "Connected to income";
+  }
   if (budget.linked_scenario_income_id) {
     const income = incomes.find((i) => i.id === budget.linked_scenario_income_id);
-    return income ? `Connected to ${income.name}` : "Connected to income";
+    return income ? `Connected to ${income.name} (scenario)` : "Connected to income";
   }
   if (budget.start_date && budget.interval !== null && budget.unit !== null && budget.ends_type !== null) {
     return summarizeRecurrence({
@@ -77,6 +87,8 @@ export function ScenarioDetailClient({
   oneOffs,
   scenarioBudgets,
   scenarioIncomes,
+  realIncomes,
+  budgetAccounts,
   entriesByBudgetId,
   balances,
 }: {
@@ -85,9 +97,12 @@ export function ScenarioDetailClient({
   oneOffs: ScenarioOneOffRow[];
   scenarioBudgets: ScenarioBudgetRow[];
   // T218 follow-up: this scenario's own income items, so a scenario budget
-  // can link to one - never a real income (see ScenarioBudgetModal's own
-  // comment).
+  // can link to one.
   scenarioIncomes: ScenarioIncomeOption[];
+  // T223 (user request 2026-08-02): every real income and real budget
+  // account too, offered as options alongside the scenario's own.
+  realIncomes: ScenarioIncomeOption[];
+  budgetAccounts: BudgetAccountRow[];
   entriesByBudgetId: Map<string, ScenarioBudgetEntryRow[]>;
   balances: BalanceOption[];
 }) {
@@ -295,12 +310,21 @@ export function ScenarioDetailClient({
                           {budget.name}
                         </button>
                         <span className="rounded-full bg-notion-hover px-2 py-0.5 text-xs font-medium text-slate-500">
-                          {scenarioBudgetReplenishLabel(budget, scenarioIncomes)}
+                          {scenarioBudgetReplenishLabel(budget, scenarioIncomes, realIncomes)}
                         </span>
                       </div>
                       {budget.allocation > 0 && (
                         <p className="text-xs text-slate-500">
                           {formatCentavos(budget.allocation)} allocated per replenishment
+                        </p>
+                      )}
+                      {/* T223: purely a reference until this scenario is
+                          activated - see ScenarioBudgetModal's own comment. */}
+                      {budget.budget_account_id && (
+                        <p className="text-xs text-slate-400">
+                          Budget account:{" "}
+                          {budgetAccounts.find((account) => account.id === budget.budget_account_id)?.name ??
+                            "Unknown"}
                         </p>
                       )}
                     </div>
@@ -434,6 +458,8 @@ export function ScenarioDetailClient({
           scenarioId={scenario.id}
           budget={budgetModalState === "new" ? null : budgetModalState}
           incomes={scenarioIncomes}
+          realIncomes={realIncomes}
+          budgetAccounts={budgetAccounts}
           onClose={() => setBudgetModalState(null)}
         />
       )}

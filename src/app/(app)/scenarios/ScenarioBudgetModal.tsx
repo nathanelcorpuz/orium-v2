@@ -9,16 +9,21 @@ import { todayInManila } from "@/lib/date";
 import { RecurrencePicker, type RecurrenceValue } from "@/components/recurring/RecurrencePicker";
 import { summarizeRecurrence } from "@/lib/recurrenceSummary";
 import { createScenarioBudget, updateScenarioBudget, type ScenarioActionState } from "./actions";
+import type { BudgetAccountRow } from "../budgets/BudgetAccountModal";
 
 // T218 follow-up (REMINDER, 2026-08-02): full parity with a real budget's
-// own row shape (`BudgetRow`, BudgetModal.tsx) - see actions.ts's own
-// comment on `readScenarioBudgetForm` for what's deliberately excluded
-// (budget-account linking).
+// own row shape (`BudgetRow`, BudgetModal.tsx). T223 (same day, "adding
+// budgets in scenarios should inherit all actual data"): can now also link
+// to a real income and/or a real budget account, not just this scenario's
+// own hypothetical income items - see actions.ts's `readScenarioBudgetForm`
+// and migration 0047's own comment.
 export type ScenarioBudgetRow = {
   id: string;
   name: string;
   allocation: number;
+  linked_income_id: string | null;
   linked_scenario_income_id: string | null;
+  budget_account_id: string | null;
   start_date: string | null;
   interval: number | null;
   unit: "day" | "week" | "month" | "year" | null;
@@ -31,9 +36,8 @@ export type ScenarioBudgetRow = {
   occurrence_count: number | null;
 };
 
-// Just the scenario's own income items - a scenario budget can only link to
-// a hypothetical income that lives in the same scenario, never a real one
-// (see migration 0046's own comment on why).
+// Shared shape for both a scenario's own income items and real ones - same
+// fields either way, just sourced from a different table server-side.
 export type ScenarioIncomeOption = {
   id: string;
   name: string;
@@ -57,17 +61,32 @@ const REPLENISH_OPTIONS: { value: ReplenishSource; label: string }[] = [
   { value: "manual", label: "Manual" },
 ];
 
+// T223: one picker offering both real and scenario incomes, values
+// prefixed to tell them apart - decoded server-side in
+// readScenarioBudgetForm (actions.ts), same encoding pattern
+// MoveBudgetFundsModal.tsx uses for its own two-kind picker.
+const REAL_INCOME_PREFIX = "real:";
+const SCENARIO_INCOME_PREFIX = "scenario:";
+
 const initialState: ScenarioActionState = { error: null };
 
 export function ScenarioBudgetModal({
   scenarioId,
   budget,
   incomes,
+  realIncomes,
+  budgetAccounts,
   onClose,
 }: {
   scenarioId: string;
   budget: ScenarioBudgetRow | null;
+  // This scenario's own hypothetical income items.
   incomes: ScenarioIncomeOption[];
+  // T223: every real income, offered as an option too.
+  realIncomes: ScenarioIncomeOption[];
+  // T223: every real budget account, as an optional storage reference -
+  // never mutated by scenario activity (see migration 0047's own comment).
+  budgetAccounts: BudgetAccountRow[];
   onClose: () => void;
 }) {
   const isEdit = budget !== null;
@@ -75,11 +94,25 @@ export function ScenarioBudgetModal({
   const submitted = useRef(false);
 
   const [source, setSource] = useState<ReplenishSource>(
-    budget?.linked_scenario_income_id ? "income" : budget?.start_date ? "schedule" : "manual",
+    budget?.linked_income_id || budget?.linked_scenario_income_id
+      ? "income"
+      : budget?.start_date
+        ? "schedule"
+        : "manual",
   );
   const [startDate, setStartDate] = useState(budget?.start_date ?? todayInManila());
-  const [selectedIncomeId, setSelectedIncomeId] = useState(budget?.linked_scenario_income_id ?? "");
-  const selectedIncome = incomes.find((income) => income.id === selectedIncomeId) ?? null;
+  const [incomeSelection, setIncomeSelection] = useState(
+    budget?.linked_income_id
+      ? `${REAL_INCOME_PREFIX}${budget.linked_income_id}`
+      : budget?.linked_scenario_income_id
+        ? `${SCENARIO_INCOME_PREFIX}${budget.linked_scenario_income_id}`
+        : "",
+  );
+  const selectedIncome = incomeSelection.startsWith(REAL_INCOME_PREFIX)
+    ? realIncomes.find((income) => income.id === incomeSelection.slice(REAL_INCOME_PREFIX.length))
+    : incomeSelection.startsWith(SCENARIO_INCOME_PREFIX)
+      ? incomes.find((income) => income.id === incomeSelection.slice(SCENARIO_INCOME_PREFIX.length))
+      : undefined;
 
   const initialRecurrenceValue: RecurrenceValue | null =
     budget && budget.start_date && budget.interval !== null && budget.unit !== null && budget.ends_type !== null
@@ -146,6 +179,28 @@ export function ScenarioBudgetModal({
           <p className="mt-1 text-sm text-slate-400">How much this hypothetical pot gets topped up by.</p>
         </div>
 
+        {/* T223: purely a reference to where this budget's money would
+            live - never touched by logging a scenario entry, only becomes
+            a real connection if this scenario is later activated. */}
+        <div>
+          <label className="block text-sm text-slate-600" htmlFor="budgetAccountId">
+            Budget account (optional)
+          </label>
+          <select
+            id="budgetAccountId"
+            name="budgetAccountId"
+            defaultValue={budget?.budget_account_id ?? ""}
+            className="mt-1 w-full rounded border border-notion-hairline p-2 text-notion-text focus:border-notion-accent focus:outline-none"
+          >
+            <option value="">No account</option>
+            {budgetAccounts.map((account) => (
+              <option key={account.id} value={account.id}>
+                {account.name}
+              </option>
+            ))}
+          </select>
+        </div>
+
         <div>
           <p className="mb-1 block text-sm text-slate-600">Replenishes</p>
           <SegmentedControl options={REPLENISH_OPTIONS} value={source} onChange={setSource} />
@@ -156,27 +211,40 @@ export function ScenarioBudgetModal({
         </div>
 
         {source === "income" &&
-          (incomes.length > 0 ? (
+          (incomes.length > 0 || realIncomes.length > 0 ? (
             <div>
-              <label className="block text-sm text-slate-600" htmlFor="linkedScenarioIncomeId">
+              <label className="block text-sm text-slate-600" htmlFor="incomeSelection">
                 Income
               </label>
               <select
-                id="linkedScenarioIncomeId"
-                name="linkedScenarioIncomeId"
+                id="incomeSelection"
+                name="incomeSelection"
                 required
-                value={selectedIncomeId}
-                onChange={(event) => setSelectedIncomeId(event.target.value)}
+                value={incomeSelection}
+                onChange={(event) => setIncomeSelection(event.target.value)}
                 className="mt-1 w-full rounded border border-notion-hairline p-2 text-notion-text focus:border-notion-accent focus:outline-none"
               >
                 <option value="" disabled>
                   Choose an income source…
                 </option>
-                {incomes.map((income) => (
-                  <option key={income.id} value={income.id}>
-                    {income.name}
-                  </option>
-                ))}
+                {realIncomes.length > 0 && (
+                  <optgroup label="Real income">
+                    {realIncomes.map((income) => (
+                      <option key={income.id} value={`${REAL_INCOME_PREFIX}${income.id}`}>
+                        {income.name}
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
+                {incomes.length > 0 && (
+                  <optgroup label="This scenario's income">
+                    {incomes.map((income) => (
+                      <option key={income.id} value={`${SCENARIO_INCOME_PREFIX}${income.id}`}>
+                        {income.name}
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
               </select>
               <p className="mt-1 text-sm text-slate-400">
                 {selectedIncome && `${summarizeRecurrence(selectedIncome)}.`}
@@ -184,7 +252,7 @@ export function ScenarioBudgetModal({
             </div>
           ) : (
             <p className="text-sm text-slate-400">
-              No income items in this scenario yet - add one first, or choose &ldquo;Manual&rdquo; instead.
+              No income sources available - add one first, or choose &ldquo;Manual&rdquo; instead.
             </p>
           ))}
 

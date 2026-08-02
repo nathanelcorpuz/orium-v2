@@ -8,7 +8,7 @@ Scratchpad for things raised between sessions. Write anything here, in any shape
 
 ## Pending (NJ will be filling this with raw ideas)
 
-(nothing - inbox is empty, see the triage note below)
+need to be able to manually set an "auto-move" individually. for example, I want to auto move a specific point in time with a specific amount just for that date, so it does go low, because moving half of an income to another account for the rest of time is not a good practice as it decreases flexibility.
 
 ---
 

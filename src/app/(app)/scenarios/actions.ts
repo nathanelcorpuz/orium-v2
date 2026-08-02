@@ -132,11 +132,12 @@ export async function activateScenarioPermanently(
       )
       .eq("scenario_id", id),
     supabase.from("scenario_one_off_items").select("name, amount, due_date, comments, balance_id").eq("scenario_id", id),
-    // T182, full parity added by T218 follow-up (2026-08-02).
+    // T182, full parity added by T218 follow-up (2026-08-02); real-data
+    // linking added by T223 (2026-08-02, same day).
     supabase
       .from("scenario_budgets")
       .select(
-        "id, name, allocation, linked_scenario_income_id, start_date, interval, unit, weekdays, days_of_month, ordinal, ordinal_weekday, ends_type, end_date, occurrence_count",
+        "id, name, allocation, linked_income_id, linked_scenario_income_id, budget_account_id, start_date, interval, unit, weekdays, days_of_month, ordinal, ordinal_weekday, ends_type, end_date, occurrence_count",
       )
       .eq("scenario_id", id),
     supabase
@@ -178,17 +179,25 @@ export async function activateScenarioPermanently(
   // id captured before their entries can be inserted (entries reference
   // budget_id) - one insert per budget rather than a bulk insert, so each
   // old scenario_budgets id can be reliably paired with the new real
-  // budgets id it maps to. Allocation/schedule now carry over too, and a
-  // linked scenario income resolves to that income's own new real id via
-  // recurringIdMap above (falls back to no link if that lookup somehow
-  // misses - a scenario income should always have been activated in the
-  // same pass just above, but a dangling budget with no matching income row
-  // is not impossible, e.g. after manual data edits).
+  // budgets id it maps to. Allocation/schedule now carry over too.
+  //
+  // T223: a *real* income link (`linked_income_id`) already points at a
+  // real id, so it carries straight through unchanged - no remap needed,
+  // unlike a scenario income link, which resolves through recurringIdMap
+  // above (falls back to no link if that lookup somehow misses - a
+  // scenario income should always have been activated in the same pass
+  // just above, but a dangling budget with no matching income row is not
+  // impossible, e.g. after manual data edits). `budget_account_id` doesn't
+  // go on the `budgets` insert itself (T218 replaced that single column
+  // with the `budget_budget_accounts` join table) - handled in its own
+  // loop just below instead.
   const budgetIdMap = new Map<string, string>();
   for (const scenarioBudget of scenarioBudgetsRes.data ?? []) {
-    const linkedIncomeId = scenarioBudget.linked_scenario_income_id
-      ? (recurringIdMap.get(scenarioBudget.linked_scenario_income_id) ?? null)
-      : null;
+    const linkedIncomeId =
+      scenarioBudget.linked_income_id ??
+      (scenarioBudget.linked_scenario_income_id
+        ? (recurringIdMap.get(scenarioBudget.linked_scenario_income_id) ?? null)
+        : null);
     const { data: inserted, error } = await supabase
       .from("budgets")
       .insert({
@@ -212,6 +221,20 @@ export async function activateScenarioPermanently(
       .single();
     if (error) return { error: error.message };
     budgetIdMap.set(scenarioBudget.id, inserted.id);
+
+    // T223: this budget's real-account reference (if any) becomes a real
+    // connection at exactly the moment the budget itself becomes real -
+    // the same "replenish_amount defaults to the allocation" backfill
+    // migration 0043 used for every pre-T218 single-account budget.
+    if (scenarioBudget.budget_account_id) {
+      const { error: linkError } = await supabase.from("budget_budget_accounts").insert({
+        user_id: user.id,
+        budget_id: inserted.id,
+        budget_account_id: scenarioBudget.budget_account_id,
+        replenish_amount: scenarioBudget.allocation,
+      });
+      if (linkError) return { error: linkError.message };
+    }
   }
 
   const budgetEntriesToInsert = (scenarioBudgetEntriesRes.data ?? [])
@@ -494,7 +517,9 @@ type ScenarioBudgetFormFields =
       error: null;
       name: string;
       allocation: number;
+      linkedIncomeId: string | null;
       linkedScenarioIncomeId: string | null;
+      budgetAccountId: string | null;
       startDate: string | null;
       interval: number | null;
       unit: RecurrenceUnit | null;
@@ -520,12 +545,24 @@ const SCENARIO_BUDGET_EMPTY_SCHEDULE = {
   occurrenceCount: null,
 } as const;
 
+// T223 (user request 2026-08-02): "all active income should be available
+// as options in the scenario budget" - the income picker (ScenarioBudgetModal)
+// offers both real incomes and this scenario's own hypothetical ones in one
+// select, values prefixed to tell them apart (same encoding pattern
+// MoveBudgetFundsModal.tsx uses for its own two-kind picker).
+const REAL_INCOME_PREFIX = "real:";
+const SCENARIO_INCOME_PREFIX = "scenario:";
+
 function readScenarioBudgetForm(formData: FormData): ScenarioBudgetFormFields {
   const name = (formData.get("name") as string).trim();
   if (!name) return { error: "Name is required." };
   const allocation = parseCentavos(formData.get("allocationPesos") as string);
   if (allocation === null || allocation < 0) return { error: "Enter a valid allocation." };
   const source = formData.get("replenishSource") as string;
+  // T223: optional regardless of replenish source - purely a reference to
+  // where this budget's money would live, never mutated by scenario
+  // activity (see migration 0047's own comment).
+  const budgetAccountId = (formData.get("budgetAccountId") as string) || null;
 
   if (source === "schedule") {
     const startDate = (formData.get("startDate") as string) || "";
@@ -536,7 +573,9 @@ function readScenarioBudgetForm(formData: FormData): ScenarioBudgetFormFields {
       error: null,
       name,
       allocation,
+      linkedIncomeId: null,
       linkedScenarioIncomeId: null,
+      budgetAccountId,
       startDate,
       interval: rule.interval,
       unit: rule.unit,
@@ -551,18 +590,35 @@ function readScenarioBudgetForm(formData: FormData): ScenarioBudgetFormFields {
   }
 
   if (source === "income") {
-    const linkedScenarioIncomeId = (formData.get("linkedScenarioIncomeId") as string) || null;
-    if (!linkedScenarioIncomeId) return { error: "Choose an income source." };
+    const incomeSelection = (formData.get("incomeSelection") as string) || "";
+    if (!incomeSelection) return { error: "Choose an income source." };
+    const linkedIncomeId = incomeSelection.startsWith(REAL_INCOME_PREFIX)
+      ? incomeSelection.slice(REAL_INCOME_PREFIX.length)
+      : null;
+    const linkedScenarioIncomeId = incomeSelection.startsWith(SCENARIO_INCOME_PREFIX)
+      ? incomeSelection.slice(SCENARIO_INCOME_PREFIX.length)
+      : null;
+    if (!linkedIncomeId && !linkedScenarioIncomeId) return { error: "Choose an income source." };
     return {
       error: null,
       name,
       allocation,
+      linkedIncomeId,
       linkedScenarioIncomeId,
+      budgetAccountId,
       ...SCENARIO_BUDGET_EMPTY_SCHEDULE,
     };
   }
 
-  return { error: null, name, allocation, linkedScenarioIncomeId: null, ...SCENARIO_BUDGET_EMPTY_SCHEDULE };
+  return {
+    error: null,
+    name,
+    allocation,
+    linkedIncomeId: null,
+    linkedScenarioIncomeId: null,
+    budgetAccountId,
+    ...SCENARIO_BUDGET_EMPTY_SCHEDULE,
+  };
 }
 
 export async function createScenarioBudget(
@@ -584,7 +640,9 @@ export async function createScenarioBudget(
     scenario_id: scenarioId,
     name: fields.name,
     allocation: fields.allocation,
+    linked_income_id: fields.linkedIncomeId,
     linked_scenario_income_id: fields.linkedScenarioIncomeId,
+    budget_account_id: fields.budgetAccountId,
     start_date: fields.startDate,
     interval: fields.interval,
     unit: fields.unit,
@@ -633,7 +691,9 @@ export async function updateScenarioBudget(
     .update({
       name: fields.name,
       allocation: fields.allocation,
+      linked_income_id: fields.linkedIncomeId,
       linked_scenario_income_id: fields.linkedScenarioIncomeId,
+      budget_account_id: fields.budgetAccountId,
       start_date: fields.startDate,
       interval: fields.interval,
       unit: fields.unit,

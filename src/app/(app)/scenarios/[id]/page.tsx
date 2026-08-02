@@ -10,36 +10,60 @@ export default async function ScenarioDetailPage({ params }: { params: Promise<{
   const { id } = await params;
   const supabase = await createClient();
 
-  const [scenarioRes, itemsRes, oneOffsRes, balancesRes, scenarioBudgetsRes, scenarioBudgetEntriesRes] =
-    await Promise.all([
-      supabase.from("scenarios").select("id, name").eq("id", id).single(),
-      supabase
-        .from("scenario_recurring_items")
-        .select(
-          "id, name, type, amount, start_date, interval, unit, weekdays, days_of_month, ordinal, ordinal_weekday, ends_type, end_date, occurrence_count, comments, balance_id",
-        )
-        .eq("scenario_id", id)
-        .order("start_date", { ascending: true }),
-      supabase
-        .from("scenario_one_off_items")
-        .select("id, name, amount, due_date, comments, balance_id")
-        .eq("scenario_id", id)
-        .order("due_date", { ascending: true }),
-      supabase.from("balances").select("id, name").order("name", { ascending: true }),
-      // T182, full parity added by T218 follow-up (2026-08-02).
-      supabase
-        .from("scenario_budgets")
-        .select(
-          "id, name, allocation, linked_scenario_income_id, start_date, interval, unit, weekdays, days_of_month, ordinal, ordinal_weekday, ends_type, end_date, occurrence_count",
-        )
-        .eq("scenario_id", id)
-        .order("name", { ascending: true }),
-      supabase
-        .from("scenario_budget_entries")
-        .select("id, scenario_budget_id, entry_date, amount, direction, note")
-        .eq("scenario_id", id)
-        .order("entry_date", { ascending: false }),
-    ]);
+  const [
+    scenarioRes,
+    itemsRes,
+    oneOffsRes,
+    balancesRes,
+    scenarioBudgetsRes,
+    scenarioBudgetEntriesRes,
+    realIncomesRes,
+    budgetAccountsRes,
+  ] = await Promise.all([
+    supabase.from("scenarios").select("id, name").eq("id", id).single(),
+    supabase
+      .from("scenario_recurring_items")
+      .select(
+        "id, name, type, amount, start_date, interval, unit, weekdays, days_of_month, ordinal, ordinal_weekday, ends_type, end_date, occurrence_count, comments, balance_id",
+      )
+      .eq("scenario_id", id)
+      .order("start_date", { ascending: true }),
+    supabase
+      .from("scenario_one_off_items")
+      .select("id, name, amount, due_date, comments, balance_id")
+      .eq("scenario_id", id)
+      .order("due_date", { ascending: true }),
+    supabase.from("balances").select("id, name").order("name", { ascending: true }),
+    // T182, full parity added by T218 follow-up (2026-08-02); real-data
+    // linking added by T223 (2026-08-02, same day).
+    supabase
+      .from("scenario_budgets")
+      .select(
+        "id, name, allocation, linked_income_id, linked_scenario_income_id, budget_account_id, start_date, interval, unit, weekdays, days_of_month, ordinal, ordinal_weekday, ends_type, end_date, occurrence_count",
+      )
+      .eq("scenario_id", id)
+      .order("name", { ascending: true }),
+    supabase
+      .from("scenario_budget_entries")
+      .select("id, scenario_budget_id, entry_date, amount, direction, note")
+      .eq("scenario_id", id)
+      .order("entry_date", { ascending: false }),
+    // T223 (user request 2026-08-02): "all active income should be
+    // available as options in the scenario budget" - every *real* income,
+    // not just this scenario's own hypothetical ones.
+    supabase
+      .from("recurring_items")
+      .select(
+        "id, name, start_date, interval, unit, weekdays, days_of_month, ordinal, ordinal_weekday, ends_type, end_date, occurrence_count, balance_id",
+      )
+      .eq("type", "income")
+      .order("name", { ascending: true }),
+    // T223: "that goes with accounts as well... budget accounts" - every
+    // real budget account, selectable as a scenario budget's storage
+    // reference (never mutated by scenario activity - see migration 0047's
+    // own comment).
+    supabase.from("budget_accounts").select("id, name, amount, comments").order("name", { ascending: true }),
+  ]);
 
   // RLS already scopes this to the current user's own scenarios; a missing
   // row here means either a bad id or someone else's scenario, which reads
@@ -75,6 +99,24 @@ export default async function ScenarioDetailPage({ params }: { params: Promise<{
       occurrenceCount: item.occurrence_count,
     }));
 
+  // T223: same shape as scenarioIncomes above, just sourced from the real
+  // `recurring_items` table instead.
+  const realIncomes = (realIncomesRes.data ?? []).map((item) => ({
+    id: item.id,
+    name: item.name,
+    startDate: item.start_date,
+    interval: item.interval,
+    unit: item.unit,
+    weekdays: item.weekdays,
+    daysOfMonth: item.days_of_month,
+    ordinal: item.ordinal,
+    ordinalWeekday: item.ordinal_weekday,
+    endsType: item.ends_type,
+    endDate: item.end_date,
+    occurrenceCount: item.occurrence_count,
+    balanceId: item.balance_id,
+  }));
+
   return (
     <ScenarioDetailClient
       scenario={scenarioRes.data}
@@ -82,6 +124,8 @@ export default async function ScenarioDetailPage({ params }: { params: Promise<{
       oneOffs={oneOffsRes.data ?? []}
       scenarioBudgets={scenarioBudgetsRes.data ?? []}
       scenarioIncomes={scenarioIncomes}
+      realIncomes={realIncomes}
+      budgetAccounts={budgetAccountsRes.data ?? []}
       entriesByBudgetId={entriesByBudgetId}
       balances={balancesRes.data ?? []}
     />
