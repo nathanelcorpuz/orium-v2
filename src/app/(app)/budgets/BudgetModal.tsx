@@ -125,6 +125,22 @@ export function BudgetModal({
   function updateAccountRow(index: number, patch: Partial<AccountLinkRow>) {
     setAccountLinks((rows) => rows.map((row, i) => (i === index ? { ...row, ...patch } : row)));
   }
+  // T229 (user request 2026-08-02): "when adding a new budget and it is
+  // manual replenishment, no need to set amounts for budget accounts...
+  // the selections can simply just be budget accounts." A manual budget
+  // never auto-replenishes, so there's nothing to split proportionally -
+  // Log spend/Add/Take funds already ask which connected account a
+  // transaction affects at the moment it happens (T218/T222), so the
+  // per-account share this Modal collects for income/schedule budgets is
+  // genuinely unused for a manual one. Toggling a checkbox on/off is
+  // equivalent to add/removeAccountRow above, just without an amount.
+  function toggleManualAccount(accountId: string, checked: boolean) {
+    if (checked) {
+      setAccountLinks((rows) => [...rows, { budgetAccountId: accountId, replenishPesos: "0" }]);
+    } else {
+      setAccountLinks((rows) => rows.filter((row) => row.budgetAccountId !== accountId));
+    }
+  }
 
   const initialRecurrenceValue: RecurrenceValue | null =
     budget && budget.start_date && budget.interval !== null && budget.unit !== null && budget.ends_type !== null
@@ -184,8 +200,10 @@ export function BudgetModal({
             entered number, exactly as before T218. Once 1+ accounts are
             connected below, the total is derived from their own shares
             instead - the field itself goes away rather than staying visible
-            and unused. */}
-        {accountLinks.length === 0 && (
+            and unused. T229: a manual budget never derives from shares (see
+            toggleManualAccount's own comment) - the plain field always
+            applies for it, connected accounts or not. */}
+        {(accountLinks.length === 0 || source === "manual") && (
           <div>
             <label className="block text-sm text-slate-600" htmlFor="allocationPesos">
               Replenish amount (₱)
@@ -212,10 +230,46 @@ export function BudgetModal({
             funds/Take funds pick one per transaction once there's more than
             one to choose from. Optional, same as T204's original single
             link - connecting accounts (and their shares) can be done any
-            time, including before an income link even exists. */}
+            time, including before an income link even exists. T229: a
+            manual budget skips the per-account share entirely (see
+            toggleManualAccount's own comment) - just which accounts are
+            connected, nothing to type in. Hidden inputs emitted once here
+            regardless of which UI below produced `accountLinks`, so both
+            branches submit the exact same way. */}
         <div>
           <p className="mb-1 block text-sm text-slate-600">Budget accounts (optional)</p>
-          {accountLinks.length === 0 ? (
+          {accountLinks.map((link) => (
+            <input key={link.budgetAccountId} type="hidden" name="budgetAccountLinkIds" value={link.budgetAccountId} />
+          ))}
+          {accountLinks.map((link) => (
+            <input
+              key={link.budgetAccountId}
+              type="hidden"
+              name="budgetAccountLinkAmountsPesos"
+              value={source === "manual" ? "0" : link.replenishPesos}
+            />
+          ))}
+          {source === "manual" ? (
+            budgetAccounts.length === 0 ? (
+              <p className="text-sm text-slate-400">
+                No budget accounts yet - add one from the Budget Accounts section on the Budgets page.
+              </p>
+            ) : (
+              <div className="space-y-1">
+                {budgetAccounts.map((account) => (
+                  <label key={account.id} className="flex items-center gap-2 text-sm text-notion-text">
+                    <input
+                      type="checkbox"
+                      checked={connectedIds.has(account.id)}
+                      onChange={(event) => toggleManualAccount(account.id, event.target.checked)}
+                      className="rounded border-notion-hairline"
+                    />
+                    {account.name}
+                  </label>
+                ))}
+              </div>
+            )
+          ) : accountLinks.length === 0 ? (
             <p className="text-sm text-slate-400">
               Not connected to any budget account - this budget just tracks its own running total.
             </p>
@@ -255,13 +309,11 @@ export function BudgetModal({
                   >
                     Remove
                   </button>
-                  <input type="hidden" name="budgetAccountLinkIds" value={link.budgetAccountId} />
-                  <input type="hidden" name="budgetAccountLinkAmountsPesos" value={link.replenishPesos} />
                 </div>
               ))}
             </div>
           )}
-          {availableToAdd.length > 0 && (
+          {source !== "manual" && availableToAdd.length > 0 && (
             <button
               type="button"
               onClick={addAccountRow}
@@ -270,7 +322,7 @@ export function BudgetModal({
               + Add budget account
             </button>
           )}
-          {accountLinks.length > 0 && (
+          {source !== "manual" && accountLinks.length > 0 && (
             <p className="mt-1 text-sm text-slate-500">
               Total: {formatCentavos(totalAllocationCentavos)} - added when this budget replenishes, split
               across each connected account by its own share above.
