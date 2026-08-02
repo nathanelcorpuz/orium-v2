@@ -146,11 +146,22 @@ export function BudgetAccountsSection({
                     </div>
                   )}
                   </div>
-                  {(attributed.length > 0 || unallocated !== 0) && (
+                  {/* T222 fix (user report 2026-08-02): "taking funds
+                      directly from a budget account should simply just
+                      adjust that budget account, not create an
+                      'Unallocated'." An account with no budget attached at
+                      all previously still showed "Unallocated ₱X" - just
+                      restating the account's own total already shown above,
+                      with no new information - and a plain Add/Take on that
+                      kind of account made it look like this line had just
+                      "appeared." Only shown now when at least one budget
+                      actually has money here - a real mix worth breaking
+                      down, not a account that's simply never been attached
+                      to a budget. */}
+                  {attributed.length > 0 && (
                     <p className="mt-1 text-xs text-slate-400">
                       {attributed.map((entry) => `${entry.budgetName} ${formatCentavos(entry.amount)}`).join(" · ")}
-                      {attributed.length > 0 && unallocated !== 0 && " · "}
-                      {unallocated !== 0 && `Unallocated ${formatCentavos(unallocated)}`}
+                      {unallocated !== 0 && ` · Unallocated ${formatCentavos(unallocated)}`}
                     </p>
                   )}
                 </li>
