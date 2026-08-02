@@ -10,9 +10,10 @@ import { summarizeRecurrence, budgetReplenishRuleSummary } from "@/lib/recurrenc
 import { ChevronIcon } from "@/components/navIcons";
 import { Modal } from "@/components/Modal";
 import { EditSettleModal } from "./EditSettleModal";
-import type { ForecastRow, Budget, IncomeAutoMove, RecurringItem } from "@/lib/engine/types";
+import type { ForecastRow, Budget, IncomeAutoMove, IncomeAutoMoveOverride, RecurringItem } from "@/lib/engine/types";
 import type { BalanceRow } from "@/app/(app)/accounts/BalanceModal";
 import type { ReminderRow } from "./RemindersPanel";
+import { buildAutoMoveOverrideByKey, buildAutoMoveRulesByIncomeId, resolveAutoMoves } from "./resolveAutoMoves";
 
 const WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -46,6 +47,7 @@ export function CalendarGrid({
   reminders,
   previewMode = false,
   incomeAutoMoves = [],
+  incomeAutoMoveOverrides = [],
 }: {
   forecast: ForecastRow[];
   balances: BalanceRow[];
@@ -59,6 +61,8 @@ export function CalendarGrid({
   // ForecastClient.tsx uses, threaded here too since the Calendar view is
   // an independent render of the same rows.
   incomeAutoMoves?: IncomeAutoMove[];
+  // T224: this occurrence's own per-instance edits, if any.
+  incomeAutoMoveOverrides?: IncomeAutoMoveOverride[];
 }) {
   const today = todayInManila();
   const [viewMonth, setViewMonth] = useState(() => monthKey(today));
@@ -70,18 +74,15 @@ export function CalendarGrid({
   );
   const budgetsById = useMemo(() => new Map(budgets.map((budget) => [budget.id, budget])), [budgets]);
   const balanceNameById = useMemo(() => new Map(balances.map((b) => [b.id, b.name])), [balances]);
-  const autoMovesByIncomeId = useMemo(() => {
-    const map = new Map<string, { destinationName: string; amount: number }[]>();
-    for (const autoMove of incomeAutoMoves) {
-      const list = map.get(autoMove.incomeId) ?? [];
-      list.push({
-        destinationName: balanceNameById.get(autoMove.destinationBalanceId) ?? "another account",
-        amount: autoMove.amount,
-      });
-      map.set(autoMove.incomeId, list);
-    }
-    return map;
-  }, [incomeAutoMoves, balanceNameById]);
+  const autoMoveRulesByIncomeId = useMemo(() => buildAutoMoveRulesByIncomeId(incomeAutoMoves), [incomeAutoMoves]);
+  const autoMoveOverrideByKey = useMemo(
+    () => buildAutoMoveOverrideByKey(incomeAutoMoveOverrides),
+    [incomeAutoMoveOverrides],
+  );
+  function autoMovesForRow(row: ForecastRow) {
+    if (row.sourceType !== "recurring" || row.type !== "income") return [];
+    return resolveAutoMoves(row.sourceId, row.originalDate, autoMoveRulesByIncomeId, autoMoveOverrideByKey, balanceNameById);
+  }
   function frequencyForRow(row: ForecastRow): string | null {
     if (row.sourceType === "recurring") {
       const item = recurringItemsById.get(row.sourceId);
@@ -265,19 +266,20 @@ export function CalendarGrid({
                       )}
                       {/* T212 follow-up: same hover tag ForecastClient.tsx's
                           Account column carries. */}
-                      {row.sourceType === "recurring" &&
-                        row.type === "income" &&
-                        (autoMovesByIncomeId.get(row.sourceId)?.length ?? 0) > 0 && (
+                      {(() => {
+                        const rowAutoMoves = autoMovesForRow(row).filter((m) => !m.skipped);
+                        if (rowAutoMoves.length === 0) return null;
+                        return (
                           <span
                             className="ml-1.5 rounded-full bg-notion-hover px-1.5 py-0.5 text-[10px] font-medium text-notion-accent"
-                            title={autoMovesByIncomeId
-                              .get(row.sourceId)!
+                            title={rowAutoMoves
                               .map((m) => `Auto-moves ${formatCentavos(m.amount, currency)} to ${m.destinationName}`)
                               .join("; ")}
                           >
                             auto-move
                           </span>
-                        )}
+                        );
+                      })()}
                     </span>
                     <span className="ml-2 shrink-0 text-right text-sm text-slate-600">
                       {formatCentavos(row.amount, currency)}
@@ -304,7 +306,7 @@ export function CalendarGrid({
           frequencySummary={frequencyForRow(selectedRow)}
           autoMoves={
             selectedRow.sourceType === "recurring" && selectedRow.type === "income"
-              ? (autoMovesByIncomeId.get(selectedRow.sourceId) ?? null)
+              ? autoMovesForRow(selectedRow)
               : null
           }
           onClose={() => setSelectedRow(null)}

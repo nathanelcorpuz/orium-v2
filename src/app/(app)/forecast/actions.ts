@@ -406,6 +406,12 @@ export async function settleOccurrence(
   // of the same account the income lands in.
   type AutoMove = { id: string; destination_balance_id: string; amount: number };
   let autoMoves: AutoMove[] = [];
+  // T224: this exact occurrence's own per-instance edit, if any - same
+  // "read alongside the rule, before cash is touched" reasoning as
+  // `replenishOverrideByBudgetId` above, and the same Bug #15 lesson: the
+  // real transfer has to honor whatever the user edited this one date to,
+  // not blindly reapply the rule's plain amount.
+  const autoMoveOverrideById = new Map<string, { newAmount: number | null; skipped: boolean }>();
   if (sourceType === "recurring" && type === "income") {
     const { data, error: autoMovesError } = await supabase
       .from("income_auto_moves")
@@ -413,8 +419,33 @@ export async function settleOccurrence(
       .eq("income_id", sourceId);
     if (autoMovesError) return { error: autoMovesError.message };
     autoMoves = data ?? [];
+
+    if (autoMoves.length > 0) {
+      const { data: overrideRows, error: autoMoveOverridesError } = await supabase
+        .from("income_auto_move_overrides")
+        .select("income_auto_move_id, new_amount, skipped")
+        .eq("original_date", originalDate)
+        .in(
+          "income_auto_move_id",
+          autoMoves.map((m) => m.id),
+        );
+      if (autoMoveOverridesError) return { error: autoMoveOverridesError.message };
+      for (const row of overrideRows ?? []) {
+        autoMoveOverrideById.set(row.income_auto_move_id, { newAmount: row.new_amount, skipped: row.skipped });
+      }
+    }
   }
-  const totalAutoMove = autoMoves.reduce((sum, autoMove) => sum + autoMove.amount, 0);
+
+  // null means "skip this auto-move entirely for this occurrence" - the
+  // user's own per-instance edit, not a "settle already handled it" marker
+  // (an auto-move has no independent settle path of its own to mark).
+  function autoMoveAmountFor(autoMove: AutoMove): number | null {
+    const override = autoMoveOverrideById.get(autoMove.id);
+    if (override?.skipped) return null;
+    return override?.newAmount ?? autoMove.amount;
+  }
+
+  const totalAutoMove = autoMoves.reduce((sum, autoMove) => sum + (autoMoveAmountFor(autoMove) ?? 0), 0);
 
   // T71 (SPEC.md Phase 12): if an account is selected (pre-filled from the
   // item's own linked balance, but overridable per-settlement), apply the
@@ -465,6 +496,12 @@ export async function settleOccurrence(
     if (sourceBalanceError) return { error: sourceBalanceError.message };
 
     for (const autoMove of autoMoves) {
+      // T224: an occurrence the user explicitly skipped moves no money and
+      // writes no legs at all - same "leave it alone entirely" treatment
+      // Bug #15's fix gave a skipped budget replenishment.
+      const amount = autoMoveAmountFor(autoMove);
+      if (amount === null) continue;
+
       const { data: destBalance, error: destFetchError } = await supabase
         .from("balances")
         .select("amount, name")
@@ -474,7 +511,7 @@ export async function settleOccurrence(
 
       const { error: destUpdateError } = await supabase
         .from("balances")
-        .update({ amount: destBalance.amount + autoMove.amount })
+        .update({ amount: destBalance.amount + amount })
         .eq("id", autoMove.destination_balance_id);
       if (destUpdateError) return { error: destUpdateError.message };
 
@@ -482,7 +519,7 @@ export async function settleOccurrence(
         user_id: user.id,
         balance_id: fields.balanceId,
         entry_date: fields.actualDate,
-        amount: autoMove.amount,
+        amount,
         direction: "outgoing",
         note: `Auto-moved to ${destBalance.name}`,
       });
@@ -492,19 +529,25 @@ export async function settleOccurrence(
         user_id: user.id,
         balance_id: autoMove.destination_balance_id,
         entry_date: fields.actualDate,
-        amount: autoMove.amount,
+        amount,
         direction: "incoming",
         note: `Auto-moved from ${sourceBalance.name} (${name} settling)`,
       });
       if (inLegError) return { error: inLegError.message };
     }
 
-    await logActivity(supabase, user.id, {
-      action: "update",
-      entityType: "account",
-      entityName: sourceBalance.name,
-      detail: `Auto-moved ${formatCentavos(totalAutoMove)} on settling ${name}`,
-    });
+    // T224: no log line at all when every auto-move for this occurrence was
+    // skipped - same "a skipped thing leaves no trace" precedent the linked-
+    // budget loop below already follows (a skipped budget logs nothing
+    // either), rather than a misleading "Auto-moved ₱0.00".
+    if (totalAutoMove > 0) {
+      await logActivity(supabase, user.id, {
+        action: "update",
+        entityType: "account",
+        entityName: sourceBalance.name,
+        detail: `Auto-moved ${formatCentavos(totalAutoMove)} on settling ${name}`,
+      });
+    }
   }
 
   if (sourceType === "recurring") {
@@ -701,6 +744,132 @@ export async function resetBudgetReplenish(
 
   revalidatePath("/forecast");
   revalidatePath("/budgets");
+  revalidatePath("/");
+  return { error: null };
+}
+
+// SPEC.md T224 (user request 2026-08-02): adjust a single projected
+// income-auto-move occurrence - reduce it, move it, or skip it outright -
+// without touching the recurring rule (income_auto_moves) it comes from.
+// Deliberately the same shape as editBudgetReplenish above, writing to the
+// same kind of per-instance override table
+// (income_auto_move_overrides, migration 0049).
+//
+// One difference from that editor: a checked "skip this date" box is a
+// first-class outcome here, not a separate action - an auto-move has no
+// independent settle button to mark itself done with later, so skipping is
+// just another value this same override can hold, validated before amount/
+// date rather than alongside them.
+export async function editIncomeAutoMove(
+  _prevState: ForecastActionState,
+  formData: FormData,
+): Promise<ForecastActionState> {
+  const incomeAutoMoveId = formData.get("incomeAutoMoveId") as string;
+  const originalDate = formData.get("originalDate") as string;
+  const skip = formData.get("skip") === "on";
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Not signed in." };
+
+  if (skip) {
+    const { error } = await supabase.from("income_auto_move_overrides").upsert(
+      {
+        user_id: user.id,
+        income_auto_move_id: incomeAutoMoveId,
+        original_date: originalDate,
+        skipped: true,
+        new_date: null,
+        new_amount: null,
+      },
+      { onConflict: "income_auto_move_id,original_date" },
+    );
+    if (error) return { error: error.message };
+
+    await logActivity(supabase, user.id, {
+      action: "update",
+      entityType: "account",
+      entityName: "Auto-move",
+      detail: `Skipped the auto-move on ${formatFullDate(originalDate)}`,
+    });
+
+    revalidatePath("/forecast");
+    revalidatePath("/");
+    return { error: null };
+  }
+
+  const amount = parseCentavos(formData.get("amountPesos") as string);
+  const date = formData.get("date") as string;
+
+  // T192-style rule: 0 is a valid amount - only negative or unparseable is
+  // rejected.
+  if (amount === null || amount < 0) return { error: "Enter a valid amount." };
+  if (!date) return { error: "Date is required." };
+  if (date < todayInManila()) return { error: "Date can't be in the past." };
+
+  const { error } = await supabase.from("income_auto_move_overrides").upsert(
+    {
+      user_id: user.id,
+      income_auto_move_id: incomeAutoMoveId,
+      original_date: originalDate,
+      new_date: date,
+      new_amount: amount,
+      skipped: false,
+    },
+    { onConflict: "income_auto_move_id,original_date" },
+  );
+  if (error) return { error: error.message };
+
+  await logActivity(supabase, user.id, {
+    action: "update",
+    entityType: "account",
+    entityName: "Auto-move",
+    detail: `Auto-move on ${formatFullDate(originalDate)} adjusted to ${formatCentavos(amount)} on ${formatFullDate(date)}`,
+  });
+
+  revalidatePath("/forecast");
+  revalidatePath("/");
+  return { error: null };
+}
+
+// T224: drops a per-instance edit (or skip), putting the occurrence back on
+// its rule's plain amount and the income's own effective date. Deleting the
+// row rather than nulling its columns, so an un-edited occurrence has no
+// override row at all - the same end state it had before it was ever
+// touched, mirroring resetBudgetReplenish above. No `.eq("skipped", false)`
+// guard here - unlike budget_replenish_overrides, this table's `skipped`
+// never doubles as a "settle already handled it" marker, so there's no
+// second meaning a plain delete could clobber.
+export async function resetIncomeAutoMove(
+  _prevState: ForecastActionState,
+  formData: FormData,
+): Promise<ForecastActionState> {
+  const incomeAutoMoveId = formData.get("incomeAutoMoveId") as string;
+  const originalDate = formData.get("originalDate") as string;
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Not signed in." };
+
+  const { error } = await supabase
+    .from("income_auto_move_overrides")
+    .delete()
+    .eq("income_auto_move_id", incomeAutoMoveId)
+    .eq("original_date", originalDate);
+  if (error) return { error: error.message };
+
+  await logActivity(supabase, user.id, {
+    action: "update",
+    entityType: "account",
+    entityName: "Auto-move",
+    detail: `Auto-move edit on ${formatFullDate(originalDate)} reset to its usual amount and date`,
+  });
+
+  revalidatePath("/forecast");
   revalidatePath("/");
   return { error: null };
 }

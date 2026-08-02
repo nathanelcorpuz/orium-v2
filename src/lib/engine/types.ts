@@ -168,6 +168,23 @@ export interface IncomeAutoMove {
   amount: number; // centavos, positive magnitude
 }
 
+// SPEC.md T224 (user request 2026-08-02): "moving half of an income to
+// another account for the rest of time is not a good practice as it
+// decreases flexibility" - a per-occurrence edit for one IncomeAutoMove
+// rule, mirroring BudgetReplenishOverride's shape exactly. One difference:
+// `skipped` here means "the user explicitly skipped this one date", not
+// "already handled by a settle path" - an auto-move has no independent
+// settle button of its own, it only ever moves money alongside its income's
+// own settle (settleOccurrence), so there's no second meaning to conflate.
+export interface IncomeAutoMoveOverride {
+  id: string;
+  incomeAutoMoveId: string;
+  originalDate: string; // YYYY-MM-DD, identifies which projected occurrence this covers
+  skipped: boolean;
+  newDate?: string | null;
+  newAmount?: number | null; // positive magnitude, like IncomeAutoMove.amount
+}
+
 export interface BudgetEntry {
   id: string;
   budgetId: string;
@@ -306,6 +323,7 @@ export interface GenerateForecastInput {
   budgetEntries?: BudgetEntry[];
   budgetReplenishOverrides?: BudgetReplenishOverride[];
   incomeAutoMoves?: IncomeAutoMove[];
+  incomeAutoMoveOverrides?: IncomeAutoMoveOverride[];
   today: string; // YYYY-MM-DD
   horizon: string; // YYYY-MM-DD
 }

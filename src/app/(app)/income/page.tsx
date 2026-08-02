@@ -9,7 +9,7 @@ export default async function IncomePage() {
   // Lazy loading (user request 2026-08-01): each income's own upcoming/paid
   // transactions moved to an on-demand fetch (itemTransactions.ts), fired
   // only when a specific income's "view transactions" modal actually opens.
-  const [{ data: incomes, error }, overridesRes, balancesRes, budgetsRes, autoMovesRes, currency] =
+  const [{ data: incomes, error }, overridesRes, balancesRes, budgetsRes, autoMovesRes, autoMoveOverridesRes, currency] =
     await Promise.all([
       supabase
         .from("recurring_items")
@@ -28,6 +28,12 @@ export default async function IncomePage() {
       // T212: every income's auto-move rules, for both display (the "Auto-
       // moves: X" pill) and prefilling IncomeModal's edit form.
       supabase.from("income_auto_moves").select("id, income_id, destination_balance_id, amount"),
+      // T224: per-occurrence edits, so the "Upcoming" modal's EditSettleModal
+      // (via ItemTransactionsModal) can resolve the same effective
+      // amount/skip state the Forecast page itself shows for a given date.
+      supabase
+        .from("income_auto_move_overrides")
+        .select("id, income_auto_move_id, original_date, skipped, new_date, new_amount"),
       getCurrency(),
     ]);
 
@@ -37,6 +43,14 @@ export default async function IncomePage() {
 
   const editedIds = idSetFromColumn(overridesRes.data, "recurring_item_id");
   const autoMovesByIncomeId = groupBy(autoMovesRes.data ?? [], (row) => row.income_id);
+  const incomeAutoMoveOverrides = (autoMoveOverridesRes.data ?? []).map((row) => ({
+    id: row.id,
+    incomeAutoMoveId: row.income_auto_move_id,
+    originalDate: row.original_date,
+    skipped: row.skipped,
+    newDate: row.new_date,
+    newAmount: row.new_amount,
+  }));
 
   return (
     <IncomeClient
@@ -45,6 +59,7 @@ export default async function IncomePage() {
       balances={balancesRes.data ?? []}
       linkedBudgets={budgetsRes.data ?? []}
       autoMovesByIncomeId={autoMovesByIncomeId}
+      incomeAutoMoveOverrides={incomeAutoMoveOverrides}
       currency={currency}
     />
   );

@@ -19,7 +19,12 @@ import { SubmitButton } from "@/components/SubmitButton";
 import { toggleScenarioActive } from "@/app/(app)/scenarios/actions";
 import { TYPE_COLOR, TYPE_LABEL } from "@/lib/forecastLabels";
 import { summarizeRecurrence, budgetReplenishRuleSummary } from "@/lib/recurrenceSummary";
-import type { ForecastRow, Budget, IncomeAutoMove, RecurringItem } from "@/lib/engine/types";
+import type { ForecastRow, Budget, IncomeAutoMove, IncomeAutoMoveOverride, RecurringItem } from "@/lib/engine/types";
+import {
+  buildAutoMoveOverrideByKey,
+  buildAutoMoveRulesByIncomeId,
+  resolveAutoMoves,
+} from "./resolveAutoMoves";
 import type { ConnectedItem } from "@/lib/connectedItems";
 import type { LowestBalancePoint, NextTransactionBatch } from "@/lib/engine/lowestBalance";
 import { EditSettleModal } from "./EditSettleModal";
@@ -163,6 +168,7 @@ export function ForecastClient({
   previewMode = false,
   allScenarios,
   incomeAutoMoves = [],
+  incomeAutoMoveOverrides = [],
 }: {
   forecast: ForecastRow[];
   balances: BalanceRow[];
@@ -212,6 +218,9 @@ export function ForecastClient({
   // transaction of the income itself" - resolved into a tag on the income's
   // own row (see `autoMovesByIncomeId` below) rather than a row of its own.
   incomeAutoMoves?: IncomeAutoMove[];
+  // T224: this occurrence's own per-instance edits, if any - resolved
+  // alongside `incomeAutoMoves` above via resolveAutoMoves.ts.
+  incomeAutoMoveOverrides?: IncomeAutoMoveOverride[];
 }) {
   const [editingBalance, setEditingBalance] = useState<BalanceRow | null>(null);
   const [selectedRow, setSelectedRow] = useState<ForecastRow | null>(null);
@@ -302,20 +311,18 @@ export function ForecastClient({
   const balanceNameById = useMemo(() => new Map(balances.map((b) => [b.id, b.name])), [balances]);
 
   // T212 follow-up: which income (by recurring_items id) has auto-move
-  // rules, and where they go - resolved into a hover tag on that income's
+  // rules, and where they go - resolved per-occurrence (T224: an override
+  // can reduce/skip/move any single date) into a hover tag on that income's
   // own row's Account column, rather than a separate visible row.
-  const autoMovesByIncomeId = useMemo(() => {
-    const map = new Map<string, { destinationName: string; amount: number }[]>();
-    for (const autoMove of incomeAutoMoves) {
-      const list = map.get(autoMove.incomeId) ?? [];
-      list.push({
-        destinationName: balanceNameById.get(autoMove.destinationBalanceId) ?? "another account",
-        amount: autoMove.amount,
-      });
-      map.set(autoMove.incomeId, list);
-    }
-    return map;
-  }, [incomeAutoMoves, balanceNameById]);
+  const autoMoveRulesByIncomeId = useMemo(() => buildAutoMoveRulesByIncomeId(incomeAutoMoves), [incomeAutoMoves]);
+  const autoMoveOverrideByKey = useMemo(
+    () => buildAutoMoveOverrideByKey(incomeAutoMoveOverrides),
+    [incomeAutoMoveOverrides],
+  );
+  function autoMovesForRow(row: ForecastRow) {
+    if (row.sourceType !== "recurring" || row.type !== "income") return [];
+    return resolveAutoMoves(row.sourceId, row.originalDate, autoMoveRulesByIncomeId, autoMoveOverrideByKey, balanceNameById);
+  }
 
   // T180: per-account forecasted balance, resolving the "Before MVP launch"
   // discussion item of the same name - always over the full, unfiltered
@@ -734,6 +741,7 @@ export function ForecastClient({
                 reminders={reminders}
                 previewMode={previewMode}
                 incomeAutoMoves={incomeAutoMoves}
+                incomeAutoMoveOverrides={incomeAutoMoveOverrides}
               />
             )
           ) : forecast.length === 0 ? (
@@ -839,19 +847,20 @@ export function ForecastClient({
                                   and amount(s), same information the
                                   EditSettleModal detail panel shows when
                                   this row is actually clicked. */}
-                              {row.sourceType === "recurring" &&
-                                row.type === "income" &&
-                                (autoMovesByIncomeId.get(row.sourceId)?.length ?? 0) > 0 && (
+                              {(() => {
+                                const rowAutoMoves = autoMovesForRow(row).filter((m) => !m.skipped);
+                                if (rowAutoMoves.length === 0) return null;
+                                return (
                                   <span
                                     className="ml-1 rounded-full bg-notion-hover px-1.5 py-0.5 text-[10px] font-medium text-notion-accent"
-                                    title={autoMovesByIncomeId
-                                      .get(row.sourceId)!
+                                    title={rowAutoMoves
                                       .map((m) => `Auto-moves ${formatCentavos(m.amount, currency)} to ${m.destinationName}`)
                                       .join("; ")}
                                   >
                                     auto-move
                                   </span>
-                                )}
+                                );
+                              })()}
                             </td>
                             <td className="px-2 py-1.5 text-right">
                               {formatCentavos(row.amount, currency)}
@@ -911,7 +920,7 @@ export function ForecastClient({
           frequencySummary={frequencyForRow(selectedRow)}
           autoMoves={
             selectedRow.sourceType === "recurring" && selectedRow.type === "income"
-              ? (autoMovesByIncomeId.get(selectedRow.sourceId) ?? null)
+              ? autoMovesForRow(selectedRow)
               : null
           }
           onClose={() => setSelectedRow(null)}

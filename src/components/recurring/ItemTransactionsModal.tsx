@@ -6,8 +6,9 @@ import { SegmentedControl } from "@/components/SegmentedControl";
 import { formatCentavos } from "@/lib/money";
 import { formatFullDate } from "@/lib/date";
 import { EditSettleModal } from "@/app/(app)/forecast/EditSettleModal";
+import { resolveAutoMoves } from "@/app/(app)/forecast/resolveAutoMoves";
 import { getItemTransactions, type ItemSettlementRow } from "@/lib/itemTransactions";
-import type { ForecastRow, RecurringItemType } from "@/lib/engine/types";
+import type { ForecastRow, IncomeAutoMoveOverride, RecurringItemType } from "@/lib/engine/types";
 
 export type SettlementRow = ItemSettlementRow;
 
@@ -36,11 +37,16 @@ export function ItemTransactionsModal({
   currency,
   balances,
   // T212 follow-up: only ever non-empty when this modal was opened for an
-  // income (IncomeClient.tsx passes its own already-computed map; Bills/
+  // income (IncomeClient.tsx passes its own already-computed maps; Bills/
   // Debt/Savings never do, since only income has auto-move rules) - lets a
   // clicked upcoming occurrence show the same "Auto-moves:" line
-  // EditSettleModal shows from the Forecast page itself.
-  autoMovesByIncomeId = new Map(),
+  // EditSettleModal shows from the Forecast page itself. T224: resolved per
+  // the clicked occurrence's own date via resolveAutoMoves.ts, same as the
+  // Forecast page's table/calendar views, rather than a flat per-income
+  // summary - so a per-occurrence edit made from the Forecast page shows up
+  // here too, and vice versa.
+  autoMoveRulesByIncomeId = new Map(),
+  autoMoveOverrideByKey = new Map(),
   onClose,
 }: {
   name: string;
@@ -48,7 +54,8 @@ export function ItemTransactionsModal({
   itemType: RecurringItemType;
   currency: string;
   balances: { id: string; name: string }[];
-  autoMovesByIncomeId?: Map<string, { destinationName: string; amount: number }[]>;
+  autoMoveRulesByIncomeId?: Map<string, { id: string; destinationBalanceId: string; amount: number }[]>;
+  autoMoveOverrideByKey?: Map<string, IncomeAutoMoveOverride>;
   onClose: () => void;
 }) {
   const [tab, setTab] = useState<"upcoming" | "paid">("upcoming");
@@ -74,6 +81,7 @@ export function ItemTransactionsModal({
   // that doesn't exist in the tables they actually know about. Same guard
   // ForecastClient/CalendarGrid already apply.
   if (editingRow) {
+    const balanceNameById = new Map(balances.map((b) => [b.id, b.name]));
     return (
       <EditSettleModal
         row={editingRow}
@@ -81,7 +89,13 @@ export function ItemTransactionsModal({
         balances={balances}
         autoMoves={
           editingRow.sourceType === "recurring" && editingRow.type === "income"
-            ? (autoMovesByIncomeId.get(editingRow.sourceId) ?? null)
+            ? resolveAutoMoves(
+                editingRow.sourceId,
+                editingRow.originalDate,
+                autoMoveRulesByIncomeId,
+                autoMoveOverrideByKey,
+                balanceNameById,
+              )
             : null
         }
         onClose={() => setEditingRow(null)}

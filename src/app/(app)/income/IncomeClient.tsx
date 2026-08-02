@@ -16,9 +16,10 @@ import { ReorderButtons } from "@/components/ReorderButtons";
 import { RowIconActions } from "@/components/RowIconActions";
 import { SubmitButton } from "@/components/SubmitButton";
 import { ActiveToggle } from "@/components/ActiveToggle";
-import type { RecurrenceUnit } from "@/lib/engine/types";
+import type { IncomeAutoMoveOverride, RecurrenceUnit } from "@/lib/engine/types";
 import { useOrderedList } from "@/lib/useOrderedList";
 import { ItemTransactionsModal } from "@/components/recurring/ItemTransactionsModal";
+import { buildAutoMoveOverrideByKey } from "@/app/(app)/forecast/resolveAutoMoves";
 import { deleteIncome } from "./actions";
 import { IncomeModal, type BalanceOption, type IncomeAutoMoveRow, type IncomeRow } from "./IncomeModal";
 
@@ -54,6 +55,7 @@ export function IncomeClient({
   balances,
   linkedBudgets,
   autoMovesByIncomeId = new Map(),
+  incomeAutoMoveOverrides = [],
   currency,
 }: {
   incomes: IncomeRow[];
@@ -63,6 +65,10 @@ export function IncomeClient({
   // T212: this income's own auto-move rules, keyed by income id - for the
   // "Auto-moves: X" pill and prefilling the edit form.
   autoMovesByIncomeId?: Map<string, IncomeAutoMoveRow[]>;
+  // T224: this income's per-occurrence auto-move edits, if any - lets the
+  // "Upcoming" modal's EditSettleModal resolve the same effective amount/
+  // skip state a given date shows on the Forecast page itself.
+  incomeAutoMoveOverrides?: IncomeAutoMoveOverride[];
   currency: string;
 }) {
   // T212: a link from elsewhere (the Accounts page's own "Receives ₱X from
@@ -151,22 +157,24 @@ export function IncomeClient({
   // each income, for display on each row.
   const balanceNameById = useMemo(() => new Map(balances.map((b) => [b.id, b.name])), [balances]);
 
-  // T212 follow-up: name-resolved version of `autoMovesByIncomeId`, shared
-  // by this page's own pill and by the "Upcoming" modal's EditSettleModal -
-  // same shape ForecastClient.tsx/CalendarGrid.tsx build for their own tag.
-  const autoMoveSummaryByIncomeId = useMemo(() => {
-    const map = new Map<string, { destinationName: string; amount: number }[]>();
+  // T224: `autoMovesByIncomeId`'s rules, kept in the shape resolveAutoMoves.ts
+  // expects (id carried through, camelCase destinationBalanceId) so the
+  // "Upcoming" modal can resolve a specific clicked occurrence's effective
+  // auto-move state, the same way ForecastClient.tsx/CalendarGrid.tsx do.
+  const autoMoveRulesByIncomeId = useMemo(() => {
+    const map = new Map<string, { id: string; destinationBalanceId: string; amount: number }[]>();
     for (const [incomeId, rules] of autoMovesByIncomeId) {
       map.set(
         incomeId,
-        rules.map((rule) => ({
-          destinationName: balanceNameById.get(rule.destination_balance_id) ?? "another account",
-          amount: rule.amount,
-        })),
+        rules.map((rule) => ({ id: rule.id, destinationBalanceId: rule.destination_balance_id, amount: rule.amount })),
       );
     }
     return map;
-  }, [autoMovesByIncomeId, balanceNameById]);
+  }, [autoMovesByIncomeId]);
+  const autoMoveOverrideByKey = useMemo(
+    () => buildAutoMoveOverrideByKey(incomeAutoMoveOverrides),
+    [incomeAutoMoveOverrides],
+  );
   const budgetNamesByIncomeId = useMemo(() => {
     const map = new Map<string, string[]>();
     for (const budget of linkedBudgets) {
@@ -444,7 +452,8 @@ export function IncomeClient({
             itemType="income"
             currency={currency}
             balances={balances}
-            autoMovesByIncomeId={autoMoveSummaryByIncomeId}
+            autoMoveRulesByIncomeId={autoMoveRulesByIncomeId}
+            autoMoveOverrideByKey={autoMoveOverrideByKey}
             onClose={() => setViewingItem(null)}
           />
         )}

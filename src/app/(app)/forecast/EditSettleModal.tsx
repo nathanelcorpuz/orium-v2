@@ -8,6 +8,8 @@ import { blockNegativeKey, centavosToPesosString } from "@/lib/money";
 import { formatFullDate, todayInManila } from "@/lib/date";
 import { TYPE_COLOR, TYPE_LABEL } from "@/lib/forecastLabels";
 import type { ForecastRow } from "@/lib/engine/types";
+import type { ResolvedAutoMove } from "./resolveAutoMoves";
+import { AutoMoveRow } from "./AutoMoveRow";
 import { deleteBudgetEntry, updateBudgetEntry, type BudgetActionState } from "@/app/(app)/budgets/actions";
 import {
   editBudgetReplenish,
@@ -53,8 +55,11 @@ export function EditSettleModal({
   // rules, if it's an income row that has any - computed by the caller
   // (ForecastClient.tsx/CalendarGrid.tsx already build this map for the
   // Account-column tag) rather than fetched here. Null for every non-income
-  // row, and for an income row with no rules.
-  autoMoves?: { destinationName: string; amount: number }[] | null;
+  // row, and for an income row with no rules. T224: each entry now carries
+  // this exact occurrence's own effective amount/skip state, resolved via
+  // resolveAutoMoves.ts, so this same prop also drives the editable section
+  // below.
+  autoMoves?: ResolvedAutoMove[] | null;
   onClose: () => void;
 }) {
   const connectedAccountName = row.balanceId ? (balances.find((b) => b.id === row.balanceId)?.name ?? null) : null;
@@ -205,16 +210,19 @@ export function EditSettleModal({
               forecast transaction is clicked it should show it there as
               well" - the same auto-move info the Account column's hover tag
               carries, spelled out here since a click is a stronger signal
-              of interest than a hover. */}
+              of interest than a hover. T224 (user request 2026-08-02): each
+              one is now its own editable line (AutoMoveRow) rather than a
+              flat read-only sentence - "adjust just this date, don't touch
+              the rule for the rest of time". */}
           {autoMoves && autoMoves.length > 0 && (
-            <p>
-              Auto-moves:{" "}
-              <span className="font-medium text-notion-text">
-                {autoMoves
-                  .map((m) => `${centavosToPesosString(m.amount)} ${currency} to ${m.destinationName}`)
-                  .join(", ")}
-              </span>
-            </p>
+            <div>
+              <p className="mb-1">Auto-moves:</p>
+              <div className="space-y-1.5">
+                {autoMoves.map((autoMove) => (
+                  <AutoMoveRow key={autoMove.id} autoMove={autoMove} originalDate={row.originalDate} currency={currency} />
+                ))}
+              </div>
+            </div>
           )}
         </div>
       )}

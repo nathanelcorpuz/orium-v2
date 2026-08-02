@@ -12,6 +12,7 @@ import type {
   ForecastRow,
   GenerateForecastInput,
   IncomeAutoMove,
+  IncomeAutoMoveOverride,
   OccurrenceOverride,
   OneOffItem,
   RecurringItem,
@@ -51,6 +52,7 @@ export type ForecastData = {
   budgetEntries: BudgetEntry[];
   budgetReplenishOverrides: BudgetReplenishOverride[];
   incomeAutoMoves: IncomeAutoMove[];
+  incomeAutoMoveOverrides: IncomeAutoMoveOverride[];
   currency: string;
   balanceRanges: number[];
   tierLabels: string[];
@@ -83,6 +85,7 @@ export async function loadForecast(): Promise<ForecastData> {
     entriesRes,
     replenishOverridesRes,
     autoMovesRes,
+    autoMoveOverridesRes,
     preferencesRes,
     activeScenariosRes,
   ] = await Promise.all([
@@ -106,6 +109,11 @@ export async function loadForecast(): Promise<ForecastData> {
     // T212: every rule, not just ones with active income occurrences ahead -
     // generateForecast itself decides which ones actually produce rows.
     supabase.from("income_auto_moves").select("id, income_id, destination_balance_id, amount"),
+    // T224: every per-occurrence edit, same "let the engine decide which
+    // ones are still relevant" reasoning as budget_replenish_overrides above.
+    supabase
+      .from("income_auto_move_overrides")
+      .select("id, income_auto_move_id, original_date, skipped, new_date, new_amount"),
     supabase
       .from("preferences")
       .select("currency, balance_ranges, balance_tier_labels, sample_data_seeded_at")
@@ -128,7 +136,8 @@ export async function loadForecast(): Promise<ForecastData> {
     budgetsRes.error ??
     entriesRes.error ??
     replenishOverridesRes.error ??
-    autoMovesRes.error;
+    autoMovesRes.error ??
+    autoMoveOverridesRes.error;
   if (criticalError) {
     throw new Error(`Failed to load forecast data: ${criticalError.message}`);
   }
@@ -228,6 +237,15 @@ export async function loadForecast(): Promise<ForecastData> {
     incomeId: row.income_id,
     destinationBalanceId: row.destination_balance_id,
     amount: row.amount,
+  }));
+
+  const incomeAutoMoveOverrides: IncomeAutoMoveOverride[] = (autoMoveOverridesRes.data ?? []).map((row) => ({
+    id: row.id,
+    incomeAutoMoveId: row.income_auto_move_id,
+    originalDate: row.original_date,
+    skipped: row.skipped,
+    newDate: row.new_date,
+    newAmount: row.new_amount,
   }));
 
   // T174 ("run possible scenario"), extended by T183 to any number of
@@ -364,6 +382,7 @@ export async function loadForecast(): Promise<ForecastData> {
     budgetEntries,
     budgetReplenishOverrides,
     incomeAutoMoves,
+    incomeAutoMoveOverrides,
     today,
     horizon,
   };
@@ -377,6 +396,7 @@ export async function loadForecast(): Promise<ForecastData> {
     budgetEntries,
     budgetReplenishOverrides,
     incomeAutoMoves,
+    incomeAutoMoveOverrides,
     currency: preferencesRes.data?.currency ?? DEFAULT_CURRENCY,
     balanceRanges: preferencesRes.data?.balance_ranges ?? DEFAULT_BALANCE_RANGES,
     tierLabels: preferencesRes.data?.balance_tier_labels ?? DEFAULT_TIER_LABELS,

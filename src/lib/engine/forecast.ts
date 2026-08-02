@@ -2,6 +2,7 @@ import type {
   BudgetReplenishOverride,
   ForecastRow,
   GenerateForecastInput,
+  IncomeAutoMoveOverride,
   OccurrenceOverride,
   RecurrenceRule,
   RecurringItem,
@@ -32,6 +33,10 @@ function budgetOverrideKey(budgetId: string, originalDate: string): string {
   return `${budgetId}|${originalDate}`;
 }
 
+function autoMoveOverrideKey(incomeAutoMoveId: string, originalDate: string): string {
+  return `${incomeAutoMoveId}|${originalDate}`;
+}
+
 export function generateForecast(input: GenerateForecastInput): ForecastRow[] {
   const { balances, recurringItems, overrides, oneOffs, today, horizon } = input;
   const budgets = input.budgets ?? [];
@@ -54,6 +59,14 @@ export function generateForecast(input: GenerateForecastInput): ForecastRow[] {
   const budgetReplenishOverridesByKey = new Map<string, BudgetReplenishOverride>();
   for (const override of budgetReplenishOverrides) {
     budgetReplenishOverridesByKey.set(budgetOverrideKey(override.budgetId, override.originalDate), override);
+  }
+
+  // T224: per-occurrence edits to an income auto-move, mirroring
+  // budgetReplenishOverridesByKey immediately above.
+  const autoMoveOverrides = input.incomeAutoMoveOverrides ?? [];
+  const autoMoveOverridesByKey = new Map<string, IncomeAutoMoveOverride>();
+  for (const override of autoMoveOverrides) {
+    autoMoveOverridesByKey.set(autoMoveOverrideKey(override.incomeAutoMoveId, override.originalDate), override);
   }
 
   // T191 (user request): an income-linked budget's replenishment is real
@@ -284,6 +297,18 @@ export function generateForecast(input: GenerateForecastInput): ForecastRow[] {
     const source = balanceById.get(sourceBalanceId);
 
     for (const { originalDate, effectiveDate } of incomeEffectiveOccurrences.get(autoMove.incomeId) ?? []) {
+      // T224: per-instance edit for this exact occurrence, applied the same
+      // way budget_replenish's own override is above - `skipped` drops the
+      // occurrence entirely (no rows at all, same as an income occurrence's
+      // own `skipped` override), `newAmount`/`newDate` replace the rule's
+      // plain amount/the income's effective date only for this one date.
+      const override = autoMoveOverridesByKey.get(autoMoveOverrideKey(autoMove.id, originalDate));
+      if (override?.skipped) continue;
+
+      const effectiveAmount = override?.newAmount ?? autoMove.amount;
+      const effectiveDueDate = override?.newDate ?? effectiveDate;
+      const isEdited = override && (override.newAmount != null || override.newDate != null) ? true : undefined;
+
       // User follow-up (2026-08-01): "the auto move doesn't have to appear
       // as a forecast transaction" - these two rows still exist and still
       // count toward runningBalance/per-account attribution (so Total
@@ -295,12 +320,13 @@ export function generateForecast(input: GenerateForecastInput): ForecastRow[] {
         sourceId: autoMove.id,
         originalDate,
         name: `Auto-move to ${destination.name}`,
-        amount: -autoMove.amount,
-        dueDate: effectiveDate,
+        amount: -effectiveAmount,
+        dueDate: effectiveDueDate,
         type: "auto_move",
         balanceId: sourceBalanceId,
         linkedIncomeId: autoMove.incomeId,
         hidden: true,
+        edited: isEdited,
         // T172: the source account's own fee, same as any other transaction
         // touching it - a genuinely separate transfer, not a same-money
         // split like a budget replenishment (which deliberately carries no
@@ -312,12 +338,13 @@ export function generateForecast(input: GenerateForecastInput): ForecastRow[] {
         sourceId: autoMove.id,
         originalDate,
         name: `Auto-move from ${source?.name ?? "account"}`,
-        amount: autoMove.amount,
-        dueDate: effectiveDate,
+        amount: effectiveAmount,
+        dueDate: effectiveDueDate,
         type: "auto_move",
         balanceId: autoMove.destinationBalanceId,
         linkedIncomeId: autoMove.incomeId,
         hidden: true,
+        edited: isEdited,
       });
     }
   }

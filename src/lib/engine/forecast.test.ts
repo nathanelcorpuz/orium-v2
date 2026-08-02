@@ -4,6 +4,7 @@ import type {
   Budget,
   BudgetEntry,
   BudgetReplenishOverride,
+  IncomeAutoMoveOverride,
   OneOffItem,
   OccurrenceOverride,
   RecurringItem,
@@ -1544,6 +1545,86 @@ describe("generateForecast income auto-move (SPEC.md T212)", () => {
     expect(debit.feeAmount).toBe(500);
     const credit = autoMoveRows.find((row) => row.amount > 0)!;
     expect(credit.feeAmount).toBeUndefined();
+  });
+});
+
+describe("generateForecast income auto-move overrides (SPEC.md T224)", () => {
+  function twoOccurrenceInput(incomeAutoMoveOverrides: IncomeAutoMoveOverride[]) {
+    return {
+      balances: [
+        { id: "wise", name: "Wise Nanay", amount: 1000000 },
+        { id: "bdo", name: "BDO Tatay", amount: 200000 },
+      ],
+      recurringItems: [
+        monthlyItem({
+          id: "income-1",
+          name: "TNIT",
+          type: "income" as const,
+          amount: 500000,
+          daysOfMonth: [5, 12],
+          balanceId: "wise",
+        }),
+      ],
+      overrides: [],
+      oneOffs: [],
+      incomeAutoMoves: [{ id: "move-1", incomeId: "income-1", destinationBalanceId: "bdo", amount: 100000 }],
+      incomeAutoMoveOverrides,
+      today: "2026-01-01",
+      horizon: "2026-01-31",
+    };
+  }
+
+  it("reduces the amount for just the overridden occurrence, leaving the other one at the rule's default", () => {
+    const result = generateForecast(
+      twoOccurrenceInput([
+        { id: "ov-1", incomeAutoMoveId: "move-1", originalDate: "2026-01-05", skipped: false, newAmount: 25000 },
+      ]),
+    );
+
+    const autoMoveRows = result.filter((row) => row.sourceType === "income_auto_move");
+    const jan5 = autoMoveRows.filter((row) => row.originalDate === "2026-01-05");
+    const jan12 = autoMoveRows.filter((row) => row.originalDate === "2026-01-12");
+    expect(jan5.map((row) => Math.abs(row.amount))).toEqual([25000, 25000]);
+    expect(jan12.map((row) => Math.abs(row.amount))).toEqual([100000, 100000]);
+    expect(jan5.every((row) => row.edited === true)).toBe(true);
+    expect(jan12.every((row) => row.edited === undefined)).toBe(true);
+  });
+
+  it("drops both legs entirely for a skipped occurrence, leaving the other one untouched", () => {
+    const result = generateForecast(
+      twoOccurrenceInput([{ id: "ov-1", incomeAutoMoveId: "move-1", originalDate: "2026-01-05", skipped: true }]),
+    );
+
+    const autoMoveRows = result.filter((row) => row.sourceType === "income_auto_move");
+    expect(autoMoveRows.every((row) => row.originalDate !== "2026-01-05")).toBe(true);
+    expect(autoMoveRows.filter((row) => row.originalDate === "2026-01-12")).toHaveLength(2);
+  });
+
+  it("moves the due date for just the overridden occurrence", () => {
+    const result = generateForecast(
+      twoOccurrenceInput([
+        { id: "ov-1", incomeAutoMoveId: "move-1", originalDate: "2026-01-05", skipped: false, newDate: "2026-01-08" },
+      ]),
+    );
+
+    const autoMoveRows = result.filter((row) => row.sourceType === "income_auto_move" && row.originalDate === "2026-01-05");
+    expect(autoMoveRows.every((row) => row.dueDate === "2026-01-08")).toBe(true);
+    // Amount is untouched - only the date field of this edit was set.
+    expect(autoMoveRows.map((row) => Math.abs(row.amount))).toEqual([100000, 100000]);
+  });
+
+  it("recomputes runningBalance correctly around a reduced occurrence", () => {
+    const result = generateForecast(
+      twoOccurrenceInput([
+        { id: "ov-1", incomeAutoMoveId: "move-1", originalDate: "2026-01-05", skipped: false, newAmount: 25000 },
+      ]),
+    );
+
+    // 1,200,000 total + 500,000 (Jan 5 income) nets to 1,700,000 regardless
+    // of the auto-move split (an internal transfer never changes the
+    // combined total) - same invariant the un-overridden case already checks.
+    const jan5Rows = result.filter((row) => row.originalDate === "2026-01-05");
+    expect(jan5Rows[jan5Rows.length - 1].runningBalance).toBe(1700000);
   });
 });
 
