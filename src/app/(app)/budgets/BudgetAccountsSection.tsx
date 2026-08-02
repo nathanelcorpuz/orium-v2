@@ -4,6 +4,8 @@ import { useState } from "react";
 import { formatCentavos } from "@/lib/money";
 import { ChevronIcon, DeleteIcon, EditIcon } from "@/components/navIcons";
 import { SubmitButton } from "@/components/SubmitButton";
+import { ReorderButtons } from "@/components/ReorderButtons";
+import { useOrderedList } from "@/lib/useOrderedList";
 import { deleteBudgetAccount } from "./actions";
 import { BudgetAccountModal, type BudgetAccountRow } from "./BudgetAccountModal";
 import { BudgetAccountFundsModal } from "./BudgetAccountFundsModal";
@@ -34,6 +36,14 @@ export function BudgetAccountsSection({
   // T209 (user follow-up to T204): Add/Take/Move funds, mirroring Accounts'
   // own row (T189/T186).
   const [fundsModalState, setFundsModalState] = useState<FundsModalState | null>(null);
+  // T228 (user request via REMINDER.md 2026-08-03): "Allow to rearrange
+  // budget accounts" - same localStorage-backed click-reorder pattern T145
+  // established elsewhere (Bills, Income, Debt, Savings, Budgets).
+  const { orderedItems: orderedAccounts, moveUp, moveDown } = useOrderedList(
+    "orium.budgetAccountsOrder",
+    accounts,
+    (account) => account.id,
+  );
 
   return (
     <div className="mb-6 rounded-lg border border-notion-hairline bg-white p-4">
@@ -60,7 +70,7 @@ export function BudgetAccountsSection({
             <p className="mb-3 text-sm text-slate-400">No budget accounts yet.</p>
           ) : (
             <ul className="mb-3 divide-y divide-notion-hairline">
-              {accounts.map((account) => {
+              {orderedAccounts.map((account, index) => {
                 // T222: this account's own attributed breakdown - which
                 // budgets have money here, and how much of the raw total is
                 // still unallocated (added directly to the account, not
@@ -71,11 +81,19 @@ export function BudgetAccountsSection({
                 return (
                 <li key={account.id} className="py-2 text-sm">
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="flex min-w-0 flex-1 items-center justify-between gap-2 sm:justify-start">
-                    <span className="min-w-0 flex-1 truncate text-notion-text">{account.name}</span>
-                    <span className="w-24 shrink-0 text-right tabular-nums text-notion-text">
-                      {formatCentavos(account.amount)}
-                    </span>
+                  <div className="flex min-w-0 flex-1 items-center gap-2">
+                    <ReorderButtons
+                      onMoveUp={() => moveUp(account.id)}
+                      onMoveDown={() => moveDown(account.id)}
+                      isFirst={index === 0}
+                      isLast={index === orderedAccounts.length - 1}
+                    />
+                    <div className="flex min-w-0 flex-1 items-center justify-between gap-2 sm:justify-start">
+                      <span className="min-w-0 flex-1 truncate text-notion-text">{account.name}</span>
+                      <span className="w-24 shrink-0 text-right tabular-nums text-notion-text">
+                        {formatCentavos(account.amount)}
+                      </span>
+                    </div>
                   </div>
                   {confirmingDeleteId === account.id ? (
                     <div className="flex shrink-0 items-center gap-1 self-end sm:self-auto">

@@ -42,6 +42,12 @@ export interface RecurringItem {
   // display metadata passing through, and optional keeps every existing
   // fixture and constructor valid.
   comments?: string | null;
+  // T232: true when this item is paid automatically by its connected
+  // account (e.g. a subscription auto-debited from a specific bank account)
+  // and so shouldn't be offered as a candidate for reassignment during
+  // fund-distribution planning. Display metadata only, same optional
+  // convention as `active`/`comments` above - the engine never reads it.
+  autoDebited?: boolean;
 
   // Recurrence rule (SPEC.md Phase 6A). interval/unit/endsType are DB
   // NOT NULL - every row has a complete rule. The rest depend on which

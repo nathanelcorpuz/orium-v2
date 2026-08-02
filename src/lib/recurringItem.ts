@@ -23,6 +23,9 @@ function readMonthlyGoalForm(formData: FormData, isCreate: boolean) {
   const startDate = formData.get("startDate") as string;
   const comments = ((formData.get("comments") as string) || "").trim() || null;
   const balanceId = (formData.get("balanceId") as string) || null;
+  // T232: paid automatically by the connected account - not offered as a
+  // reassignment candidate during fund-distribution planning.
+  const autoDebited = formData.get("autoDebited") === "on";
 
   if (!name) return { error: "Name is required." } as const;
   // T192 (user request): 0 is a valid amount. Only an unparseable value is
@@ -52,6 +55,7 @@ function readMonthlyGoalForm(formData: FormData, isCreate: boolean) {
     startDate,
     comments,
     balanceId,
+    autoDebited,
   } as const;
 }
 
@@ -86,6 +90,7 @@ export async function createMonthlyGoal(
     occurrence_count: fields.occurrenceCount,
     comments: fields.comments,
     balance_id: fields.balanceId,
+    auto_debited: fields.autoDebited,
   });
   if (error) return { error: error.message };
 
@@ -126,6 +131,7 @@ export async function updateMonthlyGoal(
       occurrence_count: fields.occurrenceCount,
       comments: fields.comments,
       balance_id: fields.balanceId,
+      auto_debited: fields.autoDebited,
     })
     .eq("id", id);
   if (error) return { error: error.message };

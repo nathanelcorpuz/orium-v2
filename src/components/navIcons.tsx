@@ -35,6 +35,21 @@ export function BalancesIcon({ className }: IconProps) {
   );
 }
 
+// T232-T234 fund-distribution planning page: one source splitting into two
+// destinations - the visual metaphor for "which account should pay this."
+export function AllocationIcon({ className }: IconProps) {
+  return (
+    <svg {...BASE} className={className}>
+      <circle cx="10" cy="5" r="2" />
+      <path d="M10 7 V10" />
+      <path d="M10 10 L5 16" />
+      <path d="M10 10 L15 16" />
+      <circle cx="5" cy="17" r="1.5" />
+      <circle cx="15" cy="17" r="1.5" />
+    </svg>
+  );
+}
+
 export function BillsIcon({ className }: IconProps) {
   return (
     <svg {...BASE} className={className}>
@@ -365,6 +380,7 @@ export function SpinnerIcon({ className }: IconProps) {
 // up each item's icon without a big switch statement.
 export const NAV_ICONS: Record<string, (props: IconProps) => React.JSX.Element> = {
   "/": DashboardIcon,
+  "/allocation": AllocationIcon,
   "/accounts": BalancesIcon,
   "/bills": BillsIcon,
   "/income": IncomeIcon,

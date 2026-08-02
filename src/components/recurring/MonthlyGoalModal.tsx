@@ -170,6 +170,15 @@ export function MonthlyGoalModal({
             update it by hand.
           </FormTip>
         </div>
+        <label className="flex items-center gap-2 text-sm text-slate-600">
+          <input
+            type="checkbox"
+            name="autoDebited"
+            defaultChecked={item?.auto_debited ?? false}
+            className="h-4 w-4 rounded border-notion-hairline"
+          />
+          Auto-debited (paid automatically by the connected account)
+        </label>
         <div>
           <label className="block text-sm text-slate-600" htmlFor="comments">
             Comments

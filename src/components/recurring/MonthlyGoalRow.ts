@@ -18,4 +18,7 @@ export type MonthlyGoalRow = {
   balance_id: string | null;
   // T175: false = temporarily switched off.
   active?: boolean;
+  // T232: paid automatically by the connected account - not a reassignment
+  // candidate during fund-distribution planning.
+  auto_debited?: boolean;
 };

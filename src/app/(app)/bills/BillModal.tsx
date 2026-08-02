@@ -28,6 +28,9 @@ export type BillRow = {
   balance_id: string | null;
   // T175: false = temporarily switched off.
   active?: boolean;
+  // T232: paid automatically by the connected account - not a reassignment
+  // candidate during fund-distribution planning.
+  auto_debited?: boolean;
 };
 
 // T71: options for the optional "connected account" dropdown.
@@ -172,6 +175,15 @@ export function BillModal({
             still counts against your forecast, just not against one specific account.
           </FormTip>
         </div>
+        <label className="flex items-center gap-2 text-sm text-slate-600">
+          <input
+            type="checkbox"
+            name="autoDebited"
+            defaultChecked={bill?.auto_debited ?? false}
+            className="h-4 w-4 rounded border-notion-hairline"
+          />
+          Auto-debited (paid automatically by the connected account)
+        </label>
         <div>
           <label className="block text-sm text-slate-600" htmlFor="comments">
             Comments

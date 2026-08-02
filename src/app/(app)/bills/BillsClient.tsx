@@ -314,6 +314,14 @@ export function BillsClient({
                           Off
                         </span>
                       )}
+                      {bill.auto_debited && (
+                        <span
+                          className="ml-1.5 rounded-full bg-slate-200 px-1.5 py-0.5 text-xs font-medium text-slate-600"
+                          title="Paid automatically by the connected account - not a candidate for reassignment"
+                        >
+                          Auto-debited
+                        </span>
+                      )}
                       {editedIds.has(bill.id) && (
                         <span className="ml-1.5 text-slate-400" title="Edited from its usual schedule">
                           ✎

@@ -33,6 +33,11 @@ import { useDismissedTips } from "./FormTip";
 const NAV_ITEMS = [
   { href: "/", label: "Dashboard", tourKey: "dashboard" },
   { href: "/forecast", label: "Forecast", tourKey: "forecast" },
+  // T232-T234 fund-distribution planning (SPEC.md "Before MVP launch"
+  // discussion, resolved 2026-08-03): which account should pay which
+  // bill/debt/savings/misc item, with each account's own lowest-projected-
+  // balance-ahead (T180) visible right next to the items assigned to it.
+  { href: "/allocation", label: "Fund Distribution", tourKey: "allocation" },
   { href: "/accounts", label: "Accounts", tourKey: "accounts" },
   { href: "/bills", label: "Bills", tourKey: "bills", financeGroup: true },
   { href: "/income", label: "Income", tourKey: "income", financeGroup: true },

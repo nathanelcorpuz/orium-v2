@@ -9,7 +9,9 @@ import { ReorderButtons } from "@/components/ReorderButtons";
 import { useOrderedList } from "@/lib/useOrderedList";
 import { formatCentavos } from "@/lib/money";
 import { todayInManila } from "@/lib/date";
-import { computeBudgetAccountBalance, computeBudgetBalance } from "@/lib/engine/budgetLedger";
+import { budgetReplenishRule, computeBudgetAccountBalance, computeBudgetBalance } from "@/lib/engine/budgetLedger";
+import { monthlyEquivalent } from "@/lib/engine/monthlyTotals";
+import { toEngineBudget } from "@/lib/budgetView";
 import { BudgetCard, toEngineEntries, type BudgetEntryRow, type IncomeItemRow } from "./BudgetCard";
 import { BudgetModal, type BudgetRow } from "./BudgetModal";
 import { BudgetAccountsSection } from "./BudgetAccountsSection";
@@ -135,6 +137,33 @@ export function BudgetsClient({
     [budgets, entriesByBudgetId, today],
   );
 
+  // T234 (user request via REMINDER.md 2026-08-03): "should be able to see
+  // total monthly budgets in budgets page" - T219 already put this figure on
+  // the Dashboard; this reuses the same budgetReplenishRule/monthlyEquivalent
+  // resolution right here. A manual budget (no resolvable schedule)
+  // contributes 0, same as T219's own Dashboard card.
+  const totalMonthlyBudgets = useMemo(
+    () =>
+      budgets.reduce((sum, budget) => {
+        const linkedIncome = budget.linked_income_id
+          ? incomes.find((income) => income.id === budget.linked_income_id)
+          : undefined;
+        const rule = budgetReplenishRule(toEngineBudget(budget), linkedIncome ?? null);
+        if (!rule) return sum;
+        return (
+          sum +
+          monthlyEquivalent({
+            amount: budget.allocation,
+            interval: rule.interval,
+            unit: rule.unit,
+            weekdays: rule.weekdays,
+            daysOfMonth: rule.daysOfMonth,
+          })
+        );
+      }, 0),
+    [budgets, incomes],
+  );
+
   // T222 (user request 2026-08-02): "I need to be able to easily identify
   // how much of the GCash Tatay amount only belongs to Pocket Money" - the
   // inverse of each BudgetCard's own per-account breakdown. A budget
@@ -175,6 +204,14 @@ export function BudgetsClient({
                 <span className={totalAcrossBudgets < 0 ? "text-red-600" : ""}>
                   {formatCentavos(totalAcrossBudgets)}
                 </span>
+              </p>
+            )}
+            {/* T234: the Dashboard's own "Total Monthly Budgets" card (T219)
+                had no equivalent here, unlike Bills/Income/Debt/Savings, each
+                of which already shows its own monthly total on its own page. */}
+            {totalMonthlyBudgets > 0 && (
+              <p className="mt-1 text-sm text-slate-500">
+                Total monthly (est.): {formatCentavos(totalMonthlyBudgets)}
               </p>
             )}
           </div>

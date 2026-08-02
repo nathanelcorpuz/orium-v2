@@ -10,6 +10,7 @@ import { accountBalanceForRow, computeAccountBalancesAfterEachRow, findAccountLo
 import { BalanceModal, type BalanceRow } from "@/app/(app)/accounts/BalanceModal";
 import { AmountRangeFilter, matchesAmountFilter, type ComparisonOp } from "@/components/AmountRangeFilter";
 import { MultiSelectChips } from "@/components/MultiSelectChips";
+import { accountFilterOptions, matchesAccountFilter } from "@/lib/accountFilter";
 import { Modal } from "@/components/Modal";
 import { DatePicker } from "@/components/DatePicker";
 import { ChevronIcon } from "@/components/navIcons";
@@ -267,6 +268,11 @@ export function ForecastClient({
   const [dateTo, setDateTo] = useState("");
   const [nameFilter, setNameFilter] = useState("");
   const [selectedTypes, setSelectedTypes] = useState<Set<ForecastRow["type"]>>(new Set());
+  // T233 (user request via REMINDER.md 2026-08-03): "should be able to
+  // filter accounts in forecast page" - same multi-select shape as
+  // selectedTypes above, reusing T206's accountFilter.ts helpers instead of
+  // writing new matching logic.
+  const [selectedAccounts, setSelectedAccounts] = useState<Set<string>>(new Set());
   const [amountOp, setAmountOp] = useState<ComparisonOp>("any");
   const [amountValue1, setAmountValue1] = useState("");
   const [amountValue2, setAmountValue2] = useState("");
@@ -283,11 +289,21 @@ export function ForecastClient({
     });
   }
 
+  function toggleAccount(value: string) {
+    setSelectedAccounts((prev) => {
+      const next = new Set(prev);
+      if (next.has(value)) next.delete(value);
+      else next.add(value);
+      return next;
+    });
+  }
+
   function clearFilters() {
     setDateFrom("");
     setDateTo("");
     setNameFilter("");
     setSelectedTypes(new Set());
+    setSelectedAccounts(new Set());
     setAmountOp("any");
     setAmountValue1("");
     setAmountValue2("");
@@ -302,6 +318,7 @@ export function ForecastClient({
     (dateFrom !== "" || dateTo !== "" ? 1 : 0) +
     (nameFilter !== "" ? 1 : 0) +
     (selectedTypes.size > 0 ? 1 : 0) +
+    (selectedAccounts.size > 0 ? 1 : 0) +
     (amountOp !== "any" ? 1 : 0) +
     (balanceOp !== "any" ? 1 : 0);
   const filtersActive = activeFilterCount > 0;
@@ -380,6 +397,7 @@ export function ForecastClient({
       if (dateTo && row.dueDate > dateTo) return false;
       if (name && !row.name.toLowerCase().includes(name)) return false;
       if (selectedTypes.size > 0 && !selectedTypes.has(row.type)) return false;
+      if (!matchesAccountFilter(row.balanceId ?? null, selectedAccounts)) return false;
       if (!matchesAmountFilter(row.amount, amountOp, amountValue1, amountValue2)) return false;
       if (!matchesAmountFilter(row.runningBalance, balanceOp, balanceValue1, balanceValue2)) return false;
       return true;
@@ -390,6 +408,7 @@ export function ForecastClient({
     dateTo,
     nameFilter,
     selectedTypes,
+    selectedAccounts,
     amountOp,
     amountValue1,
     amountValue2,
@@ -409,6 +428,7 @@ export function ForecastClient({
     dateTo,
     nameFilter,
     [...selectedTypes].sort(),
+    [...selectedAccounts].sort(),
     amountOp,
     amountValue1,
     amountValue2,
@@ -706,6 +726,16 @@ export function ForecastClient({
                   <label className="text-xs text-slate-500">Type</label>
                   <MultiSelectChips options={TYPE_OPTIONS} selected={selectedTypes} onToggle={toggleType} />
                 </div>
+                {balances.length > 0 && (
+                  <div className="flex flex-col gap-1">
+                    <label className="text-xs text-slate-500">Account</label>
+                    <MultiSelectChips
+                      options={accountFilterOptions(balances)}
+                      selected={selectedAccounts}
+                      onToggle={toggleAccount}
+                    />
+                  </div>
+                )}
                 <AmountRangeFilter
                   label="Amount"
                   op={amountOp}
