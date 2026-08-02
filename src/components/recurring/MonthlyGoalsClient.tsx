@@ -12,9 +12,11 @@ import { AmountRangeFilter, matchesAmountFilter, type ComparisonOp } from "@/com
 import { matchesAccountFilter } from "@/lib/accountFilter";
 import { AccountFilterDropdown } from "@/components/AccountFilterDropdown";
 import { AmountSortControl, sortByAmount, type SortOrder } from "@/components/AmountSortControl";
+import { CollapsibleFilters } from "@/components/CollapsibleFilters";
 import { MultiSelectChips } from "@/components/MultiSelectChips";
 import { ProgressBar } from "@/components/ProgressBar";
 import { ReorderButtons } from "@/components/ReorderButtons";
+import { RowIconActions } from "@/components/RowIconActions";
 import { SubmitButton } from "@/components/SubmitButton";
 import { ActiveToggle } from "@/components/ActiveToggle";
 import { ChevronIcon } from "@/components/navIcons";
@@ -142,13 +144,16 @@ export function MonthlyGoalsClient({
     setSelectedAccounts(new Set());
   }
 
-  const filtersActive =
-    nameFilter !== "" ||
-    selectedUnits.size > 0 ||
-    dateFrom !== "" ||
-    dateTo !== "" ||
-    amountOp !== "any" ||
-    selectedAccounts.size > 0;
+  // T231: a count rather than a plain boolean, so the mobile "Filters"
+  // button can badge how many are actually narrowing the list.
+  const activeFilterCount =
+    (nameFilter !== "" ? 1 : 0) +
+    (selectedUnits.size > 0 ? 1 : 0) +
+    (dateFrom !== "" ? 1 : 0) +
+    (dateTo !== "" ? 1 : 0) +
+    (amountOp !== "any" ? 1 : 0) +
+    (selectedAccounts.size > 0 ? 1 : 0);
+  const filtersActive = activeFilterCount > 0;
 
   // T145: persisted custom row order (up/down buttons), keyed by pageTitle
   // ("Debt"/"Savings") since this one component serves both pages - only
@@ -282,14 +287,14 @@ export function MonthlyGoalsClient({
           <button
             type="button"
             onClick={() => setModalState("new")}
-            className="rounded bg-notion-text px-4 py-2 text-white hover:opacity-90"
+            className="shrink-0 rounded bg-notion-text px-4 py-2 text-white hover:opacity-90"
           >
             Add {noun}
           </button>
         </div>
 
         {items.length > 0 && (
-          <div className="mb-4 rounded-lg border border-notion-hairline bg-white p-4">
+          <CollapsibleFilters activeCount={activeFilterCount}>
             <div className="flex flex-wrap items-end gap-4">
               <div className="flex flex-col gap-1">
                 <label className="text-xs text-slate-500">Name</label>
@@ -349,7 +354,7 @@ export function MonthlyGoalsClient({
                 Showing {filteredItems.length} of {items.length} {noun}s
               </p>
             )}
-          </div>
+          </CollapsibleFilters>
         )}
 
         {items.length === 0 ? (
@@ -378,8 +383,13 @@ export function MonthlyGoalsClient({
               return (
                 <li
                   key={item.id}
-                  className={`flex items-center justify-between rounded-lg border border-notion-hairline bg-white p-4 ${item.active === false ? "opacity-50 grayscale" : ""}`}
+                  /* T231: below `sm` the actions drop to their own line
+                     instead of competing with the name/amount/progress bar
+                     for a 375px row - same shape the Accounts page already
+                     uses (T189). */
+                  className={`flex flex-col gap-3 rounded-lg border border-notion-hairline bg-white p-4 sm:flex-row sm:items-center sm:justify-between ${item.active === false ? "opacity-50 grayscale" : ""}`}
                 >
+                  <div className="flex min-w-0 flex-1 items-start gap-2">
                   {canReorder && (
                     <ReorderButtons
                       onMoveUp={() => moveUp(item.id)}
@@ -439,7 +449,8 @@ export function MonthlyGoalsClient({
                       <p className="mt-1 text-sm italic text-slate-400">{item.comments}</p>
                     )}
                   </div>
-                  <div className="flex items-center gap-2">
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2 sm:justify-end">
                     {confirmingDeleteId === item.id ? (
                       <>
                         <span className="text-sm text-slate-600">Delete?</span>
@@ -459,21 +470,11 @@ export function MonthlyGoalsClient({
                       </>
                     ) : (
                       <>
-                        <button
-                          type="button"
-                          onClick={() => setModalState(item)}
-                          className="rounded border border-notion-hairline px-3 py-1 text-sm text-notion-text hover:bg-notion-hover"
-                        >
-                          Edit
-                        </button>
                         <ActiveToggle kind="recurring" id={item.id} active={item.active !== false} />
-                        <button
-                          type="button"
-                          onClick={() => setConfirmingDeleteId(item.id)}
-                          className="rounded border border-red-300 px-3 py-1 text-sm text-red-600 hover:bg-red-50"
-                        >
-                          Delete
-                        </button>
+                        <RowIconActions
+                          onEdit={() => setModalState(item)}
+                          onDelete={() => setConfirmingDeleteId(item.id)}
+                        />
                       </>
                     )}
                   </div>

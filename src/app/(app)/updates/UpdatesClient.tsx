@@ -5,6 +5,7 @@ import { dayKeyManila, formatFullDate, formatTimeManila } from "@/lib/date";
 import { CheckIcon, CloseIcon } from "@/components/navIcons";
 import { SubmitButton } from "@/components/SubmitButton";
 import { DatePicker } from "@/components/DatePicker";
+import { CollapsibleFilters } from "@/components/CollapsibleFilters";
 import { MultiSelectChips } from "@/components/MultiSelectChips";
 import { dismissUpdate, markUpdateRead, markUpdatesSeen } from "./actions";
 import type { ActivityLogRow } from "./page";
@@ -74,8 +75,14 @@ export function UpdatesClient({
     setDateTo("");
   }
 
-  const filtersActive =
-    nameFilter !== "" || selectedTypes.size > 0 || dateFrom !== "" || dateTo !== "";
+  // T231: a count rather than a plain boolean, so the mobile "Filters"
+  // button can badge how many are actually narrowing the list.
+  const activeFilterCount =
+    (nameFilter !== "" ? 1 : 0) +
+    (selectedTypes.size > 0 ? 1 : 0) +
+    (dateFrom !== "" ? 1 : 0) +
+    (dateTo !== "" ? 1 : 0);
+  const filtersActive = activeFilterCount > 0;
 
   const filteredEntries = useMemo(() => {
     const name = nameFilter.trim().toLowerCase();
@@ -166,7 +173,7 @@ export function UpdatesClient({
         </div>
 
         {entries.length > 0 && (
-          <div className="mb-4 rounded-lg border border-notion-hairline bg-white p-4">
+          <CollapsibleFilters activeCount={activeFilterCount}>
             <div className="flex flex-wrap items-end gap-4">
               <div className="flex flex-col gap-1">
                 <label className="text-xs text-slate-500">Name</label>
@@ -213,7 +220,7 @@ export function UpdatesClient({
                 Showing {filteredEntries.length} of {entries.length} updates
               </p>
             )}
-          </div>
+          </CollapsibleFilters>
         )}
 
         {entries.length === 0 ? (

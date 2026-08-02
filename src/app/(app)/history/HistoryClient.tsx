@@ -5,6 +5,7 @@ import { formatCentavos } from "@/lib/money";
 import { formatFullDate } from "@/lib/date";
 import { DatePicker } from "@/components/DatePicker";
 import { AmountRangeFilter, matchesAmountFilter, type ComparisonOp } from "@/components/AmountRangeFilter";
+import { CollapsibleFilters } from "@/components/CollapsibleFilters";
 import { MultiSelectChips } from "@/components/MultiSelectChips";
 
 const TYPE_COLOR: Record<string, string> = {
@@ -101,12 +102,15 @@ export function HistoryClient({
     setAmountValue2("");
   }
 
-  const filtersActive =
-    nameFilter !== "" ||
-    selectedTypes.size > 0 ||
-    dateFrom !== "" ||
-    dateTo !== "" ||
-    amountOp !== "any";
+  // T231: a count rather than a plain boolean, so the mobile "Filters"
+  // button can badge how many are actually narrowing the list.
+  const activeFilterCount =
+    (nameFilter !== "" ? 1 : 0) +
+    (selectedTypes.size > 0 ? 1 : 0) +
+    (dateFrom !== "" ? 1 : 0) +
+    (dateTo !== "" ? 1 : 0) +
+    (amountOp !== "any" ? 1 : 0);
+  const filtersActive = activeFilterCount > 0;
 
   const filteredRows = useMemo(() => {
     const name = nameFilter.trim().toLowerCase();
@@ -126,7 +130,7 @@ export function HistoryClient({
         <h1 className="mb-6 text-xl font-semibold text-notion-text">History</h1>
 
         {rows.length > 0 && (
-          <div className="mb-4 rounded-lg border border-notion-hairline bg-white p-4">
+          <CollapsibleFilters activeCount={activeFilterCount}>
             <div className="flex flex-wrap items-end gap-4">
               <div className="flex flex-col gap-1">
                 <label className="text-xs text-slate-500">Name</label>
@@ -182,7 +186,7 @@ export function HistoryClient({
                 Showing {filteredRows.length} of {rows.length} settlements
               </p>
             )}
-          </div>
+          </CollapsibleFilters>
         )}
 
         {rows.length === 0 ? (

@@ -72,7 +72,7 @@ export function BalancesClient({
             <button
               type="button"
               onClick={() => setModalState("new")}
-              className="rounded bg-notion-text px-4 py-2 text-white hover:opacity-90"
+              className="shrink-0 rounded bg-notion-text px-4 py-2 text-white hover:opacity-90"
             >
               Add account
             </button>

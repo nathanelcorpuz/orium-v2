@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { AmountRangeFilter, matchesAmountFilter, type ComparisonOp } from "@/components/AmountRangeFilter";
 import { AmountSortControl, sortByAmount, type SortOrder } from "@/components/AmountSortControl";
+import { CollapsibleFilters } from "@/components/CollapsibleFilters";
 import { MultiSelectChips } from "@/components/MultiSelectChips";
 import { ReorderButtons } from "@/components/ReorderButtons";
 import { useOrderedList } from "@/lib/useOrderedList";
@@ -84,8 +85,11 @@ export function BudgetsClient({
     setAllocationValue2("");
   }
 
-  const filtersActive =
-    nameFilter !== "" || selectedTypes.size > 0 || allocationOp !== "any";
+  // T231: a count rather than a plain boolean, so the mobile "Filters"
+  // button can badge how many are actually narrowing the list.
+  const activeFilterCount =
+    (nameFilter !== "" ? 1 : 0) + (selectedTypes.size > 0 ? 1 : 0) + (allocationOp !== "any" ? 1 : 0);
+  const filtersActive = activeFilterCount > 0;
 
   // T145: persisted custom row order (up/down buttons) - only meaningful
   // as the base ordering when nothing else is already imposing one.
@@ -186,7 +190,7 @@ export function BudgetsClient({
         <BudgetAccountsSection accounts={budgetAccounts} budgetsByAccountId={budgetsByAccountId} />
 
         {budgets.length > 0 && (
-          <div className="mb-4 rounded-lg border border-notion-hairline bg-white p-4">
+          <CollapsibleFilters activeCount={activeFilterCount}>
             <div className="flex flex-wrap items-end gap-4">
               <div className="flex flex-col gap-1">
                 <label className="text-xs text-slate-500">Name</label>
@@ -231,7 +235,7 @@ export function BudgetsClient({
                 Showing {filteredBudgets.length} of {budgets.length} budgets
               </p>
             )}
-          </div>
+          </CollapsibleFilters>
         )}
 
         {budgets.length === 0 ? (
