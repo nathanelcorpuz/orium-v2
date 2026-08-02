@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { parseCentavos } from "@/lib/money";
 import { readRecurrenceRuleForm } from "@/lib/recurrenceForm";
-import { logActivity } from "@/lib/activityLog";
+import { logActivity, type ActivityEntityType } from "@/lib/activityLog";
 import type { RecurrenceEndsType, RecurrenceUnit } from "@/lib/engine/types";
 
 export type ScenarioActionState = { error: string | null };
@@ -344,6 +344,17 @@ export async function createScenarioItem(
   });
   if (error) return { error: error.message };
 
+  // T226 (user request 2026-08-02, "every single action... should have a
+  // corresponding update log"): scenario bills/income/debt/savings items
+  // hadn't logged activity at all - the same "(scenario)" suffix pattern
+  // T221 established for scenario budgets, so these read distinctly from
+  // real records in the Updates feed.
+  await logActivity(supabase, user.id, {
+    action: "create",
+    entityType: fields.type,
+    entityName: `${fields.name} (scenario)`,
+  });
+
   revalidatePath(`/scenarios/${scenarioId}`);
   for (const path of AFFECTED_PATHS) revalidatePath(path);
   return { error: null };
@@ -359,6 +370,9 @@ export async function updateScenarioItem(
   if (fields.error !== null) return { error: fields.error };
 
   const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   const { error } = await supabase
     .from("scenario_recurring_items")
     .update({
@@ -381,6 +395,14 @@ export async function updateScenarioItem(
     .eq("id", id);
   if (error) return { error: error.message };
 
+  if (user) {
+    await logActivity(supabase, user.id, {
+      action: "update",
+      entityType: fields.type,
+      entityName: `${fields.name} (scenario)`,
+    });
+  }
+
   revalidatePath(`/scenarios/${scenarioId}`);
   for (const path of AFFECTED_PATHS) revalidatePath(path);
   return { error: null };
@@ -390,7 +412,22 @@ export async function deleteScenarioItem(formData: FormData) {
   const id = formData.get("id") as string;
   const scenarioId = formData.get("scenarioId") as string;
   const supabase = await createClient();
-  await supabase.from("scenario_recurring_items").delete().eq("id", id);
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  const { data: deleted } = await supabase
+    .from("scenario_recurring_items")
+    .delete()
+    .eq("id", id)
+    .select("name, type")
+    .single();
+  if (user && deleted) {
+    await logActivity(supabase, user.id, {
+      action: "delete",
+      entityType: deleted.type as ActivityEntityType,
+      entityName: `${deleted.name} (scenario)`,
+    });
+  }
   revalidatePath(`/scenarios/${scenarioId}`);
   for (const path of AFFECTED_PATHS) revalidatePath(path);
 }
@@ -447,6 +484,12 @@ export async function createScenarioOneOff(
   });
   if (error) return { error: error.message };
 
+  await logActivity(supabase, user.id, {
+    action: "create",
+    entityType: "misc",
+    entityName: `${fields.name} (scenario)`,
+  });
+
   revalidatePath(`/scenarios/${scenarioId}`);
   for (const path of AFFECTED_PATHS) revalidatePath(path);
   return { error: null };
@@ -462,6 +505,9 @@ export async function updateScenarioOneOff(
   if (fields.error) return { error: fields.error };
 
   const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   const { error } = await supabase
     .from("scenario_one_off_items")
     .update({
@@ -474,6 +520,14 @@ export async function updateScenarioOneOff(
     .eq("id", id);
   if (error) return { error: error.message };
 
+  if (user) {
+    await logActivity(supabase, user.id, {
+      action: "update",
+      entityType: "misc",
+      entityName: `${fields.name} (scenario)`,
+    });
+  }
+
   revalidatePath(`/scenarios/${scenarioId}`);
   for (const path of AFFECTED_PATHS) revalidatePath(path);
   return { error: null };
@@ -483,7 +537,22 @@ export async function deleteScenarioOneOff(formData: FormData) {
   const id = formData.get("id") as string;
   const scenarioId = formData.get("scenarioId") as string;
   const supabase = await createClient();
-  await supabase.from("scenario_one_off_items").delete().eq("id", id);
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  const { data: deleted } = await supabase
+    .from("scenario_one_off_items")
+    .delete()
+    .eq("id", id)
+    .select("name")
+    .single();
+  if (user && deleted) {
+    await logActivity(supabase, user.id, {
+      action: "delete",
+      entityType: "misc",
+      entityName: `${deleted.name} (scenario)`,
+    });
+  }
   revalidatePath(`/scenarios/${scenarioId}`);
   for (const path of AFFECTED_PATHS) revalidatePath(path);
 }

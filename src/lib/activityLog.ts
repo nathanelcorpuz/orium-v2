@@ -19,12 +19,23 @@ export type ActivityEntityType =
   | "reminder";
 
 /**
- * Records one activity-log entry. Deliberately swallows its own errors -
- * the log is a diary of what happened, not part of what the user asked for,
- * so a logging failure (a transient network blip, a not-yet-migrated
- * database mid-deploy) must never turn a successful create/edit/delete into
- * a reported failure. Callers fire-and-forget this; none of them await a
- * meaningful return value.
+ * Records one activity-log entry. Deliberately never *throws* or returns an
+ * error the caller has to handle - the log is a diary of what happened, not
+ * part of what the user asked for, so a logging failure (a transient
+ * network blip, a not-yet-migrated database mid-deploy) must never turn a
+ * successful create/edit/delete into a reported failure. Callers
+ * fire-and-forget this; none of them await a meaningful return value.
+ *
+ * T226 (bug report 2026-08-02, "the updates doesnt update when i update
+ * budget accounts in any way"): a *silent* swallow used to mean exactly
+ * that - silent. The actual root cause (activity_log's own `entity_type`
+ * CHECK constraint missing 'budget_account', migration 0048) went
+ * undetected for a full session's worth of budget-account activity because
+ * nothing, anywhere, ever surfaced the insert failing. Still never thrown
+ * or surfaced to the user, but now at least visible in server logs
+ * (`npm run dev`'s terminal, or Vercel's function logs in production) so a
+ * future schema/constraint mismatch like this one is diagnosable the same
+ * day instead of silently for an unknown length of time.
  */
 export async function logActivity(
   supabase: Awaited<ReturnType<typeof createClient>>,
@@ -36,15 +47,14 @@ export async function logActivity(
     detail?: string | null;
   },
 ): Promise<void> {
-  try {
-    await supabase.from("activity_log").insert({
-      user_id: userId,
-      action: entry.action,
-      entity_type: entry.entityType,
-      entity_name: entry.entityName,
-      detail: entry.detail ?? null,
-    });
-  } catch {
-    // See the doc comment above - intentionally silent.
+  const { error } = await supabase.from("activity_log").insert({
+    user_id: userId,
+    action: entry.action,
+    entity_type: entry.entityType,
+    entity_name: entry.entityName,
+    detail: entry.detail ?? null,
+  });
+  if (error) {
+    console.error("logActivity failed (Updates feed entry not recorded):", error.message, entry);
   }
 }

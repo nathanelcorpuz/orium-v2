@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { parseCentavos } from "@/lib/money";
 import { wipeFinancialData } from "@/lib/wipeFinancialData";
+import { logActivity } from "@/lib/activityLog";
 
 export type SettingsActionState = { error: string | null; message?: string };
 
@@ -15,8 +16,20 @@ export async function updateProfile(
   const name = (formData.get("name") as string).trim();
 
   const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   const { error } = await supabase.auth.updateUser({ data: { name } });
   if (error) return { error: error.message };
+
+  // T226 (user request 2026-08-02, "every single action... should have a
+  // corresponding update log"): Settings had no activity logging at all
+  // before this - added here and below, matching the "misc" catch-all
+  // entityType every other non-financial-record event already uses
+  // (scenario create/delete, T174).
+  if (user) {
+    await logActivity(supabase, user.id, { action: "update", entityType: "misc", entityName: "Profile" });
+  }
 
   revalidatePath("/settings");
   return { error: null, message: "Profile saved." };
@@ -65,6 +78,13 @@ export async function updatePreferences(
     .update({ currency, balance_ranges: ranges, balance_tier_labels: tierLabels })
     .eq("user_id", user.id);
   if (error) return { error: error.message };
+
+  await logActivity(supabase, user.id, {
+    action: "update",
+    entityType: "misc",
+    entityName: "Preferences",
+    detail: `Currency: ${currency}`,
+  });
 
   revalidatePath("/settings");
   revalidatePath("/forecast");
@@ -120,6 +140,12 @@ export async function resetData(
   const wipeError = await wipeFinancialData(supabase, user.id);
   if (wipeError) return { error: wipeError };
 
+  // Logged *after* the wipe, not before - wipeFinancialData clears
+  // activity_log itself (by design, so a reset/restore doesn't leave real
+  // history sitting next to fresh sample data), so a log written first
+  // would just be wiped along with everything else.
+  await logActivity(supabase, user.id, { action: "delete", entityType: "misc", entityName: "All data (reset)" });
+
   revalidatePath("/", "layout");
   return { error: null, message: "All data cleared. Your account and preferences are untouched." };
 }
@@ -156,6 +182,10 @@ export async function restoreSampleData(
     .update({ sample_data_seeded_at: new Date().toISOString() })
     .eq("user_id", user.id);
   if (stampError) return { error: stampError.message };
+
+  // Same reasoning as resetData above - logged after the wipe+reseed, not
+  // before, since wipeFinancialData clears activity_log itself.
+  await logActivity(supabase, user.id, { action: "create", entityType: "misc", entityName: "Sample data restored" });
 
   revalidatePath("/", "layout");
   return { error: null, message: "Sample data restored." };

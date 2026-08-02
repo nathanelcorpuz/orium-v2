@@ -15,6 +15,14 @@ Format per bug: steps to reproduce → what happened → what was expected. Clau
 
 ## Fixed
 
+### Bug #18 - Budget account actions never show up in the Updates feed (real data, silent since T204)
+- **Reproduce**: create, rename, or delete a budget account, or Add/Take/Move funds on one directly (Budgets page > Budget Accounts section). Check `/updates`.
+- **Reported** by the user 2026-08-02: "the updates doesnt update when i update budget accounts in any way. every single action within the web app should have a corresponding update log."
+- **What happened**: nothing about budget-account activity ever appeared in Updates, for any account, ever - confirmed against production: zero `entity_type = 'budget_account'` rows exist in `activity_log` despite the feature having been in daily use since T204 (2026-08-01).
+- **Root cause**: T204/T209 added `'budget_account'` to the app-level `ActivityEntityType` union and correctly called `logActivity(..., entityType: "budget_account", ...)` from every budget-account action - but `activity_log`'s own DB-level `entity_type` CHECK constraint (migration 0029, written before T204 existed) was never updated to allow that value. Every one of those inserts has been rejected by Postgres since the day T204 shipped. `logActivity` deliberately never surfaces a logging failure to the user (a diary entry failing to write must not turn a successful create/edit/delete into a reported error) - but its `catch` block was also fully silent, with nothing printed anywhere either, so this went undetected for a full session's worth of real usage.
+- **Expected**: every budget-account action logs to Updates, same as every other financial record type.
+- **Fixed by**: migration 0048 adds `'budget_account'` to the constraint (confirmed via `pg_get_constraintdef` on both staging and production post-migration). Also hardened `logActivity` (`src/lib/activityLog.ts`) to `console.error` on a failed insert instead of swallowing it completely - still never thrown or shown to the user, but now visible in server logs so a future schema/constraint mismatch is diagnosable the same day. While auditing for the user's broader "every single action" ask, also found and closed two real coverage gaps (not silent-failure bugs, just never-written): Settings actions (`updateProfile`/`updatePreferences`/`resetData`/`restoreSampleData`) and every scenario bill/income/debt/savings/misc item's own create/update/delete (scenario budgets already got this in T221; the rest hadn't) - see SPEC.md T226 for the full write-up. 240/240 tests, build, eslint clean.
+
 ### Bug #17 - Editing a reminder with a long name hides the Cancel button (sometimes Save too)
 - **Reproduce**: in the Reminders panel, click Edit on a reminder with a reasonably long name.
 - **Reported** by the user 2026-08-01: "editing a reminder UI gets broken, I can only see the check icon."

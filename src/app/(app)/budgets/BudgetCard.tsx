@@ -223,6 +223,16 @@ export function BudgetCard({
             </span>
           </div>
           {frequencyLabel && <p className="mt-0.5 text-xs text-slate-400">{frequencyLabel}</p>}
+          {/* T227 (user request 2026-08-02): "the allocated per replenishment
+              should be below frequency" - moved up from below the running
+              balance figure. T167's own reasoning for showing it at all is
+              unchanged: hidden when there's no allocation to state (a purely
+              manual budget), rather than printing "of ₱0". */}
+          {budget.allocation > 0 && (
+            <p className="mt-0.5 text-xs text-slate-500">
+              {formatCentavos(budget.allocation)} allocated per replenishment
+            </p>
+          )}
           {linkedAccountName && (
             <p className="mt-0.5 text-xs text-slate-400">From account: {linkedAccountName}</p>
           )}
@@ -242,20 +252,12 @@ export function BudgetCard({
                 .join(" · ")}
             </p>
           )}
-          <p className={`text-xl font-semibold ${balance < 0 ? "text-red-600" : "text-notion-text"}`}>
+          {/* T227: the running balance stays above the progress bar, as it
+              already was - explicitly kept that way while reordering the
+              lines above it. */}
+          <p className={`mt-0.5 text-xl font-semibold ${balance < 0 ? "text-red-600" : "text-notion-text"}`}>
             {formatCentavos(balance)}
           </p>
-          {/* T167: a newly created budget correctly shows ₱0 - nothing has
-              replenished into it yet - which left no sign anywhere of what it
-              was actually set up to hold. Showing the configured allocation
-              next to the running total answers "₱0 out of what?". Hidden when
-              there's no allocation to state (a purely manual budget), rather
-              than printing "of ₱0". */}
-          {budget.allocation > 0 && (
-            <p className="text-xs text-slate-500">
-              {formatCentavos(budget.allocation)} allocated per replenishment
-            </p>
-          )}
           {barFraction !== null && (
             <div className="mt-1 w-full">
               <ProgressBar percent={barFraction * 100} over={false} />
