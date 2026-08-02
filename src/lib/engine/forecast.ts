@@ -363,11 +363,35 @@ export function generateForecast(input: GenerateForecastInput): ForecastRow[] {
   let runningBalance = balances.reduce((sum, balance) => sum + balance.amount, 0);
 
   return rows.map((row) => {
+    // Bug fix (2026-08-02, reported against real production data): an
+    // income_auto_move row is one leg of an internal transfer between two
+    // *tracked* accounts - the combined total across every account can never
+    // change because of it, no matter what order the two legs land in. The
+    // sort above only guarantees "incoming before outgoing" for a shared due
+    // date, which does NOT keep a transfer's debit and credit adjacent to
+    // each other when another ordinary same-day row (e.g. a bill) was pushed
+    // into `rows` earlier than the auto-move loop - that other row's
+    // dueDate-and-sign tie is broken by array order (stable sort), landing
+    // it between the credit and the debit. The credit had already applied
+    // by then but the debit hadn't, so the combined total (and any visible
+    // row's Balance column computed from it) sat inflated by the full
+    // transfer amount until the debit finally caught up further down.
+    // Concretely reported: Aug 5 income (₱78,000) auto-moves ₱50,000 to
+    // another account; the very next visible row (a same-day bill) showed a
+    // balance that had added the ₱50,000 before subtracting its own amount.
+    // Per-account attribution (accountBalances.ts) is unaffected by this -
+    // it walks `rows` independently and reads each row's own `amount`/
+    // `balanceId` directly, never `runningBalance` - so excluding these two
+    // legs from the *combined* total here doesn't touch what each account's
+    // own projected balance shows.
+    const contribution = row.sourceType === "income_auto_move" ? 0 : row.amount;
     // T172: the fee is always a cost, subtracted regardless of the
     // transaction's own direction - a fee credited back would be a
     // different feature (already representable as its own bill/income/misc
-    // entry), not this one.
-    runningBalance = Math.round(runningBalance + row.amount - (row.feeAmount ?? 0));
+    // entry), not this one. Still applied here even for an auto-move's debit
+    // leg - the fee is a real cost leaving the tracked accounts entirely,
+    // not part of the internal transfer being netted out above.
+    runningBalance = Math.round(runningBalance + contribution - (row.feeAmount ?? 0));
     // T150 (Bug #11): past-due rows run through the same cumulative balance
     // as everything else, deliberately. The account balances the user
     // maintains are what they hold *now*, and an unsettled past obligation

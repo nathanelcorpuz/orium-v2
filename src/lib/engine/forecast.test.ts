@@ -1546,6 +1546,63 @@ describe("generateForecast income auto-move (SPEC.md T212)", () => {
     const credit = autoMoveRows.find((row) => row.amount > 0)!;
     expect(credit.feeAmount).toBeUndefined();
   });
+
+  // Bug reported against real production data (2026-08-02): an Aug 5 income
+  // (₱78,000) auto-moved ₱50,000 to another account, and the very next
+  // visible row - a same-day bill - showed a running balance that had
+  // already added the ₱50,000 before subtracting its own amount. Root
+  // cause: the auto-move loop pushes its debit/credit pair into `rows`
+  // *after* every bill/income/debt/savings row, so the same-day sort's
+  // stable tie-break landed the bill between the credit (already applied)
+  // and the debit (not yet applied) - splitting a pair that must net to
+  // zero the instant it happens.
+  it("never inflates a same-day row's balance between a transfer's credit and debit (real bug, 2026-08-02)", () => {
+    const result = generateForecast({
+      balances: [
+        { id: "wise", name: "Wise Nanay", amount: 1000000 },
+        { id: "bdo", name: "BDO Tatay", amount: 200000 },
+      ],
+      recurringItems: [
+        monthlyItem({
+          id: "income-1",
+          name: "TTM",
+          type: "income",
+          amount: 7800000,
+          daysOfMonth: [5],
+          balanceId: "wise",
+        }),
+        monthlyItem({
+          id: "bill-1",
+          name: "Lalens Allowance",
+          type: "bill",
+          amount: -400000,
+          daysOfMonth: [5],
+          balanceId: "wise",
+        }),
+      ],
+      overrides: [],
+      oneOffs: [],
+      incomeAutoMoves: [{ id: "move-1", incomeId: "income-1", destinationBalanceId: "bdo", amount: 5000000 }],
+      today: "2026-01-01",
+      horizon: "2026-01-31",
+    });
+
+    const jan5 = result.filter((row) => row.dueDate === "2026-01-05");
+    const incomeRow = jan5.find((row) => row.sourceType === "recurring" && row.name === "TTM")!;
+    const billRow = jan5.find((row) => row.sourceType === "recurring" && row.name === "Lalens Allowance")!;
+
+    // Starting combined total 1,200,000. Income lands (+7,800,000 = 9,000,000).
+    // The ₱50,000 transfer nets to zero on the combined total no matter
+    // where its two hidden legs fall relative to the bill - the bill must
+    // see exactly income minus its own amount, never inflated by the
+    // transfer passing through.
+    expect(incomeRow.runningBalance).toBe(9000000);
+    expect(billRow.runningBalance).toBe(8600000);
+
+    // And the final combined total, after every row including both hidden
+    // legs, is unaffected by the transfer either way.
+    expect(result[result.length - 1].runningBalance).toBe(8600000);
+  });
 });
 
 describe("generateForecast income auto-move overrides (SPEC.md T224)", () => {
