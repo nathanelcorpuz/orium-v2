@@ -1,10 +1,14 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { SegmentedControl } from "@/components/SegmentedControl";
+import { Modal } from "@/components/Modal";
+import { SubmitButton } from "@/components/SubmitButton";
 import { formatCentavos } from "@/lib/money";
 import { formatMonthYear } from "@/lib/date";
 import { balanceRangeColorClass } from "@/lib/balanceColor";
+import { toggleScenarioActive } from "@/app/(app)/scenarios/actions";
 
 type MonthEntry = { month: string; peak: number; drop: number };
 type YearGroup = { year: number; months: MonthEntry[] };
@@ -42,13 +46,24 @@ export function PeaksAndDropsCard({
   balanceRanges,
   currency,
   hasAnyFinancialData,
+  allScenarios,
 }: {
   peaksAndDropsByYear: YearGroup[];
   balanceRanges: number[];
   currency: string;
   hasAnyFinancialData: boolean;
+  // T225 (user request 2026-08-02): "select/deselect scenarios in the
+  // peaks and drops as well so i quickly see how everything will move from
+  // there" - every saved scenario, each independently toggleable, same
+  // shape and same `toggleScenarioActive` action ForecastClient.tsx's own
+  // "Scenarios" panel already uses. Flipping one revalidates `/`
+  // (toggleScenarioActive's own AFFECTED_PATHS already includes it), so
+  // this card's data - and everything else on the Dashboard - updates the
+  // same way it already does from the Forecast page.
+  allScenarios: { id: string; name: string; is_active: boolean }[];
 }) {
   const [view, setView] = useState<"grid" | "graph">("grid");
+  const [scenariosPanelOpen, setScenariosPanelOpen] = useState(false);
   const [visibleYearCount, setVisibleYearCount] = useState(INITIAL_VISIBLE_YEARS);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const sentinelRef = useRef<HTMLDivElement>(null);
@@ -57,6 +72,7 @@ export function PeaksAndDropsCard({
     () => peaksAndDropsByYear.slice(0, visibleYearCount),
     [peaksAndDropsByYear, visibleYearCount],
   );
+  const activeScenarioCount = allScenarios.filter((scenario) => scenario.is_active).length;
 
   useEffect(() => {
     const sentinel = sentinelRef.current;
@@ -82,18 +98,35 @@ export function PeaksAndDropsCard({
     <div className="mb-6 rounded-lg border border-notion-hairline bg-white" data-tour="dashboard-peaks-drops">
       <div className="flex flex-wrap items-center justify-between gap-2 p-4 pb-2">
         <h2 className="text-sm font-semibold text-notion-text">Peaks and Drops</h2>
-        {hasAnyFinancialData && (
-          <div className="w-32">
-            <SegmentedControl
-              options={[
-                { value: "grid" as const, label: "Grid" },
-                { value: "graph" as const, label: "Graph" },
-              ]}
-              value={view}
-              onChange={setView}
-            />
-          </div>
-        )}
+        <div className="flex flex-wrap items-center gap-2">
+          {/* T225: quick toggle right here, so you don't have to leave the
+              Dashboard to see how turning a scenario on/off moves this
+              chart. */}
+          {allScenarios.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setScenariosPanelOpen(true)}
+              className="flex items-center gap-1 rounded border border-notion-hairline px-2 py-1 text-xs text-notion-text hover:bg-notion-hover"
+            >
+              Scenarios
+              {activeScenarioCount > 0 && (
+                <span className="rounded-full bg-amber-500 px-1.5 text-white">{activeScenarioCount}</span>
+              )}
+            </button>
+          )}
+          {hasAnyFinancialData && (
+            <div className="w-32">
+              <SegmentedControl
+                options={[
+                  { value: "grid" as const, label: "Grid" },
+                  { value: "graph" as const, label: "Graph" },
+                ]}
+                value={view}
+                onChange={setView}
+              />
+            </div>
+          )}
+        </div>
       </div>
       {!hasAnyFinancialData ? (
         // The grid itself is hidden, not just captioned: every month would
@@ -183,6 +216,43 @@ export function PeaksAndDropsCard({
             </div>
           )}
         </div>
+      )}
+
+      {/* T225: same list-with-independent-toggles shape ForecastClient.tsx's
+          own "Scenarios" panel already uses - flipping one revalidates `/`,
+          so this chart (and everything else on the Dashboard) updates. */}
+      {scenariosPanelOpen && (
+        <Modal title="Scenarios" onClose={() => setScenariosPanelOpen(false)}>
+          {allScenarios.length === 0 ? (
+            <p className="text-sm text-slate-500">No scenarios yet.</p>
+          ) : (
+            <ul className="max-h-80 divide-y divide-notion-hairline overflow-y-auto">
+              {allScenarios.map((scenario) => (
+                <li key={scenario.id} className="flex items-center justify-between gap-2 py-2 text-sm first:pt-0">
+                  <span className="min-w-0 truncate text-notion-text">{scenario.name}</span>
+                  <form action={toggleScenarioActive} className="shrink-0">
+                    <input type="hidden" name="scenarioId" value={scenario.id} />
+                    <input type="hidden" name="active" value={scenario.is_active ? "false" : "true"} />
+                    <SubmitButton
+                      className={`rounded border px-3 py-1 text-xs ${
+                        scenario.is_active
+                          ? "border-amber-500 bg-amber-500 text-amber-950 hover:opacity-90"
+                          : "border-notion-hairline text-notion-text hover:bg-notion-hover"
+                      }`}
+                    >
+                      {scenario.is_active ? "On" : "Off"}
+                    </SubmitButton>
+                  </form>
+                </li>
+              ))}
+            </ul>
+          )}
+          <div className="mt-3 border-t border-notion-hairline pt-3 text-right">
+            <Link href="/scenarios" className="text-sm text-notion-accent hover:underline">
+              Manage scenarios &rarr;
+            </Link>
+          </div>
+        </Modal>
       )}
     </div>
   );

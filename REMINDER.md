@@ -4,16 +4,19 @@ Scratchpad for things raised between sessions. Write anything here, in any shape
 
 **How this file works** (per CLAUDE.md's session workflow): at the start of a session, everything here is triaged into its proper home - SPEC.md for scoped tasks and product decisions, BUGS.md for defects, a standalone document for anything bigger - and then **removed from this file**. SPEC.md is the record; this file is the inbox. Git history has every previous version if an old note needs looking up.
 
+**Triage isn't only a session-start thing** (user rule, 2026-08-02): an item added here mid-session gets triaged into SPEC.md the same turn it's noticed, not left pending until some later checkpoint. Flagging a new item to the user is not a substitute for recording it - both happen.
+
 ---
 
 ## Pending (NJ will be filling this with raw ideas)
 
-need to be able to manually set an "auto-move" individually. for example, I want to auto move a specific point in time with a specific amount just for that date, so it does go low, because moving half of an income to another account for the rest of time is not a good practice as it decreases flexibility.
+(nothing - inbox is empty, see the triage note below)
 
 ---
 
 ## Last triage
 
+- **2026-08-02, third pass**: 2 items. "Manually set an 'auto-move' individually... for that date" → **T224** (SPEC.md Phase 35, not yet built - a per-occurrence override on `income_auto_moves`, mirroring T168's own budget-replenish-override shape). "Add a start date in adding a budget... based on when an income is received, if connected to an income" → moved to "Before MVP launch (needs discussion)" - genuinely ambiguous between a pure display convenience and a real behavior change to the replenish projection, needs the user's own call before it becomes a task. Also this session, raised live in chat rather than via this file: "select/deselect scenarios in the peaks and drops" (built directly - a Scenarios toggle on the Dashboard's Peaks and Drops card, reusing the existing `toggleScenarioActive` action) and an offline budget-logging question (answered in chat, logged as a not-yet-scoped "Before MVP launch" discussion item, not built).
 - **2026-08-02, second pass**: 3 items, all built directly the same session (the user gave standing executive authority mid-session to build and keep going through the Roadmap without asking first). "Monthly budgets total in the dashboard" → **T219** (SPEC.md Phase 33). "Moving funds in budgets should state which accounts... receive corresponding amounts" → **T220**, closes the 2+-account gap T218 had deliberately left open in `moveBudgetFunds`. "Adding a budget in a Scenario should allow... all functionalities of adding a new budget in the real thing... this also should show in the Updates" (second half added mid-session, same item) → **T221** - reverses part of T182's original scope cut, and wires `logActivity` into scenario-budget create/update/delete for the Updates feed. Turned out to need no new engine code for the forecast-projection half, since `forecast.ts` already had a comment anticipating this exact case since T182, just fed hardcoded nulls the whole time.
 - **2026-08-02, first pass**: 1 item (undo toast on every action) - a real product-scope question (which actions get genuine undo vs. a display-only toast), not executable as-is → moved to "Before MVP launch (needs discussion)" in SPEC.md rather than built blind, per CLAUDE.md's "ask before making product or architecture decisions" rule. Same session, built directly (not from this file - raised live in chat): **T217** (History shows which account a settlement used) and **T218** (a budget can now connect to more than one budget account, with a per-transaction picker and a proportional-split auto-replenish) - both SPEC.md Phase 32, done. Also logged an "email notification: financial-stats digest" idea into the existing Email notifications discussion bullet, explicitly not built per the user's own instruction.
 - **2026-08-01, eleventh pass**: 1 item ("the accounts section in the dashboard is now redundant, you can remove that") → built directly as **T216** (SPEC.md Phase 31).

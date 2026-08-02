@@ -99,12 +99,18 @@ export default async function Home({
   const settledCountByItemId = new Map<string, number>();
   let forecastData;
   let hasExtras = false;
+  // T225 (user request 2026-08-02): "select/deselect scenarios in the peaks
+  // and drops as well so i quickly see how everything will move from
+  // there" - every saved scenario (not just active ones - loadForecast()'s
+  // own query only returns those), so PeaksAndDropsCard can offer the same
+  // toggle-and-see-it-update panel ForecastClient.tsx already has.
+  let allScenarios: { id: string; name: string; is_active: boolean }[] = [];
   if (preview) {
     forecastData = getSampleFixtureData();
     // Skipped in preview - the fixture's items have nothing to settle
     // against, so every progress bar just reads "0 of N".
   } else {
-    const [data, settlementsRes, oneOffsRes] = await Promise.all([
+    const [data, settlementsRes, oneOffsRes, scenariosRes] = await Promise.all([
       loadForecast(),
       // T72: settled counts for the Debt/Savings aggregate progress bars
       // below - not part of loadForecast()'s own data, so fetched separately.
@@ -114,12 +120,14 @@ export default async function Home({
       // internally, it doesn't return them, and a count-only head request is
       // cheaper than fetching full rows just to check `.length > 0`.
       supabase.from("one_off_items").select("id", { count: "exact", head: true }),
+      supabase.from("scenarios").select("id, name, is_active").order("name", { ascending: true }),
     ]);
     forecastData = data;
     for (const row of settlementsRes.data ?? []) {
       settledCountByItemId.set(row.source_id, (settledCountByItemId.get(row.source_id) ?? 0) + 1);
     }
     hasExtras = (oneOffsRes.count ?? 0) > 0;
+    allScenarios = scenariosRes.data ?? [];
   }
   const {
     forecast,
@@ -438,6 +446,7 @@ export default async function Home({
           balanceRanges={balanceRanges}
           currency={currency}
           hasAnyFinancialData={hasAnyFinancialData}
+          allScenarios={allScenarios}
         />
       ),
     },
