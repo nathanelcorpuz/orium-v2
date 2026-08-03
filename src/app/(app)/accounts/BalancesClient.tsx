@@ -9,7 +9,12 @@ import { SubmitButton } from "@/components/SubmitButton";
 import { ChevronIcon, DeleteIcon, EditIcon, HistoryIcon } from "@/components/navIcons";
 import type { AccountLowestPoint } from "@/lib/engine/accountBalances";
 import { TYPE_COLOR, TYPE_LABEL } from "@/lib/forecastLabels";
-import { computeAccountMonthlyBreakdown, type MonthlyBreakdownItem, type OneTimeItem } from "@/lib/accountMonthlyBreakdown";
+import {
+  computeAccountMonthlyBreakdown,
+  type AutoMoveItem,
+  type MonthlyBreakdownItem,
+  type OneTimeItem,
+} from "@/lib/accountMonthlyBreakdown";
 import { deleteBalance } from "./actions";
 import { BalanceModal, type BalanceRow } from "./BalanceModal";
 import { AccountFundsModal } from "./AccountFundsModal";
@@ -46,6 +51,13 @@ export function BalancesClient({
   // any other caller that doesn't need this feature stay valid.
   recurringItems = [],
   oneOffItems = [],
+  // T236 follow-up (2026-08-03): "bdo tatay does not consider the received
+  // funds as income" / "UB Nanay has an 88k monthly income, which is
+  // inaccurate because some of those funds are being auto moved to bdo
+  // tatay" - the same raw rows `autoMovesByDestination` above already
+  // carries, fed into `computeAccountMonthlyBreakdown` instead of just the
+  // settle-time pill.
+  autoMoves = [],
   // T120: `?preview=1` renders a read-only sample fixture (see page.tsx) -
   // every mutating control is hidden so a tour/preview session can never
   // write to (or 404 against) the real account behind it.
@@ -60,6 +72,7 @@ export function BalancesClient({
   today?: string;
   recurringItems?: MonthlyBreakdownItem[];
   oneOffItems?: OneTimeItem[];
+  autoMoves?: AutoMoveItem[];
   previewMode?: boolean;
 }) {
   const [modalState, setModalState] = useState<null | "new" | BalanceRow>(null);
@@ -80,6 +93,7 @@ export function BalancesClient({
   }
 
   const total = balances.reduce((sum, balance) => sum + balance.amount, 0);
+  const balanceNameById = new Map(balances.map((b) => [b.id, b.name]));
 
   return (
     <>
@@ -108,14 +122,21 @@ export function BalancesClient({
           <ul className="space-y-2">
             {balances.map((balance) => {
               const lowest = lowestPointByBalanceId.get(balance.id);
-              const autoMoves = autoMovesByDestination.get(balance.id) ?? [];
+              const incomingAutoMovePills = autoMovesByDestination.get(balance.id) ?? [];
               // T236 (replaces the removed /allocation page): "the amount
               // each account received monthly, the amount each account is
               // deducted monthly, the sum of those two" - plus a breakdown
               // by every item's own actual recurrence, expandable per
               // account so it doesn't crowd the row by default.
-              const breakdown = computeAccountMonthlyBreakdown(recurringItems, oneOffItems, balance.id);
-              const hasBreakdown = breakdown.frequencyGroups.length > 0 || breakdown.oneTime.length > 0;
+              const breakdown = computeAccountMonthlyBreakdown(
+                recurringItems,
+                oneOffItems,
+                autoMoves,
+                balanceNameById,
+                balance.id,
+              );
+              const hasBreakdown =
+                breakdown.frequencyGroups.length > 0 || breakdown.oneTime.length > 0 || breakdown.autoMoves.length > 0;
               const breakdownOpen = expandedBreakdownIds.has(balance.id);
               return (
               <li
@@ -141,7 +162,7 @@ export function BalancesClient({
                       handling) - this pill is the "label" that request
                       asked for, and the link is the "way to edit that
                       income" asked for alongside it. */}
-                  {autoMoves.map((autoMove) => (
+                  {incomingAutoMovePills.map((autoMove) => (
                     <Link
                       key={autoMove.incomeId}
                       href={`/income?editIncome=${autoMove.incomeId}`}
@@ -299,6 +320,23 @@ export function BalancesClient({
                             </ul>
                           </div>
                         ))}
+                        {breakdown.autoMoves.length > 0 && (
+                          <div>
+                            <p className="mb-1 text-xs font-semibold text-slate-500">Auto-moves</p>
+                            <ul className="divide-y divide-notion-hairline">
+                              {breakdown.autoMoves.map((flow) => (
+                                <li key={flow.id} className="flex items-center gap-2 py-1 text-sm">
+                                  <span className="min-w-0 flex-1 truncate text-notion-text">{flow.label}</span>
+                                  <span
+                                    className={`shrink-0 tabular-nums ${flow.amount >= 0 ? "text-green-700" : "text-red-600"}`}
+                                  >
+                                    {formatCentavos(flow.amount, currency)}/mo
+                                  </span>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
                         {breakdown.oneTime.length > 0 && (
                           <div>
                             <p className="mb-1 text-xs font-semibold text-slate-500">One-time</p>

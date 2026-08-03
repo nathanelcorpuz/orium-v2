@@ -111,6 +111,15 @@ export default async function BalancesPage({
         balanceId: row.balance_id,
         active: row.active,
       }))}
+      // T236 follow-up (2026-08-03): the monthly breakdown needs the same
+      // raw auto-move rows the "Receives ₱X..." pill above already uses -
+      // reused as-is rather than re-fetched.
+      autoMoves={(autoMovesRes.data ?? []).map((row) => ({
+        id: row.id,
+        incomeId: row.income_id,
+        destinationBalanceId: row.destination_balance_id,
+        amount: row.amount,
+      }))}
     />
   );
 }

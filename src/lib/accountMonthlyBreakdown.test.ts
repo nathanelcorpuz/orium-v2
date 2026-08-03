@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { computeAccountMonthlyBreakdown, frequencyLabel, type MonthlyBreakdownItem, type OneTimeItem } from "./accountMonthlyBreakdown";
+import {
+  computeAccountMonthlyBreakdown,
+  frequencyLabel,
+  type AutoMoveItem,
+  type MonthlyBreakdownItem,
+  type OneTimeItem,
+} from "./accountMonthlyBreakdown";
 
 function recurring(overrides: Partial<MonthlyBreakdownItem>): MonthlyBreakdownItem {
   return {
@@ -15,6 +21,9 @@ function recurring(overrides: Partial<MonthlyBreakdownItem>): MonthlyBreakdownIt
     ...overrides,
   };
 }
+
+const noAutoMoves: AutoMoveItem[] = [];
+const noNames = new Map<string, string>();
 
 describe("frequencyLabel", () => {
   it("labels interval-1 presets", () => {
@@ -38,7 +47,7 @@ describe("computeAccountMonthlyBreakdown", () => {
       recurring({ id: "bill", type: "bill", amount: -50000, interval: 1, unit: "month", daysOfMonth: [15] }),
       recurring({ id: "debt", type: "debt", amount: -30000, interval: 1, unit: "month", daysOfMonth: [20] }),
     ];
-    const result = computeAccountMonthlyBreakdown(items, [], "acct-1");
+    const result = computeAccountMonthlyBreakdown(items, [], noAutoMoves, noNames, "acct-1");
     expect(result.monthlyReceived).toBe(2000000);
     expect(result.monthlyDeducted).toBe(-80000);
     expect(result.monthlyNet).toBe(1920000);
@@ -50,7 +59,7 @@ describe("computeAccountMonthlyBreakdown", () => {
       recurring({ id: "b", balanceId: "acct-2", amount: -99999 }),
       recurring({ id: "c", balanceId: null, amount: -55555 }),
     ];
-    const result = computeAccountMonthlyBreakdown(items, [], "acct-1");
+    const result = computeAccountMonthlyBreakdown(items, [], noAutoMoves, noNames, "acct-1");
     expect(result.monthlyDeducted).toBe(-10000);
   });
 
@@ -61,7 +70,7 @@ describe("computeAccountMonthlyBreakdown", () => {
       recurring({ id: "monthly", interval: 1, unit: "month", daysOfMonth: [1] }),
       recurring({ id: "yearly", interval: 1, unit: "year", daysOfMonth: null }),
     ];
-    const result = computeAccountMonthlyBreakdown(items, [], "acct-1");
+    const result = computeAccountMonthlyBreakdown(items, [], noAutoMoves, noNames, "acct-1");
     expect(result.frequencyGroups.map((g) => g.label)).toEqual([
       "Weekly",
       "Every 2 weeks",
@@ -72,7 +81,7 @@ describe("computeAccountMonthlyBreakdown", () => {
 
   it("a yearly item rounds to 0 in the monthly total but still appears in its own frequency group", () => {
     const items = [recurring({ id: "yearly", type: "savings", amount: -1200000, interval: 1, unit: "year", daysOfMonth: null })];
-    const result = computeAccountMonthlyBreakdown(items, [], "acct-1");
+    const result = computeAccountMonthlyBreakdown(items, [], noAutoMoves, noNames, "acct-1");
     expect(result.monthlyDeducted).toBe(0);
     expect(result.frequencyGroups).toHaveLength(1);
     expect(result.frequencyGroups[0].label).toBe("Yearly");
@@ -84,7 +93,7 @@ describe("computeAccountMonthlyBreakdown", () => {
       { id: "misc-1", name: "Gift", amount: -100000, dueDate: "2026-12-25", balanceId: "acct-1" },
       { id: "misc-2", name: "Other", amount: -50000, dueDate: "2026-11-01", balanceId: "acct-2" },
     ];
-    const result = computeAccountMonthlyBreakdown([], oneOffs, "acct-1");
+    const result = computeAccountMonthlyBreakdown([], oneOffs, noAutoMoves, noNames, "acct-1");
     expect(result.oneTime).toHaveLength(1);
     expect(result.oneTime[0].id).toBe("misc-1");
     expect(result.monthlyReceived).toBe(0);
@@ -92,9 +101,59 @@ describe("computeAccountMonthlyBreakdown", () => {
   });
 
   it("returns empty groups/totals for an account with nothing connected", () => {
-    const result = computeAccountMonthlyBreakdown([], [], "acct-1");
+    const result = computeAccountMonthlyBreakdown([], [], noAutoMoves, noNames, "acct-1");
     expect(result.frequencyGroups).toEqual([]);
     expect(result.oneTime).toEqual([]);
+    expect(result.autoMoves).toEqual([]);
     expect(result.monthlyNet).toBe(0);
+  });
+
+  // Bug report 2026-08-03: "bdo tatay does not consider the received funds
+  // as income" / "UB Nanay has an 88k monthly income, which is inaccurate
+  // because some of those funds are being auto moved to bdo tatay."
+  describe("auto-moves (T212)", () => {
+    const income = recurring({
+      id: "income-1",
+      name: "Nanay - TNIT",
+      type: "income",
+      amount: 8800000,
+      interval: 1,
+      unit: "month",
+      daysOfMonth: [5],
+      balanceId: "ub-nanay",
+    });
+    const names = new Map([
+      ["ub-nanay", "UB Nanay"],
+      ["bdo-tatay", "BDO Tatay"],
+    ]);
+    const move: AutoMoveItem = { id: "move-1", incomeId: "income-1", destinationBalanceId: "bdo-tatay", amount: 1000000 };
+
+    it("counts an auto-move into the destination account as received, using the linked income's own frequency", () => {
+      const result = computeAccountMonthlyBreakdown([income], [], [move], names, "bdo-tatay");
+      expect(result.monthlyReceived).toBe(1000000);
+      expect(result.monthlyNet).toBe(1000000);
+      expect(result.autoMoves).toEqual([{ id: "move-1", label: "Auto-moved in from Nanay - TNIT", amount: 1000000 }]);
+    });
+
+    it("deducts an auto-move out of the source account, alongside its own connected income", () => {
+      const result = computeAccountMonthlyBreakdown([income], [], [move], names, "ub-nanay");
+      expect(result.monthlyReceived).toBe(8800000);
+      expect(result.monthlyDeducted).toBe(-1000000);
+      expect(result.monthlyNet).toBe(7800000);
+      expect(result.autoMoves).toEqual([{ id: "move-1", label: "Auto-moved out to BDO Tatay", amount: -1000000 }]);
+    });
+
+    it("skips an auto-move whose linked income is switched off, same as Bug #20's isActive rule", () => {
+      const inactiveIncome = { ...income, active: false };
+      const result = computeAccountMonthlyBreakdown([inactiveIncome], [], [move], names, "bdo-tatay");
+      expect(result.monthlyReceived).toBe(0);
+      expect(result.autoMoves).toEqual([]);
+    });
+
+    it("skips an auto-move whose income no longer exists (deleted)", () => {
+      const result = computeAccountMonthlyBreakdown([], [], [move], names, "bdo-tatay");
+      expect(result.monthlyReceived).toBe(0);
+      expect(result.autoMoves).toEqual([]);
+    });
   });
 });

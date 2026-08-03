@@ -36,14 +36,34 @@ export type OneTimeItem = {
   active?: boolean;
 };
 
+// T212's transfer rule: whenever a linked income settles, a portion moves
+// straight into another account. Bug report 2026-08-03: "bdo tatay does not
+// consider the received funds as income" / "UB Nanay has an 88k monthly
+// income, which is inaccurate because some of those funds are being auto
+// moved to bdo tatay" - the breakdown below previously only ever looked at
+// `balanceId` connections, so it had no idea this second, silent money
+// movement existed at all.
+export type AutoMoveItem = {
+  id: string;
+  incomeId: string;
+  destinationBalanceId: string;
+  amount: number; // centavos, positive magnitude - mirrors income_auto_moves.amount
+};
+
+export type AutoMoveFlow = {
+  id: string;
+  label: string;
+  amount: number; // monthly-equivalent centavos, signed (+ in, - out)
+};
+
 export type FrequencyGroup = {
   label: string;
   items: MonthlyBreakdownItem[];
 };
 
 export type AccountMonthlyBreakdown = {
-  monthlyReceived: number; // centavos, >= 0 - sum of income items' monthly equivalent
-  monthlyDeducted: number; // centavos, <= 0 - sum of bill/debt/savings items' monthly equivalent
+  monthlyReceived: number; // centavos, >= 0 - income items' monthly equivalent + auto-moves in
+  monthlyDeducted: number; // centavos, <= 0 - bill/debt/savings monthly equivalent + auto-moves out
   monthlyNet: number; // received + deducted
   // Every connected recurring item, grouped by its own actual frequency
   // (not just the ones that happen to be monthly) - sorted shortest period
@@ -54,6 +74,11 @@ export type AccountMonthlyBreakdown = {
   // contribute to the monthly figures above, but still worth seeing when
   // deciding how to distribute payments across accounts.
   oneTime: OneTimeItem[];
+  // Transparent, on its own rather than folded into frequencyGroups (an
+  // auto-move isn't its own editable record - it rides on its income's
+  // schedule) - money moving in from another account's income, or moving
+  // out to another account, both counted in the totals above.
+  autoMoves: AutoMoveFlow[];
 };
 
 // Human-readable frequency label, generalized the same way T219/T234's
@@ -93,6 +118,8 @@ function frequencyWeight(interval: number, unit: RecurrenceUnit): number {
 export function computeAccountMonthlyBreakdown(
   recurringItems: MonthlyBreakdownItem[],
   oneOffItems: OneTimeItem[],
+  autoMoves: AutoMoveItem[],
+  balanceNameById: Map<string, string>,
   balanceId: string,
 ): AccountMonthlyBreakdown {
   const connected = recurringItems.filter((item) => item.balanceId === balanceId && isActive(item));
@@ -129,11 +156,45 @@ export function computeAccountMonthlyBreakdown(
 
   const oneTime = oneOffItems.filter((item) => item.balanceId === balanceId && isActive(item));
 
+  // Bug report 2026-08-03: an auto-move (T212) is a second, silent money
+  // movement no earlier version of this breakdown knew about - it fires
+  // whenever its linked income settles, so its own monthly-equivalent uses
+  // that income's rule, not a rule of its own. Only active, still-connected
+  // incomes count, same reasoning Bug #20 already applied everywhere else.
+  const incomesById = new Map(
+    recurringItems.filter((item) => item.type === "income" && isActive(item)).map((item) => [item.id, item]),
+  );
+  const autoMoveFlows: AutoMoveFlow[] = [];
+  for (const move of autoMoves) {
+    const income = incomesById.get(move.incomeId);
+    if (!income) continue;
+    const monthly = monthlyEquivalent({
+      amount: move.amount,
+      interval: income.interval,
+      unit: income.unit,
+      weekdays: income.weekdays,
+      daysOfMonth: income.daysOfMonth,
+    });
+    if (move.destinationBalanceId === balanceId) {
+      monthlyReceived += monthly;
+      autoMoveFlows.push({ id: move.id, label: `Auto-moved in from ${income.name}`, amount: monthly });
+    }
+    if (income.balanceId === balanceId && income.balanceId !== move.destinationBalanceId) {
+      monthlyDeducted -= monthly;
+      autoMoveFlows.push({
+        id: move.id,
+        label: `Auto-moved out to ${balanceNameById.get(move.destinationBalanceId) ?? "another account"}`,
+        amount: -monthly,
+      });
+    }
+  }
+
   return {
     monthlyReceived,
     monthlyDeducted,
     monthlyNet: monthlyReceived + monthlyDeducted,
     frequencyGroups,
     oneTime,
+    autoMoves: autoMoveFlows,
   };
 }
