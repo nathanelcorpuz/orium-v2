@@ -23,6 +23,7 @@ export default async function BalancesPage({
       <BalancesClient
         balances={fixture.balances}
         connectedItems={connectedItemsFromFixture(fixture.recurringItems)}
+        recurringItems={fixture.recurringItems}
         previewMode
       />
     );
@@ -31,26 +32,34 @@ export default async function BalancesPage({
   const supabase = await createClient();
   // T71's connected-items queries moved into `loadConnectedItems` (T152) so
   // the Forecast page can build the same data for the same modal.
-  const [{ data: balances, error }, connectedItems, transactionsRes, autoMovesRes, forecastData] = await Promise.all([
-    supabase
-      .from("balances")
-      .select("id, name, amount, comments, transaction_fee_centavos")
-      .order("created_at", { ascending: true }),
-    loadConnectedItems(),
-    // T186 follow-up: "quickly see edits" on an account - its own Add/Take/
-    // Move funds history (balance_transactions), most recent first.
-    supabase
-      .from("balance_transactions")
-      .select("id, balance_id, entry_date, amount, direction, note, created_at")
-      .order("created_at", { ascending: false }),
-    // T212: which income auto-moves land in each account, for the
-    // "Receives ₱X from {income} on settle" pill.
-    supabase.from("income_auto_moves").select("id, income_id, destination_balance_id, amount"),
-    // T180 follow-up (user feedback: the Forecast page's hover-only tooltip
-    // was too easy to miss): the same per-account "lowest projected
-    // balance" stat, shown directly and visibly on this page instead.
-    loadForecast(),
-  ]);
+  const [{ data: balances, error }, connectedItems, transactionsRes, autoMovesRes, forecastData, oneOffsRes] =
+    await Promise.all([
+      supabase
+        .from("balances")
+        .select("id, name, amount, comments, transaction_fee_centavos")
+        .order("created_at", { ascending: true }),
+      loadConnectedItems(),
+      // T186 follow-up: "quickly see edits" on an account - its own Add/Take/
+      // Move funds history (balance_transactions), most recent first.
+      supabase
+        .from("balance_transactions")
+        .select("id, balance_id, entry_date, amount, direction, note, created_at")
+        .order("created_at", { ascending: false }),
+      // T212: which income auto-moves land in each account, for the
+      // "Receives ₱X from {income} on settle" pill.
+      supabase.from("income_auto_moves").select("id, income_id, destination_balance_id, amount"),
+      // T180 follow-up (user feedback: the Forecast page's hover-only tooltip
+      // was too easy to miss): the same per-account "lowest projected
+      // balance" stat, shown directly and visibly on this page instead.
+      // Also the source of `recurringItems` for T236's monthly breakdown
+      // below - already carries every recurrence field and `autoDebited`.
+      loadForecast(),
+      // T236: one-off (Misc) items connected to an account, for that
+      // account's "One-time" breakdown group - `loadConnectedItems()`
+      // deliberately omits `due_date` since the existing "Connected items"
+      // list (T71/T152) never needed it.
+      supabase.from("one_off_items").select("id, name, amount, balance_id, due_date").not("balance_id", "is", null),
+    ]);
 
   if (error) {
     return <p className="p-8 text-red-600">Could not load balances: {error.message}</p>;
@@ -90,6 +99,14 @@ export default async function BalancesPage({
       autoMovesByDestination={autoMovesByDestination}
       currency={forecastData.currency}
       today={forecastData.today}
+      recurringItems={forecastData.recurringItems}
+      oneOffItems={(oneOffsRes.data ?? []).map((row) => ({
+        id: row.id,
+        name: row.name,
+        amount: row.amount,
+        dueDate: row.due_date,
+        balanceId: row.balance_id,
+      }))}
     />
   );
 }

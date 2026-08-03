@@ -6,8 +6,10 @@ import { formatCentavos } from "@/lib/money";
 import { formatFullDate, todayInManila } from "@/lib/date";
 import { PreviewModeBar } from "@/components/PreviewModeBar";
 import { SubmitButton } from "@/components/SubmitButton";
-import { DeleteIcon, EditIcon, HistoryIcon } from "@/components/navIcons";
+import { ChevronIcon, DeleteIcon, EditIcon, HistoryIcon } from "@/components/navIcons";
 import type { AccountLowestPoint } from "@/lib/engine/accountBalances";
+import { TYPE_COLOR, TYPE_LABEL } from "@/lib/forecastLabels";
+import { computeAccountMonthlyBreakdown, type MonthlyBreakdownItem, type OneTimeItem } from "@/lib/accountMonthlyBreakdown";
 import { deleteBalance } from "./actions";
 import { BalanceModal, type BalanceRow } from "./BalanceModal";
 import { AccountFundsModal } from "./AccountFundsModal";
@@ -37,6 +39,13 @@ export function BalancesClient({
   autoMovesByDestination = new Map(),
   currency = "₱",
   today = todayInManila(),
+  // T236 (replaces the removed /allocation page): every recurring item
+  // (full recurrence shape, needed for an accurate monthly estimate) and
+  // every connected one-off, for the per-account breakdown below. Default
+  // to empty so preview mode (which only ever passes `recurringItems`) and
+  // any other caller that doesn't need this feature stay valid.
+  recurringItems = [],
+  oneOffItems = [],
   // T120: `?preview=1` renders a read-only sample fixture (see page.tsx) -
   // every mutating control is hidden so a tour/preview session can never
   // write to (or 404 against) the real account behind it.
@@ -49,12 +58,26 @@ export function BalancesClient({
   autoMovesByDestination?: Map<string, { incomeId: string; incomeName: string; amount: number }[]>;
   currency?: string;
   today?: string;
+  recurringItems?: MonthlyBreakdownItem[];
+  oneOffItems?: OneTimeItem[];
   previewMode?: boolean;
 }) {
   const [modalState, setModalState] = useState<null | "new" | BalanceRow>(null);
   const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null);
   const [fundsModal, setFundsModal] = useState<null | { mode: "add" | "take" | "move"; balance: BalanceRow }>(null);
   const [historyBalance, setHistoryBalance] = useState<BalanceRow | null>(null);
+  // T236: which accounts currently have their monthly breakdown expanded -
+  // a transient per-view preference, not persisted, same as BalanceModal's
+  // own connected-items collapse toggle.
+  const [expandedBreakdownIds, setExpandedBreakdownIds] = useState<Set<string>>(new Set());
+  function toggleBreakdown(id: string) {
+    setExpandedBreakdownIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
 
   const total = balances.reduce((sum, balance) => sum + balance.amount, 0);
 
@@ -86,11 +109,20 @@ export function BalancesClient({
             {balances.map((balance) => {
               const lowest = lowestPointByBalanceId.get(balance.id);
               const autoMoves = autoMovesByDestination.get(balance.id) ?? [];
+              // T236 (replaces the removed /allocation page): "the amount
+              // each account received monthly, the amount each account is
+              // deducted monthly, the sum of those two" - plus a breakdown
+              // by every item's own actual recurrence, expandable per
+              // account so it doesn't crowd the row by default.
+              const breakdown = computeAccountMonthlyBreakdown(recurringItems, oneOffItems, balance.id);
+              const hasBreakdown = breakdown.frequencyGroups.length > 0 || breakdown.oneTime.length > 0;
+              const breakdownOpen = expandedBreakdownIds.has(balance.id);
               return (
               <li
                 key={balance.id}
-                className="flex flex-col gap-3 rounded-lg border border-notion-hairline bg-white p-4 sm:flex-row sm:items-center sm:justify-between"
+                className="flex flex-col gap-3 rounded-lg border border-notion-hairline bg-white p-4"
               >
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div className="min-w-0">
                   <p className="font-medium text-notion-text">{balance.name}</p>
                   <p className="text-lg font-medium text-notion-text">{formatCentavos(balance.amount, currency)}</p>
@@ -209,6 +241,88 @@ export function BalancesClient({
                     </>
                   )}
                 </div>
+                </div>
+
+                {hasBreakdown && (
+                  <div>
+                    <button
+                      type="button"
+                      onClick={() => toggleBreakdown(balance.id)}
+                      aria-expanded={breakdownOpen}
+                      className="flex items-center gap-1 text-xs font-medium text-slate-500 hover:text-notion-text"
+                    >
+                      <ChevronIcon
+                        direction="right"
+                        className={`h-3 w-3 transition-transform ${breakdownOpen ? "rotate-90" : ""}`}
+                      />
+                      {breakdown.monthlyReceived > 0 && (
+                        <span className="text-green-700">
+                          +{formatCentavos(breakdown.monthlyReceived, currency)}/mo
+                        </span>
+                      )}
+                      {breakdown.monthlyDeducted < 0 && (
+                        <span className="text-red-600">
+                          {formatCentavos(breakdown.monthlyDeducted, currency)}/mo
+                        </span>
+                      )}
+                      <span className={breakdown.monthlyNet < 0 ? "text-red-600" : "text-notion-text"}>
+                        = {formatCentavos(breakdown.monthlyNet, currency)}/mo net
+                      </span>
+                    </button>
+                    {breakdownOpen && (
+                      <div className="mt-2 space-y-3 border-l-2 border-notion-hairline pl-3">
+                        {breakdown.frequencyGroups.map((group) => (
+                          <div key={group.label}>
+                            <p className="mb-1 text-xs font-semibold text-slate-500">{group.label}</p>
+                            <ul className="divide-y divide-notion-hairline">
+                              {group.items.map((item) => {
+                                const colorClass = TYPE_COLOR[item.type] ?? "text-notion-text";
+                                return (
+                                  <li key={item.id} className="flex items-center gap-2 py-1 text-sm">
+                                    <span className="min-w-0 flex-1 truncate text-notion-text">
+                                      {item.name}{" "}
+                                      <span className={`text-xs font-medium ${colorClass}`}>
+                                        {TYPE_LABEL[item.type]}
+                                      </span>
+                                      {item.autoDebited && (
+                                        <span className="ml-1 rounded-full bg-slate-200 px-1.5 py-0.5 text-xs font-medium text-slate-600">
+                                          Auto-debited
+                                        </span>
+                                      )}
+                                    </span>
+                                    <span className={`shrink-0 tabular-nums ${colorClass}`}>
+                                      {formatCentavos(item.amount, currency)}
+                                    </span>
+                                  </li>
+                                );
+                              })}
+                            </ul>
+                          </div>
+                        ))}
+                        {breakdown.oneTime.length > 0 && (
+                          <div>
+                            <p className="mb-1 text-xs font-semibold text-slate-500">One-time</p>
+                            <ul className="divide-y divide-notion-hairline">
+                              {breakdown.oneTime.map((item) => (
+                                <li key={item.id} className="flex items-center gap-2 py-1 text-sm">
+                                  <span className="min-w-0 flex-1 truncate text-notion-text">
+                                    {item.name}{" "}
+                                    <span className="text-xs text-slate-400">
+                                      due {formatFullDate(item.dueDate)}
+                                    </span>
+                                  </span>
+                                  <span className="shrink-0 tabular-nums text-purple-700">
+                                    {formatCentavos(item.amount, currency)}
+                                  </span>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
               </li>
               );
             })}
