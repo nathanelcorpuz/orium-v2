@@ -603,9 +603,12 @@ export function EditSettleModal({
               className="mt-1 w-full rounded border border-notion-hairline p-2 text-left focus:border-notion-accent focus:outline-none"
             />
           </div>
-          {/* T193 (user request): editable here too, not only at settle time
-              - a permanent change to the item's own connection, same as
-              editing it from Bills/Income/Debt/Savings/Misc's own page. */}
+          {/* T193 (user request): editable here too, not only at settle
+              time. Bug report 2026-08-03: for a recurring item this only
+              affects *this* occurrence (occurrence_overrides) - it used to
+              permanently rewrite the item's own connection, which the user
+              reported as wrong. A one-off genuinely is its own single
+              occurrence, so that case is still a direct, permanent edit. */}
           <div>
             <label className="block text-sm text-slate-600" htmlFor="editBalanceId">
               Connected account
@@ -623,6 +626,11 @@ export function EditSettleModal({
                 </option>
               ))}
             </select>
+            {row.sourceType === "recurring" && (
+              <p className="mt-1 text-xs text-slate-400">
+                Applies to this occurrence only - the item&rsquo;s own default account is unchanged.
+              </p>
+            )}
           </div>
           {editState.error && <p className="text-sm text-red-600">{editState.error}</p>}
           <div className="flex justify-end gap-2">

@@ -121,6 +121,13 @@ export function generateForecast(input: GenerateForecastInput): ForecastRow[] {
       if (override?.skipped) continue;
 
       const effectiveDate = override?.newDate ?? date;
+      // Bug report 2026-08-03: editing an occurrence's connected account
+      // used to permanently rewrite the item's own `balanceId` (T193) -
+      // reversed, this now applies only when the override explicitly set
+      // one (`balanceIdOverridden`), same "null can mean two different
+      // things" care every other per-occurrence override field already
+      // needed.
+      const effectiveBalanceId = override?.balanceIdOverridden ? override.newBalanceId : item.balanceId;
 
       rows.push({
         sourceType: "recurring",
@@ -131,13 +138,14 @@ export function generateForecast(input: GenerateForecastInput): ForecastRow[] {
         dueDate: effectiveDate,
         type: item.type,
         edited: override ? true : undefined,
-        balanceId: item.balanceId ?? undefined,
+        balanceId: effectiveBalanceId ?? undefined,
         // T155: pass-through only - the engine never reads it. Empty strings
         // collapse to undefined so a blank comment doesn't render an
         // indicator with nothing behind it.
         comment: item.comments?.trim() ? item.comments : undefined,
-        // T172: looked up from the connected account, if any.
-        feeAmount: item.balanceId ? feeByBalanceId.get(item.balanceId) : undefined,
+        // T172: looked up from whichever account this occurrence actually
+        // connects to - the override, if this occurrence has one.
+        feeAmount: effectiveBalanceId ? feeByBalanceId.get(effectiveBalanceId) : undefined,
         // T174: pass-through only, same as `comments`/`active` above.
         fromScenario: item.fromScenario,
       });

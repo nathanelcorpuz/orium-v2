@@ -40,12 +40,16 @@ function readOccurrenceForm(formData: FormData) {
   const type = formData.get("type") as string;
   const amount = parseCentavos(formData.get("amountPesos") as string);
   const date = formData.get("date") as string;
-  // T193 (user request): the connected account is now editable from here
-  // too, not only at settle time - a *permanent* change to the underlying
-  // item's own `balance_id`, same field the item's own CRUD page edits,
-  // not a per-occurrence override (there's no such column on
-  // occurrence_overrides, and "I connected this to the wrong account" reads
-  // as a lasting fix, not a one-time deviation).
+  // T193 (user request): the connected account is editable from here too,
+  // not only at settle time. Bug report 2026-08-03: T193 originally made
+  // this a *permanent* change to the item's own `balance_id`, same field
+  // its CRUD page edits - the user reported that as wrong ("editing an
+  // account in the forecast page edits all of the future transactions...
+  // it should just update for that specific forecasted transaction"). For a
+  // recurring item this now goes into occurrence_overrides instead (see
+  // editRecurringOccurrence below); a one-off item genuinely *is* its own
+  // single occurrence (editOneOff below), so updating it directly is still
+  // correct there.
   const balanceId = (formData.get("balanceId") as string) || null;
 
   if (!name) return { error: "Name is required." } as const;
@@ -81,19 +85,17 @@ export async function editRecurringOccurrence(
       new_amount: fields.amount,
       new_name: fields.name,
       skipped: false,
+      // Bug report 2026-08-03: this occurrence's account only, not the
+      // item's own default - `balanceIdOverridden: true` always, even when
+      // `fields.balanceId` is null ("No account" chosen for this one
+      // occurrence), so the engine can tell that apart from an occurrence
+      // that was never given an override at all (see forecast.ts).
+      new_balance_id: fields.balanceId,
+      balance_id_overridden: true,
     },
     { onConflict: "recurring_item_id,original_date" },
   );
   if (error) return { error: error.message };
-
-  // T193: unlike name/amount/date above, the connected account isn't a
-  // per-occurrence thing - it belongs to the recurring item itself, same
-  // field its own CRUD page (Bills/Income/Debt/Savings) edits.
-  const { error: balanceError } = await supabase
-    .from("recurring_items")
-    .update({ balance_id: fields.balanceId })
-    .eq("id", recurringItemId);
-  if (balanceError) return { error: balanceError.message };
 
   await logActivity(supabase, user.id, {
     action: "update",
@@ -560,6 +562,8 @@ export async function settleOccurrence(
         new_amount: null,
         new_name: null,
         skipped: true,
+        new_balance_id: null,
+        balance_id_overridden: false,
       },
       { onConflict: "recurring_item_id,original_date" },
     );

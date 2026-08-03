@@ -87,6 +87,17 @@ export interface OccurrenceOverride {
   newAmount: number | null; // centavos
   newName: string | null;
   skipped: boolean;
+  // Bug report 2026-08-03: the Forecast Edit tab's "Connected account" field
+  // used to permanently rewrite the item's own `balanceId` (T193); it now
+  // writes a per-occurrence override here instead, same shape as
+  // newDate/newAmount/newName above. `newBalanceId` alone can't distinguish
+  // "never touched" from "explicitly set to no account" (both are null), so
+  // `balanceIdOverridden` records which case this row represents. Both
+  // optional (undefined = not overridden) so every existing fixture/test
+  // literal built before this field existed stays valid, same convention
+  // `active`/`comments`/`fromScenario` above already established.
+  newBalanceId?: string | null;
+  balanceIdOverridden?: boolean;
 }
 
 export interface OneOffItem {

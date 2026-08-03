@@ -97,7 +97,9 @@ export async function loadForecast(): Promise<ForecastData> {
       ),
     supabase
       .from("occurrence_overrides")
-      .select("id, recurring_item_id, original_date, new_date, new_amount, new_name, skipped"),
+      .select(
+        "id, recurring_item_id, original_date, new_date, new_amount, new_name, skipped, new_balance_id, balance_id_overridden",
+      ),
     supabase.from("one_off_items").select("id, name, amount, due_date, balance_id, comments, active"),
     supabase.from("budgets").select(BUDGET_COLUMNS),
     // Every entry, not just future ones - the Dashboard's budget card
@@ -192,6 +194,8 @@ export async function loadForecast(): Promise<ForecastData> {
     newAmount: row.new_amount,
     newName: row.new_name,
     skipped: row.skipped,
+    newBalanceId: row.new_balance_id,
+    balanceIdOverridden: row.balance_id_overridden,
   }));
 
   const oneOffs: OneOffItem[] = (oneOffsRes.data ?? []).map((row) => ({

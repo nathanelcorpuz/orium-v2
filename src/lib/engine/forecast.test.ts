@@ -135,6 +135,110 @@ describe("generateForecast overrides", () => {
   });
 });
 
+// Bug report 2026-08-03: "editing an account in the forecast page edits all
+// of the future transactions for that finance item. it should just update
+// for that specific forecasted transaction" - T193 originally made the
+// Forecast Edit tab's account field a permanent change to the item's own
+// balanceId; this reverses that into a per-occurrence override.
+describe("generateForecast per-occurrence balance override (bug report 2026-08-03)", () => {
+  const bill = monthlyItem({
+    id: "bill-1",
+    name: "Electric",
+    amount: -150000,
+    daysOfMonth: [10],
+    balanceId: "acct-default",
+  });
+
+  it("overrides only the specific occurrence's balanceId, leaving the item's other occurrences on its own default", () => {
+    const overrides: OccurrenceOverride[] = [
+      {
+        id: "ov-1",
+        recurringItemId: "bill-1",
+        originalDate: "2026-01-10",
+        newDate: null,
+        newAmount: null,
+        newName: null,
+        skipped: false,
+        newBalanceId: "acct-override",
+        balanceIdOverridden: true,
+      },
+    ];
+    const result = generateForecast({
+      balances: [],
+      recurringItems: [bill],
+      overrides,
+      oneOffs: [],
+      today,
+      horizon,
+    });
+    expect(result.map((r) => r.balanceId)).toEqual(["acct-override", "acct-default", "acct-default"]);
+  });
+
+  it('an explicit "no account" override is distinguishable from no override at all - both would otherwise be plain null', () => {
+    const overrides: OccurrenceOverride[] = [
+      {
+        id: "ov-1",
+        recurringItemId: "bill-1",
+        originalDate: "2026-01-10",
+        newDate: null,
+        newAmount: null,
+        newName: null,
+        skipped: false,
+        newBalanceId: null,
+        balanceIdOverridden: true,
+      },
+    ];
+    const result = generateForecast({ balances: [], recurringItems: [bill], overrides, oneOffs: [], today, horizon });
+    expect(result[0].balanceId).toBeUndefined();
+    expect(result[1].balanceId).toBe("acct-default");
+  });
+
+  it("an override that never touched the account (e.g. only the date moved) still falls back to the item's own default", () => {
+    const overrides: OccurrenceOverride[] = [
+      {
+        id: "ov-1",
+        recurringItemId: "bill-1",
+        originalDate: "2026-01-10",
+        newDate: "2026-01-12",
+        newAmount: null,
+        newName: null,
+        skipped: false,
+      },
+    ];
+    const result = generateForecast({ balances: [], recurringItems: [bill], overrides, oneOffs: [], today, horizon });
+    expect(result[0].balanceId).toBe("acct-default");
+  });
+
+  it("the account fee (T172) follows the overridden account for this occurrence, not the item's own default", () => {
+    const overrides: OccurrenceOverride[] = [
+      {
+        id: "ov-1",
+        recurringItemId: "bill-1",
+        originalDate: "2026-01-10",
+        newDate: null,
+        newAmount: null,
+        newName: null,
+        skipped: false,
+        newBalanceId: "acct-override",
+        balanceIdOverridden: true,
+      },
+    ];
+    const result = generateForecast({
+      balances: [
+        { id: "acct-default", name: "Default", amount: 0, transactionFeeCentavos: 5000 },
+        { id: "acct-override", name: "Override", amount: 0, transactionFeeCentavos: 1000 },
+      ],
+      recurringItems: [bill],
+      overrides,
+      oneOffs: [],
+      today,
+      horizon,
+    });
+    expect(result[0].feeAmount).toBe(1000);
+    expect(result[1].feeAmount).toBe(5000);
+  });
+});
+
 describe("generateForecast edited flag (Phase 7 edited-occurrence indicator)", () => {
   const electricBill = monthlyItem({
     id: "bill-1",
