@@ -13,6 +13,7 @@ import { ReorderButtons } from "@/components/ReorderButtons";
 import { RowIconActions } from "@/components/RowIconActions";
 import { SubmitButton } from "@/components/SubmitButton";
 import { ActiveToggle } from "@/components/ActiveToggle";
+import { isActive } from "@/lib/isActive";
 import { useOrderedList } from "@/lib/useOrderedList";
 import { deleteExtra } from "./actions";
 import { ExtraModal, type BalanceOption, type ExtraRow } from "./ExtraModal";
@@ -93,10 +94,12 @@ export function ExtraClient({ extras, balances }: { extras: ExtraRow[]; balances
   const balanceNameById = useMemo(() => new Map(balances.map((b) => [b.id, b.name])), [balances]);
 
   const today = todayInManila();
-  // Always over the full unfiltered list - filters narrow what's displayed,
-  // not what counts toward the page's own total.
+  // Over the full (T50) filter-bar-unfiltered list - a display filter
+  // narrows what's shown, not what counts. A switched-off item (T175) is
+  // excluded via `isActive` though - the user marked it as not real
+  // (Bug #20).
   const totalRemaining = extras
-    .filter((extra) => extra.due_date >= today)
+    .filter((extra) => extra.due_date >= today && isActive(extra))
     .reduce((sum, extra) => sum + extra.amount, 0);
 
   return (

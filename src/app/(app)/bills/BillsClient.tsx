@@ -16,6 +16,7 @@ import { ReorderButtons } from "@/components/ReorderButtons";
 import { RowIconActions } from "@/components/RowIconActions";
 import { SubmitButton } from "@/components/SubmitButton";
 import { ActiveToggle } from "@/components/ActiveToggle";
+import { isActive } from "@/lib/isActive";
 import type { RecurrenceUnit } from "@/lib/engine/types";
 import { useOrderedList } from "@/lib/useOrderedList";
 import { ItemTransactionsModal } from "@/components/recurring/ItemTransactionsModal";
@@ -167,12 +168,13 @@ export function BillsClient({
   // through billRule (not the raw row) because BillRow's days_of_month is
   // snake_case - monthlyEquivalent's optional daysOfMonth field would
   // silently miss it otherwise (no compile error, just a wrong total).
-  // Always over the full unfiltered list - filters narrow what's displayed,
-  // not what counts toward the page's own total.
-  const totalMonthly = bills.reduce(
-    (sum, bill) => sum + Math.abs(monthlyEquivalent({ ...billRule(bill), amount: bill.amount })),
-    0,
-  );
+  // Over the full (T50) filter-bar-unfiltered list - a display filter
+  // narrows what's shown, not what's real, so it shouldn't shrink the
+  // total. A switched-off item (T175) is a different thing - the user
+  // marked it as not real - so `isActive` excludes those (Bug #20).
+  const totalMonthly = bills
+    .filter(isActive)
+    .reduce((sum, bill) => sum + Math.abs(monthlyEquivalent({ ...billRule(bill), amount: bill.amount })), 0);
 
   return (
     <>

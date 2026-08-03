@@ -19,6 +19,7 @@ import { ReorderButtons } from "@/components/ReorderButtons";
 import { RowIconActions } from "@/components/RowIconActions";
 import { SubmitButton } from "@/components/SubmitButton";
 import { ActiveToggle } from "@/components/ActiveToggle";
+import { isActive } from "@/lib/isActive";
 import { ChevronIcon } from "@/components/navIcons";
 import type { RecurrenceUnit, RecurringItemType } from "@/lib/engine/types";
 import type { RecurringItemActionState } from "@/lib/recurringItem";
@@ -257,15 +258,19 @@ export function MonthlyGoalsClient({
   // the same monthly-equivalent estimate the Dashboard/Income pages use.
   // Goes through goalRule (not the raw row) since MonthlyGoalRow's
   // days_of_month is snake_case, matching Supabase - both functions expect
-  // camelCase daysOfMonth. Always over the full unfiltered list - filters
-  // narrow what's displayed, not what counts toward the page's own totals.
-  const totalMonthly = items.reduce(
+  // camelCase daysOfMonth. Over the full (T50) filter-bar-unfiltered list -
+  // a display filter narrows what's shown, not what counts. A switched-off
+  // item (T175) is excluded via `isActive` though - the user marked it as
+  // not real, and this exact total ("switching off my debt doesn't remove
+  // the total remaining debt") is what Bug #20 was reported against.
+  const activeGoalItems = items.filter(isActive);
+  const totalMonthly = activeGoalItems.reduce(
     (sum, item) => sum + Math.abs(monthlyEquivalent({ ...goalRule(item), amount: item.amount })),
     0,
   );
   // "never"-ending items have no finite total (SPEC.md); they're excluded
   // here and shown as "Ongoing" per-item below instead.
-  const totalRemaining = items.reduce(
+  const totalRemaining = activeGoalItems.reduce(
     (sum, item) => sum + (remainingTotal({ ...goalRule(item), amount: item.amount }, today) ?? 0),
     0,
   );

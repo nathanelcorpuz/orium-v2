@@ -1,5 +1,6 @@
 import type { RecurrenceUnit, RecurringItemType } from "./engine/types";
 import { monthlyEquivalent } from "./engine/monthlyTotals";
+import { isActive } from "./isActive";
 
 // Accounts page (2026-08-03, replacing the standalone /allocation page the
 // user asked to remove): "the amount each account received monthly, the
@@ -19,6 +20,11 @@ export type MonthlyBreakdownItem = {
   daysOfMonth: number[] | null;
   balanceId: string | null;
   autoDebited?: boolean;
+  // T175: false = switched off. Bug #20 (2026-08-03): a switched-off item
+  // must be excluded here too, same as the Forecast already excludes it -
+  // "switching off any finance items should assume that its been
+  // completely removed from everything."
+  active?: boolean;
 };
 
 export type OneTimeItem = {
@@ -27,6 +33,7 @@ export type OneTimeItem = {
   amount: number; // centavos, signed
   dueDate: string;
   balanceId: string | null;
+  active?: boolean;
 };
 
 export type FrequencyGroup = {
@@ -88,7 +95,7 @@ export function computeAccountMonthlyBreakdown(
   oneOffItems: OneTimeItem[],
   balanceId: string,
 ): AccountMonthlyBreakdown {
-  const connected = recurringItems.filter((item) => item.balanceId === balanceId);
+  const connected = recurringItems.filter((item) => item.balanceId === balanceId && isActive(item));
 
   let monthlyReceived = 0;
   let monthlyDeducted = 0;
@@ -120,7 +127,7 @@ export function computeAccountMonthlyBreakdown(
     return frequencyWeight(first.interval, first.unit) - frequencyWeight(second.interval, second.unit);
   });
 
-  const oneTime = oneOffItems.filter((item) => item.balanceId === balanceId);
+  const oneTime = oneOffItems.filter((item) => item.balanceId === balanceId && isActive(item));
 
   return {
     monthlyReceived,

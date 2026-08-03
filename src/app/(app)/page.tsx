@@ -18,6 +18,7 @@ import {
   replenishProgress,
 } from "@/lib/engine/budgetLedger";
 import { daysBetween } from "@/lib/engine/date-utils";
+import { isActive } from "@/lib/isActive";
 import { ProgressBar } from "@/components/ProgressBar";
 import { SampleDataBanner } from "@/components/SampleDataBanner";
 import { PreviewModeBar } from "@/components/PreviewModeBar";
@@ -183,11 +184,11 @@ export default async function Home({
     .reduce((sum, row) => sum + Math.abs(row.amount), 0);
 
   const totalMonthlyBills = recurringItems
-    .filter((item) => item.type === "bill")
+    .filter((item) => item.type === "bill" && isActive(item))
     .reduce((sum, item) => sum + Math.abs(monthlyEquivalent(item)), 0);
 
   const totalMonthlyIncome = recurringItems
-    .filter((item) => item.type === "income")
+    .filter((item) => item.type === "income" && isActive(item))
     .reduce((sum, item) => sum + monthlyEquivalent(item), 0);
 
   // REMINDER item, 2026-08-02 ("I want a monthly budgets total in the
@@ -199,7 +200,7 @@ export default async function Home({
   // already uses for its progress bars). A manual budget has neither, so it
   // contributes 0 - there's no recurring rhythm to average into a monthly
   // figure, the same reason a purely one-off Misc item isn't counted either.
-  const totalMonthlyBudgets = budgets.reduce((sum, budget) => {
+  const totalMonthlyBudgets = budgets.filter(isActive).reduce((sum, budget) => {
     const linkedIncome = budget.linkedIncomeId
       ? recurringItems.find((item) => item.id === budget.linkedIncomeId) ?? null
       : null;
@@ -217,7 +218,11 @@ export default async function Home({
     );
   }, 0);
 
-  const debtItems = recurringItems.filter((item) => item.type === "debt");
+  // Bug #20: a switched-off item (T175) must be excluded from every summary
+  // stat that reads `recurringItems`/`budgets` directly, not just the
+  // Forecast (which already filters via generateForecast). `isActive()`
+  // applied at every `.filter`/`.reduce` below closes that gap.
+  const debtItems = recurringItems.filter((item) => item.type === "debt" && isActive(item));
   // "never"-ending debt items have no finite remaining total or end date
   // (SPEC.md); remainingTotal/ruleEndDate return null for them, and they're
   // excluded here the same way MonthlyGoalsClient excludes them from its
@@ -243,11 +248,9 @@ export default async function Home({
   // T196 (user request): Debt and Savings get the same "total monthly"
   // treatment Bills/Income already had - previously only "Remaining Debt"/
   // "Savings" (the total left, not a monthly figure) existed for these two.
-  const totalMonthlyDebt = recurringItems
-    .filter((item) => item.type === "debt")
-    .reduce((sum, item) => sum + Math.abs(monthlyEquivalent(item)), 0);
+  const totalMonthlyDebt = debtItems.reduce((sum, item) => sum + Math.abs(monthlyEquivalent(item)), 0);
 
-  const savingsItems = recurringItems.filter((item) => item.type === "savings");
+  const savingsItems = recurringItems.filter((item) => item.type === "savings" && isActive(item));
   const totalMonthlySavings = savingsItems.reduce((sum, item) => sum + Math.abs(monthlyEquivalent(item)), 0);
   const remainingSavings = savingsItems.reduce(
     (sum, item) => sum + (remainingTotal(item, today) ?? 0),

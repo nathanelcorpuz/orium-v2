@@ -56,9 +56,12 @@ export default async function BalancesPage({
       loadForecast(),
       // T236: one-off (Misc) items connected to an account, for that
       // account's "One-time" breakdown group - `loadConnectedItems()`
-      // deliberately omits `due_date` since the existing "Connected items"
-      // list (T71/T152) never needed it.
-      supabase.from("one_off_items").select("id, name, amount, balance_id, due_date").not("balance_id", "is", null),
+      // deliberately omits `due_date`/`active` since the existing
+      // "Connected items" list (T71/T152) never needed them.
+      supabase
+        .from("one_off_items")
+        .select("id, name, amount, balance_id, due_date, active")
+        .not("balance_id", "is", null),
     ]);
 
   if (error) {
@@ -106,6 +109,7 @@ export default async function BalancesPage({
         amount: row.amount,
         dueDate: row.due_date,
         balanceId: row.balance_id,
+        active: row.active,
       }))}
     />
   );

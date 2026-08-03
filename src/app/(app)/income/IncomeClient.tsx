@@ -16,6 +16,7 @@ import { ReorderButtons } from "@/components/ReorderButtons";
 import { RowIconActions } from "@/components/RowIconActions";
 import { SubmitButton } from "@/components/SubmitButton";
 import { ActiveToggle } from "@/components/ActiveToggle";
+import { isActive } from "@/lib/isActive";
 import type { IncomeAutoMoveOverride, RecurrenceUnit } from "@/lib/engine/types";
 import { useOrderedList } from "@/lib/useOrderedList";
 import { ItemTransactionsModal } from "@/components/recurring/ItemTransactionsModal";
@@ -217,13 +218,13 @@ export function IncomeClient({
   // Goes through incomeRule (not the raw row) because IncomeRow's
   // days_of_month is snake_case - monthlyEquivalent's optional daysOfMonth
   // field would silently miss it otherwise (no compile error, just a
-  // wrong total, since the mismatch is on an optional property). Always over
-  // the full unfiltered list - filters narrow what's displayed, not what
-  // counts toward the page's own total.
-  const totalMonthly = incomes.reduce(
-    (sum, income) => sum + monthlyEquivalent({ ...incomeRule(income), amount: income.amount }),
-    0,
-  );
+  // wrong total, since the mismatch is on an optional property). Over the
+  // full (T50) filter-bar-unfiltered list - a display filter narrows what's
+  // shown, not what counts. A switched-off item (T175) is excluded via
+  // `isActive` though - the user marked it as not real (Bug #20).
+  const totalMonthly = incomes
+    .filter(isActive)
+    .reduce((sum, income) => sum + monthlyEquivalent({ ...incomeRule(income), amount: income.amount }), 0);
 
   return (
     <div className="p-4 md:p-8">

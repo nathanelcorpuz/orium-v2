@@ -12,6 +12,7 @@ import { todayInManila } from "@/lib/date";
 import { budgetReplenishRule, computeBudgetAccountBalance, computeBudgetBalance } from "@/lib/engine/budgetLedger";
 import { monthlyEquivalent } from "@/lib/engine/monthlyTotals";
 import { toEngineBudget } from "@/lib/budgetView";
+import { isActive } from "@/lib/isActive";
 import { BudgetCard, toEngineEntries, type BudgetEntryRow, type IncomeItemRow } from "./BudgetCard";
 import { BudgetModal, type BudgetRow } from "./BudgetModal";
 import { BudgetAccountsSection } from "./BudgetAccountsSection";
@@ -141,10 +142,14 @@ export function BudgetsClient({
   // total monthly budgets in budgets page" - T219 already put this figure on
   // the Dashboard; this reuses the same budgetReplenishRule/monthlyEquivalent
   // resolution right here. A manual budget (no resolvable schedule)
-  // contributes 0, same as T219's own Dashboard card.
+  // contributes 0, same as T219's own Dashboard card. A switched-off budget
+  // (T175) is excluded via `isActive` (Bug #20) - `totalAcrossBudgets` above
+  // deliberately stays unfiltered, since that's a record of money already
+  // moved, not a projection (same reasoning T175 itself already applied to
+  // a single budget's own running total).
   const totalMonthlyBudgets = useMemo(
     () =>
-      budgets.reduce((sum, budget) => {
+      budgets.filter(isActive).reduce((sum, budget) => {
         const linkedIncome = budget.linked_income_id
           ? incomes.find((income) => income.id === budget.linked_income_id)
           : undefined;
