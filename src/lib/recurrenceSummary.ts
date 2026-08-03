@@ -1,4 +1,5 @@
 import type { Budget, RecurrenceRule, RecurringItem } from "./engine/types";
+import { ruleEndDate } from "./engine/remaining";
 import { MONTH_ABBR, formatFullDate, formatMonthYear } from "./date";
 
 // Display formatting for a recurrence rule (e.g. "Every 2 weeks on Sat ·
@@ -43,10 +44,17 @@ function endsSuffix(rule: RecurrenceRule): string {
       return "";
     case "on_date":
       return rule.endDate ? ` · until ${formatMonthYear(rule.endDate)}` : "";
-    case "after_count":
-      return rule.occurrenceCount
-        ? ` · ${rule.occurrenceCount} time${rule.occurrenceCount === 1 ? "" : "s"}`
-        : "";
+    case "after_count": {
+      if (!rule.occurrenceCount) return "";
+      const countText = `${rule.occurrenceCount} time${rule.occurrenceCount === 1 ? "" : "s"}`;
+      // REMINDER.md, 2026-08-03: "a quick way to find out the end date even
+      // if the ends selection is after n times" - `ruleEndDate` (already
+      // used for the debt-free/savings-goal dates) resolves the Nth
+      // occurrence directly, so this needs no new computation, just
+      // surfacing it here too.
+      const endDate = ruleEndDate(rule);
+      return endDate ? ` · ${countText} · until ${formatMonthYear(endDate)}` : ` · ${countText}`;
+    }
   }
 }
 

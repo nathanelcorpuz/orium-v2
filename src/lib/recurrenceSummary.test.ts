@@ -97,13 +97,36 @@ describe("summarizeRecurrence", () => {
     ).toBe("Monthly on the 1st · until Nov 2027");
   });
 
-  it("ends: after_count, singular vs plural", () => {
+  it("ends: after_count, singular vs plural, plus the resolved end date", () => {
     expect(
       summarizeRecurrence(rule({ endsType: "after_count", occurrenceCount: 1 })),
-    ).toBe("Monthly on the 1st · 1 time");
+    ).toBe("Monthly on the 1st · 1 time · until Jan 2026");
     expect(
       summarizeRecurrence(rule({ endsType: "after_count", occurrenceCount: 6 })),
-    ).toBe("Monthly on the 1st · 6 times");
+    ).toBe("Monthly on the 1st · 6 times · until Jun 2026");
+  });
+
+  it("ends: after_count resolves the real Nth occurrence date, not a naive add - a weekly rule with 2 weekdays reaches N faster than N/interval weeks would suggest", () => {
+    expect(
+      summarizeRecurrence(
+        rule({
+          unit: "week",
+          interval: 1,
+          weekdays: [2, 4],
+          daysOfMonth: null,
+          endsType: "after_count",
+          occurrenceCount: 5,
+          startDate: "2026-01-06", // a Tuesday
+        }),
+      ),
+      // Occurrences: Jan 6, 8, 13, 15, 20 (5th) - just under 3 weeks, not 5.
+    ).toBe("Weekly on Tue, Thu · 5 times · until Jan 2026");
+  });
+
+  it("ends: after_count with no occurrenceCount omits both the count and the date", () => {
+    expect(summarizeRecurrence(rule({ endsType: "after_count", occurrenceCount: null }))).toBe(
+      "Monthly on the 1st",
+    );
   });
 });
 
