@@ -1,13 +1,15 @@
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 
-// T121: a service-role Supabase client, used only by the dev-only throwaway
-// account route (`/api/dev-new-account`). It bypasses RLS completely, so
-// per CLAUDE.md's hard rule it must never be reachable from the browser:
-// this module is imported by that one server route and nothing else, and
-// the route itself 404s outside `next dev`. Returning null (rather than
-// throwing) when the key is absent lets the route fall through to its own
-// 404, so a missing key behaves exactly like the feature not existing -
-// which is what production is.
+// T121: a service-role Supabase client. It bypasses RLS completely, so per
+// CLAUDE.md's hard rule it must never be reachable from the browser - every
+// caller is a server-only route that gates itself before ever creating one:
+// the dev-only throwaway account route (`/api/dev-new-account`, 404s
+// outside `next dev`) and the daily-notifications cron route (2026-08-03,
+// its own bearer-secret check), which also needs it to query/email across
+// every user rather than just the one signed-in caller a normal RLS-scoped
+// client is limited to. Returning null (rather than throwing) when the key
+// is absent lets each caller fall through to its own error response, so a
+// missing key behaves like the feature not existing rather than crashing.
 //
 // The value in `SUPABASE_SERVICE_ROLE_KEY` is Supabase's newer secret key
 // (`sb_secret_...`), not the legacy `service_role` JWT that Supabase has

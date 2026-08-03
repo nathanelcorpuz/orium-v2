@@ -67,6 +67,19 @@ export async function updatePreferences(
     tierLabels.push(value);
   }
 
+  // User request 2026-08-03: daily "transactions due today" email - a
+  // time-of-day plus an IANA timezone name, checked against by the
+  // scheduled sender (src/app/api/cron/daily-notifications/route.ts).
+  const emailNotificationsEnabled = formData.get("emailNotificationsEnabled") === "on";
+  const notificationTime = formData.get("notificationTime") as string;
+  const notificationTimezone = (formData.get("notificationTimezone") as string) || null;
+  if (emailNotificationsEnabled && !notificationTime) {
+    return { error: "Choose a time of day for notifications." };
+  }
+  if (emailNotificationsEnabled && !notificationTimezone) {
+    return { error: "Choose a timezone for notifications." };
+  }
+
   const supabase = await createClient();
   const {
     data: { user },
@@ -75,7 +88,17 @@ export async function updatePreferences(
 
   const { error } = await supabase
     .from("preferences")
-    .update({ currency, balance_ranges: ranges, balance_tier_labels: tierLabels })
+    .update({
+      currency,
+      balance_ranges: ranges,
+      balance_tier_labels: tierLabels,
+      email_notifications_enabled: emailNotificationsEnabled,
+      // Postgres `time` accepts "HH:MM" as-is; falls back to the existing
+      // default only if the field was somehow left blank (input[type=time]
+      // always submits a value once a defaultValue is set).
+      notification_time: notificationTime || "08:00",
+      notification_timezone: notificationTimezone,
+    })
     .eq("user_id", user.id);
   if (error) return { error: error.message };
 

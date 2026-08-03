@@ -28,16 +28,35 @@ const TIER_LABEL_FIELDS: { key: string; label: string }[] = [
   { key: "highest", label: "Highest" },
 ];
 
+// User request 2026-08-03: the daily due-today email needs a timezone per
+// user, not the server's own. `Intl.supportedValuesOf` is the browser's own
+// authoritative IANA list - no new dependency, no hand-maintained list to
+// go stale. Falls back to the browser's current zone (a sensible default,
+// not a guess) when the user has never set one.
+function timezoneOptions(): string[] {
+  if (typeof Intl.supportedValuesOf === "function") {
+    return Intl.supportedValuesOf("timeZone");
+  }
+  return [Intl.DateTimeFormat().resolvedOptions().timeZone];
+}
+
 export function PreferencesForm({
   currency,
   balanceRanges,
   tierLabels,
+  emailNotificationsEnabled,
+  notificationTime,
+  notificationTimezone,
 }: {
   currency: string;
   balanceRanges: number[];
   tierLabels: string[];
+  emailNotificationsEnabled: boolean;
+  notificationTime: string;
+  notificationTimezone: string | null;
 }) {
   const [state, formAction, pending] = useActionState(updatePreferences, initialState);
+  const browserTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
   // T96: three previously crammed-together concerns (currency, balance
   // color thresholds, lowest-balance tier labels) now get their own
@@ -116,6 +135,56 @@ export function PreferencesForm({
               />
             </div>
           ))}
+        </div>
+      </div>
+
+      {/* User request 2026-08-03: "notifies me when a forecasted
+          transaction is detected for the day... I should be able to set
+          the time... and it should ask for a timezone." A background check
+          (every 15 minutes, see vercel.json) compares each user's chosen
+          time against the current time in their chosen zone. */}
+      <div id="email-notifications" className="rounded-lg border border-notion-hairline bg-white p-4">
+        <h2 className="mb-3 text-sm font-semibold text-notion-text">Email notifications</h2>
+        <label className="flex items-center gap-2 text-sm text-notion-text">
+          <input
+            type="checkbox"
+            name="emailNotificationsEnabled"
+            defaultChecked={emailNotificationsEnabled}
+            className="h-4 w-4 rounded border-notion-hairline"
+          />
+          Email me a list of transactions due that day
+        </label>
+        <div className="mt-3 flex flex-col gap-3 sm:flex-row">
+          <div>
+            <label className="block text-sm text-slate-600" htmlFor="notificationTime">
+              Time of day
+            </label>
+            <input
+              id="notificationTime"
+              name="notificationTime"
+              type="time"
+              required
+              defaultValue={notificationTime}
+              className="mt-1 rounded border border-notion-hairline p-2 text-notion-text focus:border-notion-accent focus:outline-none"
+            />
+          </div>
+          <div className="flex-1">
+            <label className="block text-sm text-slate-600" htmlFor="notificationTimezone">
+              Timezone
+            </label>
+            <select
+              id="notificationTimezone"
+              name="notificationTimezone"
+              defaultValue={notificationTimezone ?? browserTimezone}
+              className="mt-1 w-full rounded border border-notion-hairline p-2 text-notion-text focus:border-notion-accent focus:outline-none"
+            >
+              {timezoneOptions().map((tz) => (
+                <option key={tz} value={tz}>
+                  {tz}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
       </div>
 

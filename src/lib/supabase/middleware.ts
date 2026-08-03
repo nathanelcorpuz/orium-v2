@@ -13,6 +13,11 @@ const PUBLIC_PATHS = [
   // route was only reachable when a session already existed - the exact
   // situation it exists to escape. Also 404s outside development.
   "/api/dev-new-account",
+  // User request 2026-08-03: the daily due-today email digest. Triggered by
+  // Vercel Cron (vercel.json), never by a logged-in browser session - the
+  // route protects itself with its own bearer-token check
+  // (src/app/api/cron/daily-notifications/route.ts), not this middleware.
+  "/api/cron",
   "/health",
   "/privacy",
   "/terms",

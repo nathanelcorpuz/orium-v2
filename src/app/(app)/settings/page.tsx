@@ -18,7 +18,9 @@ export default async function SettingsPage() {
     supabase.auth.getUser(),
     supabase
       .from("preferences")
-      .select("currency, balance_ranges, balance_tier_labels")
+      .select(
+        "currency, balance_ranges, balance_tier_labels, email_notifications_enabled, notification_time, notification_timezone",
+      )
       .single(),
   ]);
 
@@ -27,6 +29,11 @@ export default async function SettingsPage() {
   const currency = preferencesRes.data?.currency ?? "₱";
   const balanceRanges = preferencesRes.data?.balance_ranges ?? DEFAULT_BALANCE_RANGES;
   const tierLabels = preferencesRes.data?.balance_tier_labels ?? DEFAULT_TIER_LABELS;
+  const emailNotificationsEnabled = preferencesRes.data?.email_notifications_enabled ?? false;
+  // Postgres `time` comes back as "HH:MM:SS" - trim to "HH:MM" to match
+  // input[type=time]'s own value format.
+  const notificationTime = (preferencesRes.data?.notification_time ?? "08:00:00").slice(0, 5);
+  const notificationTimezone = preferencesRes.data?.notification_timezone ?? null;
 
   return (
     <div className="p-4 md:p-8">
@@ -35,7 +42,14 @@ export default async function SettingsPage() {
 
         <div className="space-y-6">
           <ProfileForm email={user?.email ?? ""} name={name} />
-          <PreferencesForm currency={currency} balanceRanges={balanceRanges} tierLabels={tierLabels} />
+          <PreferencesForm
+            currency={currency}
+            balanceRanges={balanceRanges}
+            tierLabels={tierLabels}
+            emailNotificationsEnabled={emailNotificationsEnabled}
+            notificationTime={notificationTime}
+            notificationTimezone={notificationTimezone}
+          />
 
           <div id="sample-data" className="rounded-lg border border-notion-hairline bg-white p-4">
             <h2 className="mb-1 text-sm font-semibold text-notion-text">Sample data</h2>
