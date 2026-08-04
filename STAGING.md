@@ -64,6 +64,8 @@ Two separate blockers here, and the second is the real one.
 
 The fix is custom SMTP, configured in the Supabase dashboard against a transactional email provider. Free tiers are generous enough to cover a beta comfortably. This is the single blocking item for inviting anyone, and it is a dashboard configuration task rather than a code change.
 
+**Stronger than previously known, found 2026-08-04**: the Supabase dashboard's Email Templates screen now refuses to save *any* edit at all - "Set up custom SMTP to edit templates" - on the default/shared mailer. This isn't just a rate-limit problem anymore: custom SMTP is a hard prerequisite for editing the "Confirm signup" template too (BUGS.md Bug #24, the still-open confirmation-link cleanup), not only for volume (Bug #25). T239 (SPEC.md Phase 42) already has a Resend account started for the daily-notification emails via their REST API - Resend also issues SMTP credentials, so the same provider/account can likely serve both without a second signup, once a sending domain is verified there.
+
 ---
 
 ## 5. Suggested order
