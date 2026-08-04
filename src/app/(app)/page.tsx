@@ -252,6 +252,12 @@ export default async function Home({
 
   const savingsItems = recurringItems.filter((item) => item.type === "savings" && isActive(item));
   const totalMonthlySavings = savingsItems.reduce((sum, item) => sum + Math.abs(monthlyEquivalent(item)), 0);
+  // T272 (user request 2026-08-04): "Need to know how much is my take home
+  // every month in the dashboard." Net of every existing monthly figure
+  // above - no new computation, just summing what T196/T219 already show
+  // separately into the one number the user actually wants at a glance.
+  const totalMonthlyTakeHome =
+    totalMonthlyIncome - totalMonthlyBills - totalMonthlyDebt - totalMonthlySavings - totalMonthlyBudgets;
   const remainingSavings = savingsItems.reduce(
     (sum, item) => sum + (remainingTotal(item, today) ?? 0),
     0,
@@ -418,7 +424,7 @@ export default async function Home({
       key: "monthlyStats",
       label: "Monthly totals",
       node: (
-        <div className="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
+        <div className="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
           <DashboardCard title="Total Monthly Bills" value={formatCentavos(totalMonthlyBills, currency)} />
           <DashboardCard
             title="Total Monthly Income"
@@ -439,6 +445,14 @@ export default async function Home({
             title="Total Monthly Budgets"
             value={formatCentavos(totalMonthlyBudgets, currency)}
             valueClassName="text-teal-700"
+          />
+          {/* T272 (user request 2026-08-04): "Need to know how much is my
+              take home every month." Income minus every other monthly
+              figure to its left. */}
+          <DashboardCard
+            title="Take-home (est.)"
+            value={formatCentavos(totalMonthlyTakeHome, currency)}
+            valueClassName={totalMonthlyTakeHome < 0 ? "text-red-600" : "text-green-700"}
           />
         </div>
       ),
