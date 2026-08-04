@@ -4,6 +4,8 @@ import { useMemo, useState } from "react";
 import type { RecurrenceEndsType, RecurrenceUnit } from "@/lib/engine/types";
 import { computeRecurrencePresets, type RecurrenceShape } from "@/lib/recurrencePresets";
 import { DatePicker } from "@/components/DatePicker";
+import { ruleEndDate } from "@/lib/engine/remaining";
+import { formatFullDate } from "@/lib/date";
 
 export type RecurrenceValue = RecurrenceShape & {
   endsType: RecurrenceEndsType;
@@ -349,6 +351,19 @@ export function RecurrencePicker({
             />
           )}
         </div>
+        {/* T280 (user request 2026-08-04): "selecting After N times and
+            entering a number should automatically show an end date" - the
+            same ruleEndDate() calculation T237's recurrenceSummary already
+            uses after saving, shown live here as the count is typed instead
+            of only after the fact. */}
+        {value.endsType === "after_count" && value.occurrenceCount && (
+          <p className="mt-1 text-sm text-slate-400">
+            {(() => {
+              const resolved = ruleEndDate({ startDate, ...value });
+              return resolved ? `Ends ${formatFullDate(resolved)}.` : null;
+            })()}
+          </p>
+        )}
       </div>
 
       <input type="hidden" name="interval" value={value.interval} />

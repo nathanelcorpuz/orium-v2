@@ -148,7 +148,10 @@ export function BalanceModal({
           // 2026-08-04, right here) - each one is logged with a date and an
           // optional comment instead of silently overwriting it.
           <div>
-            <p className="block text-sm text-slate-600">Amount</p>
+            {/* T274 (user request 2026-08-04): "Amount" read as an editable
+                field rather than what it actually is - the account's own
+                running balance. */}
+            <p className="block text-sm text-slate-600">Running balance</p>
             <p className="mt-1 text-notion-text">{formatCentavos(balance.amount)}</p>
             <div className="mt-2 flex flex-wrap gap-2">
               <button
@@ -200,8 +203,11 @@ export function BalanceModal({
           </div>
         )}
         <div>
+          {/* T281 (user request 2026-08-04): "Default transaction fee" makes
+              clear this is a fallback, not a fixed cost - T194/T250 already
+              let it be overridden per settlement or per move. */}
           <label className="block text-sm text-slate-600" htmlFor="transactionFeePesos">
-            Transaction fee (₱, optional)
+            Default transaction fee (₱, optional)
           </label>
           <input
             id="transactionFeePesos"
@@ -214,10 +220,14 @@ export function BalanceModal({
             }
             className="mt-1 w-full rounded border border-notion-hairline p-2 text-notion-text focus:border-notion-accent focus:outline-none"
           />
+          {/* T275 (user request 2026-08-04): make clear up front that this
+              isn't locked in - Settle (T194) and Move funds (T250) can both
+              override it for one transaction without changing the default. */}
           <FormTip tipKey="account-fee">
             A flat cost auto-deducted from every forecasted transaction connected to this
             account, incoming or outgoing - e.g. a bank that charges a fee per transaction. Leave
-            blank for none.
+            blank for none. You can still override it for a single transaction later, when
+            settling or moving funds.
           </FormTip>
         </div>
         <div>

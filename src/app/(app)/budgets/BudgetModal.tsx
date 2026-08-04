@@ -6,7 +6,7 @@ import { FormTip } from "@/components/FormTip";
 import { DatePicker } from "@/components/DatePicker";
 import { SegmentedControl } from "@/components/SegmentedControl";
 import { blockNegativeKey, centavosToPesosString, formatCentavos, parseCentavos } from "@/lib/money";
-import { todayInManila } from "@/lib/date";
+import { formatFullDate, todayInManila } from "@/lib/date";
 import { RecurrencePicker, type RecurrenceValue } from "@/components/recurring/RecurrencePicker";
 import { summarizeRecurrence } from "@/lib/recurrenceSummary";
 import { type BudgetRow } from "@/lib/budgetView";
@@ -368,6 +368,13 @@ export function BudgetModal({
                     here - previously the only way to know was to go check
                     the Income page itself. */}
                 {selectedIncome && hasRecurrenceRule(selectedIncome) && ` ${summarizeRecurrence(selectedIncome)}.`}
+                {/* T266 (user request 2026-08-04): "add a start date...
+                    based on when an income is received, if connected to an
+                    income" - display-only, matching the income's own
+                    start_date rather than adding a separate, independently-
+                    editable one; replenishment still follows every one of
+                    the income's occurrences, unchanged. */}
+                {selectedIncome?.startDate && ` Starts ${formatFullDate(selectedIncome.startDate)}.`}
               </p>
             </div>
           ) : (

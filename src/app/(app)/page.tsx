@@ -311,6 +311,80 @@ export default async function Home({
           },
         ]
       : []),
+    // T277 (user request 2026-08-04): "the main purpose of this app is...
+    // enter financial data > generate instant forecast > review forecast >
+    // keep forecast clean... In the dashboard, I want lowest balance ahead
+    // and Peaks and drops to be at the very top by default." Moved ahead of
+    // the stat cards below - this only changes the *default* order for an
+    // account that's never customized its own Dashboard (reconcile() in
+    // DashboardWidgetsPanel.tsx only fills in gaps, never overrides an
+    // existing saved order), so anyone who's already reordered their own
+    // Dashboard keeps their own choice.
+    {
+      key: "lowestBalance",
+      label: "Lowest Balance Ahead",
+      node: (
+        <div className="mb-6 rounded-lg border border-notion-hairline bg-white p-4" data-tour="dashboard-lowest-balance">
+          <h2 className="mb-2 text-sm font-semibold text-notion-text">Lowest Balance Ahead</h2>
+          {!hasAnyFinancialData ? (
+            <p className="text-sm text-slate-500">
+              Nothing to forecast yet. Add an account and a bill or two, and this will show the
+              lowest your balance gets, and when.
+            </p>
+          ) : (
+            <>
+              {/* T76: color + wording now reflect the actual balance_ranges
+                  risk tier (danger/low/medium/high/higher/highest), not a
+                  hardcoded <=0 check - matches the Forecast table (T62) and
+                  Peaks and Drops (T67). Danger shows the deficit magnitude
+                  ("Goes negative by"); every other tier shows the (positive)
+                  balance directly. */}
+              <p className="text-lg font-semibold text-notion-text">
+                {lowestBalanceLabel(lowestBalance.balance, balanceRanges, tierLabels)}{" "}
+                <span
+                  className={`inline-block rounded px-1.5 py-0.5 ${balanceRangeColorClass(lowestBalance.balance, balanceRanges)}`}
+                >
+                  {formatCentavos(
+                    balanceRangeTier(lowestBalance.balance, balanceRanges) === "danger"
+                      ? Math.abs(lowestBalance.balance)
+                      : lowestBalance.balance,
+                    currency,
+                  )}
+                </span>
+              </p>
+              <p className="mt-1 text-sm text-slate-500">On {formatFullDate(lowestBalance.date)}</p>
+              {/* User feedback 2026-07-25: the worst point (above) can land
+                  well after the balance first crosses into trouble - only
+                  shown when it adds new information (a real earlier date). */}
+              {firstDanger && firstDanger.date !== lowestBalance.date && (
+                <div className="mt-4">
+                  <p className="text-lg font-semibold text-notion-text">
+                    {firstDangerLabel(firstDanger.balance)}{" "}
+                    <span className="inline-block rounded bg-slate-900 px-1.5 py-0.5 text-white">
+                      {formatCentavos(Math.abs(firstDanger.balance), currency)}
+                    </span>
+                  </p>
+                  <p className="mt-1 text-sm text-slate-500">On {formatFullDate(firstDanger.date)}</p>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      ),
+    },
+    {
+      key: "peaksDrops",
+      label: "Peaks and Drops",
+      node: (
+        <PeaksAndDropsCard
+          peaksAndDropsByYear={peaksAndDropsByYear}
+          balanceRanges={balanceRanges}
+          currency={currency}
+          hasAnyFinancialData={hasAnyFinancialData}
+          allScenarios={allScenarios}
+        />
+      ),
+    },
     // T196 (user request): Total Balance is now its own section, with each
     // account's own balance broken out underneath - not just the combined
     // figure. Split out of the old shared "stats" 3-card grid into its own
@@ -386,71 +460,6 @@ export default async function Home({
             valueClassName="text-purple-700"
           />
         </div>
-      ),
-    },
-    {
-      key: "lowestBalance",
-      label: "Lowest Balance Ahead",
-      node: (
-        <div className="mb-6 rounded-lg border border-notion-hairline bg-white p-4" data-tour="dashboard-lowest-balance">
-          <h2 className="mb-2 text-sm font-semibold text-notion-text">Lowest Balance Ahead</h2>
-          {!hasAnyFinancialData ? (
-            <p className="text-sm text-slate-500">
-              Nothing to forecast yet. Add an account and a bill or two, and this will show the
-              lowest your balance gets, and when.
-            </p>
-          ) : (
-            <>
-              {/* T76: color + wording now reflect the actual balance_ranges
-                  risk tier (danger/low/medium/high/higher/highest), not a
-                  hardcoded <=0 check - matches the Forecast table (T62) and
-                  Peaks and Drops (T67). Danger shows the deficit magnitude
-                  ("Goes negative by"); every other tier shows the (positive)
-                  balance directly. */}
-              <p className="text-lg font-semibold text-notion-text">
-                {lowestBalanceLabel(lowestBalance.balance, balanceRanges, tierLabels)}{" "}
-                <span
-                  className={`inline-block rounded px-1.5 py-0.5 ${balanceRangeColorClass(lowestBalance.balance, balanceRanges)}`}
-                >
-                  {formatCentavos(
-                    balanceRangeTier(lowestBalance.balance, balanceRanges) === "danger"
-                      ? Math.abs(lowestBalance.balance)
-                      : lowestBalance.balance,
-                    currency,
-                  )}
-                </span>
-              </p>
-              <p className="mt-1 text-sm text-slate-500">On {formatFullDate(lowestBalance.date)}</p>
-              {/* User feedback 2026-07-25: the worst point (above) can land
-                  well after the balance first crosses into trouble - only
-                  shown when it adds new information (a real earlier date). */}
-              {firstDanger && firstDanger.date !== lowestBalance.date && (
-                <div className="mt-4">
-                  <p className="text-lg font-semibold text-notion-text">
-                    {firstDangerLabel(firstDanger.balance)}{" "}
-                    <span className="inline-block rounded bg-slate-900 px-1.5 py-0.5 text-white">
-                      {formatCentavos(Math.abs(firstDanger.balance), currency)}
-                    </span>
-                  </p>
-                  <p className="mt-1 text-sm text-slate-500">On {formatFullDate(firstDanger.date)}</p>
-                </div>
-              )}
-            </>
-          )}
-        </div>
-      ),
-    },
-    {
-      key: "peaksDrops",
-      label: "Peaks and Drops",
-      node: (
-        <PeaksAndDropsCard
-          peaksAndDropsByYear={peaksAndDropsByYear}
-          balanceRanges={balanceRanges}
-          currency={currency}
-          hasAnyFinancialData={hasAnyFinancialData}
-          allScenarios={allScenarios}
-        />
       ),
     },
     {

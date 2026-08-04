@@ -491,8 +491,13 @@ export function ForecastClient({
         <div className="mx-auto max-w-6xl">
           <div className="mb-6">
             <h1 className="text-xl font-semibold text-notion-text">Forecast</h1>
-            <p className="text-slate-500">
-              Total balance: {formatCentavos(totalBalance, currency)}
+            {/* T278 (user request 2026-08-04): "make Total balance bigger,
+                make Balance accounts bold" - part of "focus the entire app
+                on enter > forecast > review > keep clean," the number this
+                whole page exists to answer given more visual weight. */}
+            <p className="text-sm text-slate-500">Total balance</p>
+            <p className="text-2xl font-semibold text-notion-text">
+              {formatCentavos(totalBalance, currency)}
             </p>
             <div className="mt-2 flex flex-wrap gap-2">
               {balances.map((balance) => {
@@ -517,7 +522,7 @@ export function ForecastClient({
                     }}
                     className={`rounded-lg border border-notion-hairline bg-white px-3 py-1.5 text-left text-sm text-notion-text ${previewMode ? "" : "hover:bg-notion-hover"}`}
                   >
-                    <span>
+                    <span className="font-semibold">
                       {balance.name}: {formatCentavos(balance.amount, currency)}
                     </span>
                     {projectionLine && <span className="block text-xs text-slate-400">{projectionLine}</span>}

@@ -105,6 +105,16 @@ export default async function SettingsPage() {
             </div>
           </div>
 
+          {/* T270 (user request 2026-08-04): a real way to reach out, not
+              just legal links. */}
+          <p className="text-sm text-slate-500">
+            Found a bug or have a feature request?{" "}
+            <a href="mailto:njcorpuz01@gmail.com" className="underline">
+              Email njcorpuz01@gmail.com
+            </a>
+            .
+          </p>
+
           <div className="flex gap-4 text-sm text-slate-500">
             <Link href="/terms" className="underline">
               Terms of Service
