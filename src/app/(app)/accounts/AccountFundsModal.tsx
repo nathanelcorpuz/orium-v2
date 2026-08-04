@@ -2,12 +2,23 @@
 
 import { useActionState, useEffect, useRef, useState } from "react";
 import { Modal } from "@/components/Modal";
-import { blockNegativeKey } from "@/lib/money";
+import { blockNegativeKey, parseCentavos } from "@/lib/money";
 import { todayInManila } from "@/lib/date";
 import { addAccountFunds, moveAccountFunds, takeAccountFunds, type BalanceActionState } from "./actions";
+import { useMockRun } from "@/components/MockRunContext";
 import type { BalanceRow } from "./BalanceModal";
 
 const initialState: BalanceActionState = { error: null };
+
+// Same validation `readFundsForm` (actions.ts) applies server-side -
+// duplicated rather than imported, since a `"use server"` file can only
+// export server actions, not a plain helper a client component could reuse.
+function validateFundsForm(formData: FormData): { error: string | null } {
+  const amount = parseCentavos(formData.get("amountPesos") as string);
+  if (amount === null || amount <= 0) return { error: "Enter a valid amount." };
+  if (!(formData.get("entryDate") as string)) return { error: "Date is required." };
+  return { error: null };
+}
 
 // T186: Add funds / Take funds / Move funds - the logged, commentable
 // replacement for directly editing an account's amount, mirroring the
@@ -25,7 +36,61 @@ export function AccountFundsModal({
   balances: BalanceRow[];
   onClose: () => void;
 }) {
-  const action = mode === "add" ? addAccountFunds : mode === "take" ? takeAccountFunds : moveAccountFunds;
+  const mockRun = useMockRun();
+
+  // Mock run v1: while active, Add/Take/Move funds apply to the local
+  // cloned balances (MockRunContext) instead of the real server actions -
+  // same form, same validation, nothing written to the database. Matches
+  // `BalanceActionState`'s exact shape so `useActionState` below can't tell
+  // the difference.
+  async function mockAdd(_prevState: BalanceActionState, formData: FormData): Promise<BalanceActionState> {
+    const validation = validateFundsForm(formData);
+    if (validation.error) return validation;
+    mockRun.applyAdd(
+      formData.get("balanceId") as string,
+      formData.get("balanceName") as string,
+      formData.get("amountPesos") as string,
+      formData.get("entryDate") as string,
+      ((formData.get("note") as string) || "").trim(),
+    );
+    return { error: null };
+  }
+
+  async function mockTake(_prevState: BalanceActionState, formData: FormData): Promise<BalanceActionState> {
+    const validation = validateFundsForm(formData);
+    if (validation.error) return validation;
+    mockRun.applyTake(
+      formData.get("balanceId") as string,
+      formData.get("balanceName") as string,
+      formData.get("amountPesos") as string,
+      formData.get("entryDate") as string,
+      ((formData.get("note") as string) || "").trim(),
+    );
+    return { error: null };
+  }
+
+  async function mockMove(_prevState: BalanceActionState, formData: FormData): Promise<BalanceActionState> {
+    const validation = validateFundsForm(formData);
+    if (validation.error) return validation;
+    const toId = formData.get("toBalanceId") as string;
+    const fromId = formData.get("fromBalanceId") as string;
+    if (!toId) return { error: "Choose an account to move funds to." };
+    if (fromId === toId) return { error: "Choose two different accounts." };
+    mockRun.applyMove(
+      fromId,
+      formData.get("fromBalanceName") as string,
+      toId,
+      formData.get("toBalanceName") as string,
+      formData.get("amountPesos") as string,
+      formData.get("entryDate") as string,
+      ((formData.get("note") as string) || "").trim(),
+    );
+    return { error: null };
+  }
+
+  const realAction = mode === "add" ? addAccountFunds : mode === "take" ? takeAccountFunds : moveAccountFunds;
+  const mockAction = mode === "add" ? mockAdd : mode === "take" ? mockTake : mockMove;
+  const action = mockRun.active ? mockAction : realAction;
   const [state, formAction, pending] = useActionState(action, initialState);
   const submitted = useRef(false);
   const otherBalances = balances.filter((b) => b.id !== balance.id);
@@ -42,6 +107,11 @@ export function AccountFundsModal({
 
   return (
     <Modal title={`${balance.name} - ${title}`} onClose={onClose}>
+      {mockRun.active && (
+        <p className="mb-3 rounded bg-orange-50 px-3 py-2 text-sm text-orange-800">
+          Mock run - this won&apos;t be saved until you choose &quot;Make this real.&quot;
+        </p>
+      )}
       <form
         action={formAction}
         onSubmit={() => {

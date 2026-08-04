@@ -5,6 +5,8 @@ import Link from "next/link";
 import { formatCentavos } from "@/lib/money";
 import { formatFullDate, todayInManila } from "@/lib/date";
 import { PreviewModeBar } from "@/components/PreviewModeBar";
+import { MockRunBanner } from "@/components/MockRunBanner";
+import { useMockRun } from "@/components/MockRunContext";
 import { SubmitButton } from "@/components/SubmitButton";
 import { ChevronIcon, DeleteIcon, EditIcon, HistoryIcon } from "@/components/navIcons";
 import type { AccountLowestPoint } from "@/lib/engine/accountBalances";
@@ -98,7 +100,17 @@ export function BalancesClient({
     });
   }
 
-  const total = balances.reduce((sum, balance) => sum + balance.amount, 0);
+  // Mock run v1: when active, every account's displayed amount comes from
+  // the mocked clone instead of the real prop - name/comments/fee etc. stay
+  // real, only `amount` is ever swapped, since mock mode only ever touches
+  // Add/Take/Move funds in this first cut.
+  const mockRun = useMockRun();
+  const mockAmountById = new Map(mockRun.balances.map((b) => [b.id, b.amount]));
+  const effectiveBalances = mockRun.active
+    ? balances.map((b) => ({ ...b, amount: mockAmountById.get(b.id) ?? b.amount }))
+    : balances;
+
+  const total = effectiveBalances.reduce((sum, balance) => sum + balance.amount, 0);
   const balanceNameById = new Map(balances.map((b) => [b.id, b.name]));
 
   return (
@@ -106,19 +118,32 @@ export function BalancesClient({
       {previewMode && <PreviewModeBar />}
       <div className="p-8">
       <div className="mx-auto max-w-2xl">
+        <MockRunBanner />
         <div data-tour="accounts-header" className="mb-6 flex items-center justify-between">
           <div>
             <h1 className="text-xl font-semibold text-notion-text">Accounts</h1>
             <p className="text-slate-500">Total: {formatCentavos(total)}</p>
           </div>
           {!previewMode && (
-            <button
-              type="button"
-              onClick={() => setModalState("new")}
-              className="shrink-0 rounded bg-notion-text px-4 py-2 text-white hover:opacity-90"
-            >
-              Add account
-            </button>
+            <div className="flex shrink-0 items-center gap-2">
+              {!mockRun.active && (
+                <button
+                  type="button"
+                  onClick={() => mockRun.start(balances.map((b) => ({ id: b.id, name: b.name, amount: b.amount })))}
+                  className="rounded border border-orange-300 px-3 py-2 text-sm text-orange-700 hover:bg-orange-50"
+                  title="Try Add/Take/Move funds hypothetically, without saving anything"
+                >
+                  Mock run
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => setModalState("new")}
+                className="shrink-0 rounded bg-notion-text px-4 py-2 text-white hover:opacity-90"
+              >
+                Add account
+              </button>
+            </div>
           )}
         </div>
 
@@ -126,7 +151,7 @@ export function BalancesClient({
           <p className="text-slate-500">No accounts yet. Add your first account above.</p>
         ) : (
           <ul className="space-y-2">
-            {balances.map((balance) => {
+            {effectiveBalances.map((balance) => {
               const lowest = lowestPointByBalanceId.get(balance.id);
               const incomingAutoMovePills = autoMovesByDestination.get(balance.id) ?? [];
               // T236 (replaces the removed /allocation page): "the amount
@@ -406,7 +431,7 @@ export function BalancesClient({
           <AccountFundsModal
             mode={fundsModal.mode}
             balance={fundsModal.balance}
-            balances={balances}
+            balances={effectiveBalances}
             onClose={() => setFundsModal(null)}
           />
         )}

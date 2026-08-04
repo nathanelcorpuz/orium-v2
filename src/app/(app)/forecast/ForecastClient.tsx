@@ -16,6 +16,8 @@ import { DatePicker } from "@/components/DatePicker";
 import { ChevronIcon } from "@/components/navIcons";
 import { PreviewModeBar } from "@/components/PreviewModeBar";
 import { ScenarioModeBar } from "@/components/ScenarioModeBar";
+import { MockRunBanner } from "@/components/MockRunBanner";
+import { useMockRun } from "@/components/MockRunContext";
 import { SubmitButton } from "@/components/SubmitButton";
 import { toggleScenarioActive } from "@/app/(app)/scenarios/actions";
 import { TYPE_COLOR, TYPE_LABEL } from "@/lib/forecastLabels";
@@ -233,6 +235,32 @@ export function ForecastClient({
   const [viewMode, setViewMode] = useState<"table" | "calendar">("table");
   const activeScenarios = allScenarios.filter((s) => s.is_active);
 
+  // Mock run v1 (2026-08-04, user request): while active, this page previews
+  // the impact of the Add/Take/Move funds actions queued on the Accounts
+  // page - scoped to only ever changing account *balances*, never which
+  // items/overrides/budgets exist, the running-balance shift for every row
+  // is exactly the same constant (effective total - real total), computed
+  // once rather than re-running the forecast engine. Per-account stats
+  // (T180/T191 below) get the mocked balances directly instead, since those
+  // are already a second pass over the same `forecast` rows with a
+  // `startingBalances` input. The Insights card's stats (lowest balance
+  // ahead, first danger point, next transaction count) are server-computed
+  // props, not re-derived here - a known v1 limit, not silently wrong: they
+  // keep showing the real numbers throughout a mock run.
+  const mockRun = useMockRun();
+  const mockAmountById = useMemo(() => new Map(mockRun.balances.map((b) => [b.id, b.amount])), [mockRun.balances]);
+  const effectiveBalances = useMemo(
+    () => (mockRun.active ? balances.map((b) => ({ ...b, amount: mockAmountById.get(b.id) ?? b.amount })) : balances),
+    [mockRun.active, balances, mockAmountById],
+  );
+  const runningBalanceDelta = useMemo(
+    () =>
+      mockRun.active
+        ? effectiveBalances.reduce((sum, b) => sum + b.amount, 0) - balances.reduce((sum, b) => sum + b.amount, 0)
+        : 0,
+    [mockRun.active, effectiveBalances, balances],
+  );
+
   useEffect(() => {
     // Reading localStorage during the lazy useState initializer instead
     // would avoid this effect, but its return value would then differ
@@ -348,8 +376,8 @@ export function ForecastClient({
   // pass over the same rows) to compute directly here rather than threading
   // a new prop through forecast/page.tsx.
   const accountLowestPoints = useMemo(
-    () => findAccountLowestPoints(forecast, balances, todayInManila()),
-    [forecast, balances],
+    () => findAccountLowestPoints(forecast, effectiveBalances, todayInManila()),
+    [forecast, effectiveBalances],
   );
 
   // T191 (user request): "if a forecasted transaction has an account
@@ -358,8 +386,8 @@ export function ForecastClient({
   // above) so opening the modal is an O(1) lookup by row identity, not a
   // fresh walk over the whole forecast per click.
   const accountBalanceAfterRow = useMemo(
-    () => computeAccountBalancesAfterEachRow(forecast, balances),
-    [forecast, balances],
+    () => computeAccountBalancesAfterEachRow(forecast, effectiveBalances),
+    [forecast, effectiveBalances],
   );
 
   // T199 (user request): a forecasted transaction's own recurrence
@@ -442,7 +470,7 @@ export function ForecastClient({
     setVisibleCount(INITIAL_VISIBLE_ROWS);
   }
 
-  const totalBalance = balances.reduce((sum, balance) => sum + balance.amount, 0);
+  const totalBalance = effectiveBalances.reduce((sum, balance) => sum + balance.amount, 0);
   const visibleForecast = filteredForecast.slice(0, visibleCount);
 
   // T90, now the only table's grouping (T161): drops the per-row Date column
@@ -489,13 +517,14 @@ export function ForecastClient({
       <div data-tour="forecast-content" className="flex min-h-0 flex-1">
         <div className="min-w-0 flex-1 p-4 md:p-8">
         <div className="mx-auto max-w-6xl">
+          <MockRunBanner />
           <div className="mb-6">
             <h1 className="text-xl font-semibold text-notion-text">Forecast</h1>
             <p className="text-slate-500">
               Total balance: {formatCentavos(totalBalance, currency)}
             </p>
             <div className="mt-2 flex flex-wrap gap-2">
-              {balances.map((balance) => {
+              {effectiveBalances.map((balance) => {
                 // T180, made visible per user follow-up feedback (previously
                 // hover-only, which was too easy to miss) - now a plain
                 // second line under the balance, same wording and the same
@@ -672,6 +701,16 @@ export function ForecastClient({
                       {activeScenarios.length}
                     </span>
                   )}
+                </button>
+              )}
+              {!previewMode && !mockRun.active && (
+                <button
+                  type="button"
+                  onClick={() => mockRun.start(balances.map((b) => ({ id: b.id, name: b.name, amount: b.amount })))}
+                  className="rounded border border-orange-300 bg-white px-3 py-1.5 text-xs text-orange-700 hover:bg-orange-50"
+                  title="Try Add/Take/Move funds hypothetically and preview the impact here, without saving anything"
+                >
+                  Mock run
                 </button>
               )}
               {viewMode === "table" && filtersActive && (
@@ -857,7 +896,16 @@ export function ForecastClient({
                         // settlement referencing an id that doesn't exist in
                         // the real tables. Must stay non-clickable here;
                         // editing happens on /scenarios instead.
-                        const isClickable = !previewMode && !row.fromScenario;
+                        // Mock run v1 (2026-08-04): Edit/Settle aren't part
+                        // of what mock mode intercepts - only Accounts'
+                        // Add/Take/Move funds are (see MockRunContext.tsx).
+                        // Leaving rows clickable during a mock run would let
+                        // an edit/settle write real data while the banner
+                        // above claims "nothing here is saved," which would
+                        // be actively misleading rather than just narrow in
+                        // scope - so rows are non-clickable for the
+                        // duration instead.
+                        const isClickable = !previewMode && !row.fromScenario && !mockRun.active;
                         return (
                           <tr
                             key={`${row.sourceType}-${row.sourceId}-${row.originalDate}-${index}`}
@@ -907,7 +955,7 @@ export function ForecastClient({
                             </td>
                             <td className="px-2 py-1.5 text-right font-medium">
                               <ForecastBalanceCell
-                                balance={row.runningBalance}
+                                balance={row.runningBalance + runningBalanceDelta}
                                 balanceRanges={balanceRanges}
                                 currency={currency}
                               />
