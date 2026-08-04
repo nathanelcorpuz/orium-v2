@@ -937,6 +937,7 @@ export function ForecastClient({
         <BalanceModal
           balance={editingBalance}
           connectedItems={connectedItems.filter((item) => item.balanceId === editingBalance.id)}
+          balances={balances}
           onClose={() => setEditingBalance(null)}
         />
       )}

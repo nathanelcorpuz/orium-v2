@@ -7,6 +7,7 @@ import { FormTip } from "@/components/FormTip";
 import { ChevronIcon, CloseIcon } from "@/components/navIcons";
 import { centavosToPesosString, formatCentavos } from "@/lib/money";
 import { createBalance, updateBalance, disconnectItem, type BalanceActionState } from "./actions";
+import { AccountFundsModal } from "./AccountFundsModal";
 import type { ConnectedItem } from "@/lib/connectedItems";
 import { TYPE_COLOR, TYPE_LABEL } from "@/lib/forecastLabels";
 
@@ -51,6 +52,15 @@ export function BalanceModal({
   // showed no connections at all. The default stays only so an account with
   // genuinely nothing linked renders the same as before.
   connectedItems = [],
+  // User request 2026-08-04: "allow me to move funds in accounts in the
+  // forecast page the same as how it works in the accounts page." Add/Take/
+  // Move funds now open from here too (real actions, not a preview) rather
+  // than only via the Balances page's own row buttons - this modal is
+  // already shared by both pages (T152), so adding them here brings full
+  // parity in one place instead of duplicating a second UI on the Forecast
+  // page. `balances` is only needed for Move funds' "move to" picker -
+  // defaults to empty for any caller (e.g. onboarding) that doesn't need it.
+  balances = [],
   onClose,
   // T115: fired only on a genuine successful save, distinct from onClose
   // (which also fires on Cancel/X). NOTE: proved unreliable for the
@@ -69,6 +79,7 @@ export function BalanceModal({
 }: {
   balance: BalanceRow | null;
   connectedItems?: ConnectedItem[];
+  balances?: BalanceRow[];
   onClose: () => void;
   onSaved?: () => void;
   createActionOverride?: typeof createBalance;
@@ -89,6 +100,9 @@ export function BalanceModal({
   // (e.g. BillsClient's own confirmingDeleteId), rather than a bare,
   // always-visible "Disconnect" link one accidental click away.
   const [confirmingDisconnectKey, setConfirmingDisconnectKey] = useState<string | null>(null);
+  // 2026-08-04: Add/Take/Move funds, reusing the exact same modal/actions
+  // the Balances page's own row buttons already use.
+  const [fundsMode, setFundsMode] = useState<null | "add" | "take" | "move">(null);
 
   useEffect(() => {
     if (submitted.current && !pending && !state.error) {
@@ -98,6 +112,7 @@ export function BalanceModal({
   }, [pending, state, onClose, onSaved]);
 
   return (
+    <>
     <Modal title={isEdit ? "Edit account" : "Add account"} onClose={onClose}>
       <form
         action={formAction}
@@ -128,16 +143,40 @@ export function BalanceModal({
         </div>
         {isEdit ? (
           // T186: no longer an editable field here - changing an existing
-          // account's balance now always goes through Add/Take/Move funds
-          // (their own buttons on the Balances page), so every change is
-          // logged with a date and an optional comment instead of silently
-          // overwritten.
+          // account's balance always goes through Add/Take/Move funds (T186;
+          // reachable both from the Balances page's own row buttons and,
+          // 2026-08-04, right here) - each one is logged with a date and an
+          // optional comment instead of silently overwriting it.
           <div>
             <p className="block text-sm text-slate-600">Amount</p>
             <p className="mt-1 text-notion-text">{formatCentavos(balance.amount)}</p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => setFundsMode("add")}
+                className="rounded border border-notion-hairline px-3 py-1 text-sm text-green-700 hover:bg-green-50"
+              >
+                Add funds
+              </button>
+              <button
+                type="button"
+                onClick={() => setFundsMode("take")}
+                className="rounded border border-notion-hairline px-3 py-1 text-sm text-red-600 hover:bg-red-50"
+              >
+                Take funds
+              </button>
+              {balances.filter((b) => b.id !== balance.id).length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setFundsMode("move")}
+                  className="rounded border border-notion-hairline px-3 py-1 text-sm text-notion-accent hover:bg-notion-hover"
+                >
+                  Move funds
+                </button>
+              )}
+            </div>
             <FormTip tipKey="account-amount">
-              Use Add funds, Take funds, or Move funds on the Balances page to change this - each
-              one keeps a dated, commentable record instead of silently overwriting it.
+              Each one keeps a dated, commentable record instead of silently overwriting it.
             </FormTip>
           </div>
         ) : (
@@ -154,8 +193,9 @@ export function BalanceModal({
               className="mt-1 w-full rounded border border-notion-hairline p-2 text-notion-text focus:border-notion-accent focus:outline-none"
             />
             <FormTip tipKey="account-amount">
-              What&rsquo;s in it right now. From here on, use Add/Take/Move funds on the Balances
-              page to keep it up to date - each one keeps a dated, commentable record.
+              What&rsquo;s in it right now. From here on, use Add/Take/Move funds (from this
+              account&rsquo;s own Edit screen, on either the Accounts or Forecast page) to keep it
+              up to date - each one keeps a dated, commentable record.
             </FormTip>
           </div>
         )}
@@ -295,5 +335,9 @@ export function BalanceModal({
         </div>
       )}
     </Modal>
+    {isEdit && fundsMode && (
+      <AccountFundsModal mode={fundsMode} balance={balance} balances={balances} onClose={() => setFundsMode(null)} />
+    )}
+    </>
   );
 }

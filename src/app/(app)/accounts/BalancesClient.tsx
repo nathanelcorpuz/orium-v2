@@ -398,6 +398,7 @@ export function BalancesClient({
             connectedItems={
               modalState === "new" ? [] : connectedItems.filter((item) => item.balanceId === modalState.id)
             }
+            balances={balances}
             onClose={() => setModalState(null)}
           />
         )}
