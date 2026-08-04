@@ -31,11 +31,15 @@ export async function signup(
   const origin = (await headers()).get("origin");
 
   const supabase = await createClient();
-  // `emailRedirectTo` is kept even though the signup page now asks for a
-  // typed code rather than a click - see the "Confirm signup" email
-  // template note in SPEC.md. If that template still includes
-  // `{{ .ConfirmationURL }}` (e.g. before it's been edited, or for an email
-  // already sent), the link keeps working via /auth/callback regardless.
+  // T132 (2026-07-27) moved this to a typed 6-digit code, on the assumption
+  // the "Confirm signup" email template could be edited to show only the
+  // code, not a link. Reverted 2026-08-04: Supabase now refuses to save any
+  // Email Templates edit at all without custom SMTP configured first (Bug
+  // #24/BUGS.md), which isn't set up yet - so the email has always kept
+  // showing a working confirmation link regardless of what the app's own UI
+  // asked for. Rather than fight a link that can't be removed, the app now
+  // leans on it as the primary path - simpler for the user than a code that
+  // was never actually the only thing in the email.
   const { error } = await supabase.auth.signUp({
     email,
     password,
@@ -43,36 +47,19 @@ export async function signup(
   });
   if (error) return { error: error.message };
 
-  return { error: null, message: "Check your email to confirm your account." };
-}
-
-// User request (2026-07-27): a typed 6-digit code instead of a confirmation
-// link - a code can be entered on this same page rather than needing to
-// leave it, and Supabase's own `{{ .Token }}` email-template variable
-// supports exactly this without a separate link/redirect flow. Uses the same
-// SSR client + `ensureUserPreferences` + redirect pattern as `login` above,
-// since `verifyOtp` establishes the session the same way a password sign-in
-// does.
-export async function verifySignupOtp(
-  _prevState: AuthActionState,
-  formData: FormData,
-): Promise<AuthActionState> {
-  const email = formData.get("email") as string;
-  const token = formData.get("token") as string;
-
-  const supabase = await createClient();
-  const { error } = await supabase.auth.verifyOtp({ email, token, type: "signup" });
-  if (error) return { error: error.message };
-
-  await ensureUserPreferences(supabase);
-  redirect("/");
+  return {
+    error: null,
+    message: "Check your email and click the confirmation link to activate your account.",
+  };
 }
 
 // Supabase enforces its own per-user cooldown between resend requests
 // (`auth.rate_limits.signup_confirmation.period`) - a too-soon resend
 // surfaces as a normal `error.message` here, same as every other action in
-// this file.
-export async function resendSignupOtp(
+// this file. Renamed from `resendSignupOtp` 2026-08-04 when the code-entry
+// step was removed - this always just re-triggers the same confirmation
+// email regardless, so only the name (and the copy below) needed to change.
+export async function resendSignupEmail(
   _prevState: AuthActionState,
   formData: FormData,
 ): Promise<AuthActionState> {
@@ -82,7 +69,7 @@ export async function resendSignupOtp(
   const { error } = await supabase.auth.resend({ type: "signup", email });
   if (error) return { error: error.message };
 
-  return { error: null, message: "Code resent - check your email." };
+  return { error: null, message: "Confirmation email resent - check your inbox (and spam folder)." };
 }
 
 export async function requestPasswordReset(
