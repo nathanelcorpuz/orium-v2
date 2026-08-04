@@ -2,7 +2,6 @@ import { createClient } from "@/lib/supabase/server";
 import { displayName } from "@/lib/displayName";
 import { AppShell } from "@/components/AppShell";
 import { FormTipsProvider } from "@/components/FormTip";
-import { MockRunProvider } from "@/components/MockRunContext";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient();
@@ -51,22 +50,20 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   return (
     <FormTipsProvider dismissed={prefs?.dismissed_form_tips ?? []}>
-      <MockRunProvider>
-        <AppShell
-          greetingName={greetingName}
-          // `prefs?.onboarding_choice ?? "skipped"` would coerce a legitimate
-          // `null` (meaning "not decided yet, show the welcome modal") into
-          // "skipped" too, since `??` can't tell "prefs is missing" apart from
-          // "the field itself is null" - only fall back when the whole row is
-          // missing, which is a transient race with that row's own creation.
-          onboardingChoice={prefs ? prefs.onboarding_choice : "skipped"}
-          onboardingTourStep={prefs?.onboarding_tour_step ?? null}
-          onboardingTourCompletedAt={prefs?.onboarding_tour_completed_at ?? null}
-          unseenUpdatesCount={unseenCount}
-        >
-          {children}
-        </AppShell>
-      </MockRunProvider>
+      <AppShell
+        greetingName={greetingName}
+        // `prefs?.onboarding_choice ?? "skipped"` would coerce a legitimate
+        // `null` (meaning "not decided yet, show the welcome modal") into
+        // "skipped" too, since `??` can't tell "prefs is missing" apart from
+        // "the field itself is null" - only fall back when the whole row is
+        // missing, which is a transient race with that row's own creation.
+        onboardingChoice={prefs ? prefs.onboarding_choice : "skipped"}
+        onboardingTourStep={prefs?.onboarding_tour_step ?? null}
+        onboardingTourCompletedAt={prefs?.onboarding_tour_completed_at ?? null}
+        unseenUpdatesCount={unseenCount}
+      >
+        {children}
+      </AppShell>
     </FormTipsProvider>
   );
 }
