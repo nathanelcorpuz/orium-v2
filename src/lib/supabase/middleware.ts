@@ -64,5 +64,39 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
+  // T271 (2026-08-04): a signed-in-but-unverified account (just created,
+  // code not yet confirmed - see auth/actions.ts) can't reach anywhere else
+  // until it clears verify-email. A plain query rather than mirroring the
+  // flag into the JWT's user_metadata - simpler to reason about with one
+  // source of truth (`preferences`), and this app's real scale doesn't need
+  // the saved round-trip yet. Excludes /verify-email itself - logout isn't
+  // its own route (a server action bound to a form, redirecting to /login,
+  // already public), so nothing else needs excluding here.
+  if (user && !isPublicPath && pathname !== "/verify-email") {
+    const { data: prefs } = await supabase
+      .from("preferences")
+      .select("pending_email_verification")
+      .eq("user_id", user.id)
+      .maybeSingle();
+    if (prefs?.pending_email_verification) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/verify-email";
+      return NextResponse.redirect(url);
+    }
+  }
+
+  if (user && pathname === "/verify-email") {
+    const { data: prefs } = await supabase
+      .from("preferences")
+      .select("pending_email_verification")
+      .eq("user_id", user.id)
+      .maybeSingle();
+    if (!prefs?.pending_email_verification) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/";
+      return NextResponse.redirect(url);
+    }
+  }
+
   return supabaseResponse;
 }

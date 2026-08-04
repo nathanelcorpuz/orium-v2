@@ -4,11 +4,15 @@ Format per bug: steps to reproduce → what happened → what was expected. Clau
 
 ## Open
 
-### Bug #25 - Supabase's free-tier email rate limit (~2/hour) blocks multiple people signing up around the same time
-- **Reported** by the user 2026-08-04 (REMINDER.md): "I want the app to not limit to 2 code emails per hour as many users may sign up at once."
-- **Not a new finding** - this is the same constraint already tracked in `STAGING.md`'s "Email volume, which blocks either approach" section: Supabase's built-in email sender is rate-limited to a couple of messages per hour on the free tier, covering every signup confirmation, resend, and password reset. `STAGING.md` already names the fix (custom SMTP, configured in the Supabase dashboard against a transactional email provider - a dashboard task, not a code change) and lists it as the top item in that file's own "Recommended order" - logged here too, per the "every item gets documented, cross-referenced rather than silently dropped" rule, since this was raised again independently rather than by re-reading STAGING.md. No new task created; see `STAGING.md` for the existing plan.
+*(none)*
 
 ## Fixed
+
+### Bug #25 - Supabase's free-tier email rate limit (~2/hour) blocks multiple people signing up around the same time
+- **Reported** by the user 2026-08-04 (REMINDER.md): "I want the app to not limit to 2 code emails per hour as many users may sign up at once."
+- **Root cause**: Supabase's built-in email sender is rate-limited to a couple of messages per hour on the free tier, covering every signup confirmation, resend, and password reset.
+- **Fixed for signup specifically by T271** (same session): signup no longer goes through Supabase's mailer at all - see Bug #24's own write-up below. Gmail's ~500/day limit comfortably covers a beta.
+- **Still applies to password reset**: `requestPasswordReset` (`auth/actions.ts`) is unchanged, still uses Supabase's own `resetPasswordForEmail` and its mailer - not part of T271's scope (the user's ask was specifically about signup). If password-reset volume ever becomes a real problem, this is the same fix pattern (nodemailer, or custom SMTP via `STAGING.md`'s plan) applied to a second flow.
 
 ### Bug #24 - Signup's 6-digit-code email also carries a working confirmation link, defeating the point of a typed code
 - **Reproduce**: sign up for a new account, look at the confirmation email.
@@ -17,6 +21,7 @@ Format per bug: steps to reproduce → what happened → what was expected. Clau
 - **Blocked on custom SMTP**: attempting the template edit live, the Supabase dashboard refused to save any Email Templates change at all - "Set up custom SMTP to edit templates." Confirmed this isn't only a rate-limit problem (as Bug #25 already tracked) but a hard prerequisite for editing templates at all - without custom SMTP, the confirmation email will **always** carry a working `{{ .ConfirmationURL }}` link no matter what the app's own signup flow asks the user to do with it.
 - **Decision, 2026-08-04**: rather than set up custom SMTP now (would need a verified sending domain the user doesn't currently own - deferred, see `STAGING.md`), the user chose to stop fighting the link and lean on it instead: "change the sign up message to 'Click confirmation email' instead of the code."
 - **Fixed by**: reverted the signup page's code-entry step entirely. `signup()`'s success message now reads "Check your email and click the confirmation link to activate your account," matching what the email has always actually contained. `verifySignupOtp` (the code-verification action) is deleted - genuinely dead now that nothing submits a code. `resendSignupOtp` renamed to `resendSignupEmail` (same underlying `supabase.auth.resend()` call, just no longer code-specific in name or copy - "Confirmation email resent - check your inbox (and spam folder)"). `/auth/callback` (already built, used by password reset too) needed no changes - it's always been the real handler for the link, just previously treated as a fallback rather than the primary path. 281/281 tests (unchanged - no engine logic, a UI/copy change plus one deleted server action), tsc, build, eslint clean.
+- **Superseded the same session by T271**: "Now that we're going to use nodemailer, we can easily implement the code stuff don't we?" The link-based revert above was only ever necessary because Supabase's own mailer/templates couldn't be touched without custom SMTP - T271 sidesteps Supabase's mailer entirely (the account is created via the admin API already-confirmed, so Supabase never sends anything of its own), so the code-entry flow is back, this time backed by the app's own nodemailer/Gmail send rather than Supabase's template system. See SPEC.md T271 for the full build.
 
 ### Bug #27 - Accounts page's monthly breakdown never accounted for income-linked budgets, overstating an income's net contribution to its own account
 - **Reproduce**: link an income to an account, then link one or more budgets to that same income. Open the Accounts page and check that account's monthly received/net figures.
