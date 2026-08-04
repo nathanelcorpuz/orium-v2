@@ -120,6 +120,20 @@ export default async function BalancesPage({
         destinationBalanceId: row.destination_balance_id,
         amount: row.amount,
       }))}
+      // Bug fix 2026-08-04: an income-linked budget's replenishment nets out
+      // of the income's own connected account (T151/Bug #14) - reused from
+      // `forecastData.budgets` (already fetched by loadForecast() above),
+      // excluding scenario-merged budgets (never real money until
+      // activated, so they don't belong in a real account's real total).
+      budgets={forecastData.budgets
+        .filter((budget) => !budget.fromScenario)
+        .map((budget) => ({
+          id: budget.id,
+          name: budget.name,
+          allocation: budget.allocation,
+          linkedIncomeId: budget.linkedIncomeId,
+          active: budget.active,
+        }))}
     />
   );
 }

@@ -56,6 +56,30 @@ export type AutoMoveFlow = {
   amount: number; // monthly-equivalent centavos, signed (+ in, - out)
 };
 
+// Bug report 2026-08-04: "Wise Nanay at the moment shows I have a 44k/mo net
+// in the accounts page, but this is not true. Those 44k goes to my budgets."
+// An income-linked budget's replenishment nets straight out of the income's
+// own connected account at settle time (T151/Bug #14 - `settleOccurrence`
+// applies `actualAmount - totalAllocation` in one write, never the raw
+// income amount), and the forecast engine projects that same deduction
+// (Phase 11/T59) - but this breakdown never looked at `budgets` at all, so
+// it had no way to know a budget was quietly taking a slice of an income's
+// account every time it replenished. Same shape as the auto-move gap this
+// exact function already had, fixed for T236's own follow-up.
+export type BudgetFundingItem = {
+  id: string;
+  name: string;
+  allocation: number; // centavos, >= 0 - what this budget's replenishment adds when it fires
+  linkedIncomeId: string | null; // only income-linked budgets net out of a main account at all
+  active?: boolean; // T175/Bug #20 convention - false excludes it, same as everywhere else
+};
+
+export type BudgetFundFlow = {
+  id: string;
+  label: string;
+  amount: number; // monthly-equivalent centavos, always <= 0 - a budget only ever draws from a main account, never credits one
+};
+
 export type FrequencyGroup = {
   label: string;
   items: MonthlyBreakdownItem[];
@@ -79,6 +103,11 @@ export type AccountMonthlyBreakdown = {
   // schedule) - money moving in from another account's income, or moving
   // out to another account, both counted in the totals above.
   autoMoves: AutoMoveFlow[];
+  // Same transparency treatment as autoMoves above, for the slice of an
+  // income-linked budget's replenishment that never actually lands in this
+  // account - counted in monthlyDeducted above, broken out here so it's
+  // visible rather than just silently lowering the net figure.
+  budgetFunds: BudgetFundFlow[];
 };
 
 // Human-readable frequency label, generalized the same way T219/T234's
@@ -119,6 +148,7 @@ export function computeAccountMonthlyBreakdown(
   recurringItems: MonthlyBreakdownItem[],
   oneOffItems: OneTimeItem[],
   autoMoves: AutoMoveItem[],
+  budgets: BudgetFundingItem[],
   balanceNameById: Map<string, string>,
   balanceId: string,
 ): AccountMonthlyBreakdown {
@@ -189,6 +219,31 @@ export function computeAccountMonthlyBreakdown(
     }
   }
 
+  // Bug report 2026-08-04: an income-linked budget's replenishment nets
+  // straight out of the income's own connected account (T151/Bug #14) -
+  // only budgets with `linkedIncomeId` set touch a main account at all
+  // (an own-schedule budget's replenish never does, per settleBudgetReplenish's
+  // own "never touches a main balance" design). Uses the *linked income's*
+  // recurrence rule for the monthly-equivalent, same reasoning as autoMoves
+  // above - a budget replenishment has no schedule of its own when it's
+  // income-linked, it only ever fires alongside that income's settle.
+  const budgetFundFlows: BudgetFundFlow[] = [];
+  for (const budget of budgets) {
+    if (!isActive(budget) || !budget.linkedIncomeId) continue;
+    const income = incomesById.get(budget.linkedIncomeId);
+    if (!income || income.balanceId !== balanceId) continue;
+    const monthly = monthlyEquivalent({
+      amount: budget.allocation,
+      interval: income.interval,
+      unit: income.unit,
+      weekdays: income.weekdays,
+      daysOfMonth: income.daysOfMonth,
+    });
+    if (monthly === 0) continue;
+    monthlyDeducted -= monthly;
+    budgetFundFlows.push({ id: budget.id, label: `Funds budget: ${budget.name}`, amount: -monthly });
+  }
+
   return {
     monthlyReceived,
     monthlyDeducted,
@@ -196,5 +251,6 @@ export function computeAccountMonthlyBreakdown(
     frequencyGroups,
     oneTime,
     autoMoves: autoMoveFlows,
+    budgetFunds: budgetFundFlows,
   };
 }

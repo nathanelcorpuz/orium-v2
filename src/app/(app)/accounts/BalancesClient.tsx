@@ -12,6 +12,7 @@ import { TYPE_COLOR, TYPE_LABEL } from "@/lib/forecastLabels";
 import {
   computeAccountMonthlyBreakdown,
   type AutoMoveItem,
+  type BudgetFundingItem,
   type MonthlyBreakdownItem,
   type OneTimeItem,
 } from "@/lib/accountMonthlyBreakdown";
@@ -58,6 +59,10 @@ export function BalancesClient({
   // carries, fed into `computeAccountMonthlyBreakdown` instead of just the
   // settle-time pill.
   autoMoves = [],
+  // Bug fix 2026-08-04: an income-linked budget's replenishment (T151/Bug
+  // #14) nets out of the income's own connected account, same reasoning as
+  // autoMoves above - defaults to empty for preview mode.
+  budgets = [],
   // T120: `?preview=1` renders a read-only sample fixture (see page.tsx) -
   // every mutating control is hidden so a tour/preview session can never
   // write to (or 404 against) the real account behind it.
@@ -73,6 +78,7 @@ export function BalancesClient({
   recurringItems?: MonthlyBreakdownItem[];
   oneOffItems?: OneTimeItem[];
   autoMoves?: AutoMoveItem[];
+  budgets?: BudgetFundingItem[];
   previewMode?: boolean;
 }) {
   const [modalState, setModalState] = useState<null | "new" | BalanceRow>(null);
@@ -132,11 +138,15 @@ export function BalancesClient({
                 recurringItems,
                 oneOffItems,
                 autoMoves,
+                budgets,
                 balanceNameById,
                 balance.id,
               );
               const hasBreakdown =
-                breakdown.frequencyGroups.length > 0 || breakdown.oneTime.length > 0 || breakdown.autoMoves.length > 0;
+                breakdown.frequencyGroups.length > 0 ||
+                breakdown.oneTime.length > 0 ||
+                breakdown.autoMoves.length > 0 ||
+                breakdown.budgetFunds.length > 0;
               const breakdownOpen = expandedBreakdownIds.has(balance.id);
               return (
               <li
@@ -330,6 +340,21 @@ export function BalancesClient({
                                   <span
                                     className={`shrink-0 tabular-nums ${flow.amount >= 0 ? "text-green-700" : "text-red-600"}`}
                                   >
+                                    {formatCentavos(flow.amount, currency)}/mo
+                                  </span>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                        {breakdown.budgetFunds.length > 0 && (
+                          <div>
+                            <p className="mb-1 text-xs font-semibold text-slate-500">Funds budgets</p>
+                            <ul className="divide-y divide-notion-hairline">
+                              {breakdown.budgetFunds.map((flow) => (
+                                <li key={flow.id} className="flex items-center gap-2 py-1 text-sm">
+                                  <span className="min-w-0 flex-1 truncate text-notion-text">{flow.label}</span>
+                                  <span className="shrink-0 tabular-nums text-red-600">
                                     {formatCentavos(flow.amount, currency)}/mo
                                   </span>
                                 </li>

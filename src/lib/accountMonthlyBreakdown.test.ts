@@ -3,6 +3,7 @@ import {
   computeAccountMonthlyBreakdown,
   frequencyLabel,
   type AutoMoveItem,
+  type BudgetFundingItem,
   type MonthlyBreakdownItem,
   type OneTimeItem,
 } from "./accountMonthlyBreakdown";
@@ -23,6 +24,7 @@ function recurring(overrides: Partial<MonthlyBreakdownItem>): MonthlyBreakdownIt
 }
 
 const noAutoMoves: AutoMoveItem[] = [];
+const noBudgets: BudgetFundingItem[] = [];
 const noNames = new Map<string, string>();
 
 describe("frequencyLabel", () => {
@@ -47,7 +49,7 @@ describe("computeAccountMonthlyBreakdown", () => {
       recurring({ id: "bill", type: "bill", amount: -50000, interval: 1, unit: "month", daysOfMonth: [15] }),
       recurring({ id: "debt", type: "debt", amount: -30000, interval: 1, unit: "month", daysOfMonth: [20] }),
     ];
-    const result = computeAccountMonthlyBreakdown(items, [], noAutoMoves, noNames, "acct-1");
+    const result = computeAccountMonthlyBreakdown(items, [], noAutoMoves, noBudgets, noNames, "acct-1");
     expect(result.monthlyReceived).toBe(2000000);
     expect(result.monthlyDeducted).toBe(-80000);
     expect(result.monthlyNet).toBe(1920000);
@@ -59,7 +61,7 @@ describe("computeAccountMonthlyBreakdown", () => {
       recurring({ id: "b", balanceId: "acct-2", amount: -99999 }),
       recurring({ id: "c", balanceId: null, amount: -55555 }),
     ];
-    const result = computeAccountMonthlyBreakdown(items, [], noAutoMoves, noNames, "acct-1");
+    const result = computeAccountMonthlyBreakdown(items, [], noAutoMoves, noBudgets, noNames, "acct-1");
     expect(result.monthlyDeducted).toBe(-10000);
   });
 
@@ -70,7 +72,7 @@ describe("computeAccountMonthlyBreakdown", () => {
       recurring({ id: "monthly", interval: 1, unit: "month", daysOfMonth: [1] }),
       recurring({ id: "yearly", interval: 1, unit: "year", daysOfMonth: null }),
     ];
-    const result = computeAccountMonthlyBreakdown(items, [], noAutoMoves, noNames, "acct-1");
+    const result = computeAccountMonthlyBreakdown(items, [], noAutoMoves, noBudgets, noNames, "acct-1");
     expect(result.frequencyGroups.map((g) => g.label)).toEqual([
       "Weekly",
       "Every 2 weeks",
@@ -81,7 +83,7 @@ describe("computeAccountMonthlyBreakdown", () => {
 
   it("a yearly item rounds to 0 in the monthly total but still appears in its own frequency group", () => {
     const items = [recurring({ id: "yearly", type: "savings", amount: -1200000, interval: 1, unit: "year", daysOfMonth: null })];
-    const result = computeAccountMonthlyBreakdown(items, [], noAutoMoves, noNames, "acct-1");
+    const result = computeAccountMonthlyBreakdown(items, [], noAutoMoves, noBudgets, noNames, "acct-1");
     expect(result.monthlyDeducted).toBe(0);
     expect(result.frequencyGroups).toHaveLength(1);
     expect(result.frequencyGroups[0].label).toBe("Yearly");
@@ -93,7 +95,7 @@ describe("computeAccountMonthlyBreakdown", () => {
       { id: "misc-1", name: "Gift", amount: -100000, dueDate: "2026-12-25", balanceId: "acct-1" },
       { id: "misc-2", name: "Other", amount: -50000, dueDate: "2026-11-01", balanceId: "acct-2" },
     ];
-    const result = computeAccountMonthlyBreakdown([], oneOffs, noAutoMoves, noNames, "acct-1");
+    const result = computeAccountMonthlyBreakdown([], oneOffs, noAutoMoves, noBudgets, noNames, "acct-1");
     expect(result.oneTime).toHaveLength(1);
     expect(result.oneTime[0].id).toBe("misc-1");
     expect(result.monthlyReceived).toBe(0);
@@ -101,7 +103,7 @@ describe("computeAccountMonthlyBreakdown", () => {
   });
 
   it("returns empty groups/totals for an account with nothing connected", () => {
-    const result = computeAccountMonthlyBreakdown([], [], noAutoMoves, noNames, "acct-1");
+    const result = computeAccountMonthlyBreakdown([], [], noAutoMoves, noBudgets, noNames, "acct-1");
     expect(result.frequencyGroups).toEqual([]);
     expect(result.oneTime).toEqual([]);
     expect(result.autoMoves).toEqual([]);
@@ -129,14 +131,14 @@ describe("computeAccountMonthlyBreakdown", () => {
     const move: AutoMoveItem = { id: "move-1", incomeId: "income-1", destinationBalanceId: "bdo-tatay", amount: 1000000 };
 
     it("counts an auto-move into the destination account as received, using the linked income's own frequency", () => {
-      const result = computeAccountMonthlyBreakdown([income], [], [move], names, "bdo-tatay");
+      const result = computeAccountMonthlyBreakdown([income], [], [move], noBudgets, names, "bdo-tatay");
       expect(result.monthlyReceived).toBe(1000000);
       expect(result.monthlyNet).toBe(1000000);
       expect(result.autoMoves).toEqual([{ id: "move-1", label: "Auto-moved in from Nanay - TNIT", amount: 1000000 }]);
     });
 
     it("deducts an auto-move out of the source account, alongside its own connected income", () => {
-      const result = computeAccountMonthlyBreakdown([income], [], [move], names, "ub-nanay");
+      const result = computeAccountMonthlyBreakdown([income], [], [move], noBudgets, names, "ub-nanay");
       expect(result.monthlyReceived).toBe(8800000);
       expect(result.monthlyDeducted).toBe(-1000000);
       expect(result.monthlyNet).toBe(7800000);
@@ -145,15 +147,69 @@ describe("computeAccountMonthlyBreakdown", () => {
 
     it("skips an auto-move whose linked income is switched off, same as Bug #20's isActive rule", () => {
       const inactiveIncome = { ...income, active: false };
-      const result = computeAccountMonthlyBreakdown([inactiveIncome], [], [move], names, "bdo-tatay");
+      const result = computeAccountMonthlyBreakdown([inactiveIncome], [], [move], noBudgets, names, "bdo-tatay");
       expect(result.monthlyReceived).toBe(0);
       expect(result.autoMoves).toEqual([]);
     });
 
     it("skips an auto-move whose income no longer exists (deleted)", () => {
-      const result = computeAccountMonthlyBreakdown([], [], [move], names, "bdo-tatay");
+      const result = computeAccountMonthlyBreakdown([], [], [move], noBudgets, names, "bdo-tatay");
       expect(result.monthlyReceived).toBe(0);
       expect(result.autoMoves).toEqual([]);
+    });
+  });
+
+  // Bug report 2026-08-04: "Wise Nanay at the moment shows I have a 44k/mo
+  // net in the accounts page, but this is not true. Those 44k goes to my
+  // budgets." An income-linked budget's replenishment nets out of the
+  // income's own connected account at settle time (T151/Bug #14) - this
+  // breakdown had no idea budgets existed at all until this fix.
+  describe("income-linked budgets (Bug fix 2026-08-04)", () => {
+    const income = recurring({
+      id: "income-1",
+      name: "Wise Nanay income",
+      type: "income",
+      amount: 4400000,
+      interval: 1,
+      unit: "month",
+      daysOfMonth: [5],
+      balanceId: "wise-nanay",
+    });
+    const budget: BudgetFundingItem = { id: "budget-1", name: "Groceries", allocation: 1000000, linkedIncomeId: "income-1" };
+
+    it("subtracts an income-linked budget's replenishment from the income's own connected account", () => {
+      const result = computeAccountMonthlyBreakdown([income], [], [], [budget], noNames, "wise-nanay");
+      expect(result.monthlyReceived).toBe(4400000);
+      expect(result.monthlyDeducted).toBe(-1000000);
+      expect(result.monthlyNet).toBe(3400000);
+      expect(result.budgetFunds).toEqual([{ id: "budget-1", label: "Funds budget: Groceries", amount: -1000000 }]);
+    });
+
+    it("does nothing for a budget on its own schedule (no linkedIncomeId) - it never touches a main account", () => {
+      const ownSchedule: BudgetFundingItem = { ...budget, linkedIncomeId: null };
+      const result = computeAccountMonthlyBreakdown([income], [], [], [ownSchedule], noNames, "wise-nanay");
+      expect(result.monthlyDeducted).toBe(0);
+      expect(result.budgetFunds).toEqual([]);
+    });
+
+    it("skips a budget switched off, same as Bug #20's isActive rule", () => {
+      const inactiveBudget = { ...budget, active: false };
+      const result = computeAccountMonthlyBreakdown([income], [], [], [inactiveBudget], noNames, "wise-nanay");
+      expect(result.monthlyDeducted).toBe(0);
+      expect(result.budgetFunds).toEqual([]);
+    });
+
+    it("skips a budget whose linked income is switched off", () => {
+      const inactiveIncome = { ...income, active: false };
+      const result = computeAccountMonthlyBreakdown([inactiveIncome], [], [], [budget], noNames, "wise-nanay");
+      expect(result.monthlyDeducted).toBe(0);
+      expect(result.budgetFunds).toEqual([]);
+    });
+
+    it("does nothing on an account the linked income isn't actually connected to", () => {
+      const result = computeAccountMonthlyBreakdown([income], [], [], [budget], noNames, "some-other-account");
+      expect(result.monthlyDeducted).toBe(0);
+      expect(result.budgetFunds).toEqual([]);
     });
   });
 });
