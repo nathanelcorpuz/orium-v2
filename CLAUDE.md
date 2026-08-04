@@ -34,6 +34,7 @@ Two supporting files, added 2026-07-31, deliberately do *not* need reading at se
 6. **Tell the user** how to verify the result in the browser, in 1-2 steps.
 
 ## Hard rules
+- **Mobile-first.** Every UI change, from now on, is designed for the smallest viewport first and scaled up - not built for desktop and retrofitted responsive as an afterthought. (User rule, 2026-08-04.) In practice: sketch/implement the narrow layout first, then add `sm:`/`md:`/`lg:` overrides for wider screens, not the reverse; a new component's default (no-breakpoint-prefix) Tailwind classes should be its mobile styling. Mirrors and sharpens Core design rule 7 below - this is the stricter, standing version of "responsive on all devices."
 - Money = integer centavos (bigint). Never floats for money. Format only in the UI.
 - Due dates = `YYYY-MM-DD` strings / Postgres `date`. Never UTC timestamps for due dates.
 - The forecast engine (`src/lib/engine/`) stays pure: no imports from Supabase, Next.js, or fetch. It must keep 100% passing Vitest coverage of the cases listed in SPEC.md.

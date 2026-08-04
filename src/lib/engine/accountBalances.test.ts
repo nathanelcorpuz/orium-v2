@@ -129,4 +129,70 @@ describe("computeAccountBalancesAfterEachRow / accountBalanceForRow", () => {
     const timeline = computeAccountBalancesAfterEachRow([known], accounts);
     expect(accountBalanceForRow(unknown, timeline)).toBeNull();
   });
+
+  it("nets a same-occurrence income_auto_move debit leg into the income row's own snapshot, even though the debit leg sorts after it", () => {
+    // Reproduces the reported case exactly: an income auto-moves its entire
+    // amount to another account on the same day - the source account's own
+    // "balance after this income" should already reflect the transfer,
+    // not the pre-transfer figure the sort order would otherwise expose.
+    const income: ForecastRow = {
+      sourceType: "recurring",
+      sourceId: "income-1",
+      originalDate: "2026-08-31",
+      name: "Nanay - HH",
+      amount: 4400000,
+      dueDate: "2026-08-31",
+      type: "income",
+      runningBalance: 0,
+      balanceId: "a",
+    };
+    const autoMoveDebit: ForecastRow = {
+      sourceType: "income_auto_move",
+      sourceId: "move-1",
+      originalDate: "2026-08-31",
+      name: "Auto-move to b",
+      amount: -4400000,
+      dueDate: "2026-08-31",
+      type: "auto_move",
+      runningBalance: 0,
+      balanceId: "a",
+      linkedIncomeId: "income-1",
+      hidden: true,
+    };
+    const autoMoveCredit: ForecastRow = {
+      sourceType: "income_auto_move",
+      sourceId: "move-1",
+      originalDate: "2026-08-31",
+      name: "Auto-move from a",
+      amount: 4400000,
+      dueDate: "2026-08-31",
+      type: "auto_move",
+      runningBalance: 0,
+      balanceId: "b",
+      linkedIncomeId: "income-1",
+      hidden: true,
+    };
+    // Sorted order a real forecast would produce: incoming before outgoing
+    // on the shared date, so both credits (income, auto-move credit) land
+    // ahead of the debit.
+    const timeline = computeAccountBalancesAfterEachRow([income, autoMoveCredit, autoMoveDebit], accounts);
+    expect(accountBalanceForRow(income, timeline)).toBe(100000); // 100000 + 4400000 - 4400000
+    expect(accountBalanceForRow(autoMoveCredit, timeline)).toBe(4450000); // 50000 + 4400000, unaffected
+  });
+
+  it("leaves an income row's snapshot unaugmented when it has no tied auto-move at all", () => {
+    const plainIncome: ForecastRow = {
+      sourceType: "recurring",
+      sourceId: "income-2",
+      originalDate: "2026-01-05",
+      name: "Plain income",
+      amount: 20000,
+      dueDate: "2026-01-05",
+      type: "income",
+      runningBalance: 0,
+      balanceId: "a",
+    };
+    const timeline = computeAccountBalancesAfterEachRow([plainIncome], accounts);
+    expect(accountBalanceForRow(plainIncome, timeline)).toBe(120000);
+  });
 });

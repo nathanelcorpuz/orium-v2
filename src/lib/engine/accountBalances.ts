@@ -72,6 +72,28 @@ interface AccountBalanceAtRow {
   targetId: string; // which account this row was actually attributed to (see the rule above)
 }
 
+// Bug fix (2026-08-04, reported against real production data): an income
+// row's own hidden `income_auto_move` debit leg (T212/T214) always sorts
+// *after* the income row in `forecast.ts`'s output - incoming rows sort
+// before outgoing ones on a shared due date, and a debit is outgoing no
+// matter how it's pushed - so the walk below always records an income row's
+// "balance after this" before its own same-occurrence auto-move has left the
+// account, even though T214 presents the auto-move as part of the income's
+// own transaction (a tag on its row), not a separate later one. Concretely
+// reported: an income auto-moving its *entire* amount to another account
+// still showed its source account's balance as if the full income had
+// stayed put. `netTiedAutoMoveEffect` sums the same-occurrence debit leg(s)
+// (matched by `linkedIncomeId` + `originalDate`, restricted to legs hitting
+// this row's own `balanceId` - a leg crediting a *different* account isn't
+// part of what this row's own account holds) and folds that into the
+// snapshot recorded for the income row only - the running `current` map
+// itself, which every later row's own snapshot depends on, is untouched, so
+// this doesn't change any other row's figure or the combined total.
+function netTiedAutoMoveEffect(row: ForecastRow, autoMoveNetByKey: Map<string, number>): number {
+  if (row.sourceType !== "recurring" || row.type !== "income" || !row.balanceId) return 0;
+  return autoMoveNetByKey.get(`${row.sourceId}|${row.originalDate}|${row.balanceId}`) ?? 0;
+}
+
 // T191 (user request): "if a forecasted transaction has an account connected
 // to it, show me what that account's balance will be at that point in
 // time" - distinct from `ForecastRow.runningBalance`, which is always the
@@ -104,6 +126,14 @@ export function computeAccountBalancesAfterEachRow(
     return bestId;
   }
 
+  const autoMoveNetByKey = new Map<string, number>();
+  for (const moveRow of rows) {
+    if (moveRow.sourceType !== "income_auto_move" || !moveRow.linkedIncomeId || !moveRow.balanceId) continue;
+    const key = `${moveRow.linkedIncomeId}|${moveRow.originalDate}|${moveRow.balanceId}`;
+    const fee = moveRow.feeAmount ?? 0;
+    autoMoveNetByKey.set(key, (autoMoveNetByKey.get(key) ?? 0) + moveRow.amount - fee);
+  }
+
   const result = new Map<ForecastRow, AccountBalanceAtRow>();
   for (const row of rows) {
     const targetId = row.balanceId && current.has(row.balanceId) ? row.balanceId : highestAccountId();
@@ -112,7 +142,8 @@ export function computeAccountBalancesAfterEachRow(
     const fee = row.feeAmount ?? 0;
     const next = Math.round((current.get(targetId) ?? 0) + row.amount - fee);
     current.set(targetId, next);
-    result.set(row, { balance: next, targetId });
+    const reported = Math.round(next + netTiedAutoMoveEffect(row, autoMoveNetByKey));
+    result.set(row, { balance: reported, targetId });
   }
   return result;
 }

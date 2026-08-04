@@ -24,7 +24,7 @@ function daysInMonth(year: number, month: number): number {
   return new Date(year, month + 1, 0).getDate();
 }
 
-const YEAR_RANGE = 20; // current year +/- this many, generous enough for any real Orium date
+const YEAR_RANGE = 50; // current year +/- this many - matches MAX_TRACKING_YEARS (engine/date-utils.ts, T171)
 
 // T79 (SPEC.md): shared date-picker replacing every native `<input
 // type="date">` in the app, so the visible field can show the app's
