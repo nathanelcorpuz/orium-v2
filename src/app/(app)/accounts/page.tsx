@@ -36,7 +36,7 @@ export default async function BalancesPage({
     await Promise.all([
       supabase
         .from("balances")
-        .select("id, name, amount, comments, transaction_fee_centavos")
+        .select("id, name, amount, comments, transaction_fee_centavos, used_for_budgets")
         .order("created_at", { ascending: true }),
       loadConnectedItems(),
       // T186 follow-up: "quickly see edits" on an account - its own Add/Take/

@@ -14,7 +14,6 @@ import {
   type ScenarioBudgetRow,
   type ScenarioIncomeOption,
 } from "../ScenarioBudgetModal";
-import type { BudgetAccountRow } from "../../budgets/BudgetAccountModal";
 import {
   deleteScenarioBudget,
   deleteScenarioBudgetEntry,
@@ -88,7 +87,6 @@ export function ScenarioDetailClient({
   scenarioBudgets,
   scenarioIncomes,
   realIncomes,
-  budgetAccounts,
   entriesByBudgetId,
   balances,
 }: {
@@ -99,11 +97,13 @@ export function ScenarioDetailClient({
   // T218 follow-up: this scenario's own income items, so a scenario budget
   // can link to one.
   scenarioIncomes: ScenarioIncomeOption[];
-  // T223 (user request 2026-08-02): every real income and real budget
-  // account too, offered as options alongside the scenario's own.
+  // T223 (user request 2026-08-02): every real income too, offered as an
+  // option alongside the scenario's own.
   realIncomes: ScenarioIncomeOption[];
-  budgetAccounts: BudgetAccountRow[];
   entriesByBudgetId: Map<string, ScenarioBudgetEntryRow[]>;
+  // T223/T284: also the account-picker source for a scenario budget's
+  // optional real-account reference - there's no separate "budget accounts"
+  // list anymore.
   balances: BalanceOption[];
 }) {
   const [itemModalState, setItemModalState] = useState<null | "new" | ScenarioItemRow>(null);
@@ -318,13 +318,12 @@ export function ScenarioDetailClient({
                           {formatCentavos(budget.allocation)} allocated per replenishment
                         </p>
                       )}
-                      {/* T223: purely a reference until this scenario is
+                      {/* T223/T284: purely a reference until this scenario is
                           activated - see ScenarioBudgetModal's own comment. */}
-                      {budget.budget_account_id && (
+                      {budget.balance_id && (
                         <p className="text-xs text-slate-400">
-                          Budget account:{" "}
-                          {budgetAccounts.find((account) => account.id === budget.budget_account_id)?.name ??
-                            "Unknown"}
+                          Account:{" "}
+                          {balances.find((account) => account.id === budget.balance_id)?.name ?? "Unknown"}
                         </p>
                       )}
                     </div>
@@ -459,7 +458,7 @@ export function ScenarioDetailClient({
           budget={budgetModalState === "new" ? null : budgetModalState}
           incomes={scenarioIncomes}
           realIncomes={realIncomes}
-          budgetAccounts={budgetAccounts}
+          balances={balances}
           onClose={() => setBudgetModalState(null)}
         />
       )}

@@ -6,7 +6,7 @@ import { formatCentavos, parseCentavos } from "@/lib/money";
 import { formatFullDate, todayInManila } from "@/lib/date";
 import { logActivity, type ActivityEntityType } from "@/lib/activityLog";
 import { applyToBudgetAccount, loadBudgetAccountLinks } from "@/lib/budgetAccounts";
-import { splitAmountByShares } from "@/lib/budgetSplit";
+import { splitAmountByShares } from "@/lib/engine/budgetSplit";
 
 // T162: maps a ForecastRow/settlement `type` ("bill"|"income"|"debt"|
 // "savings"|"extra") onto the activity log's vocabulary - only "extra" needs
@@ -210,14 +210,23 @@ async function applyToBalance(
   return updateError?.message ?? null;
 }
 
-// T218: writes a budget's replenishment as one leg per connected budget
-// account, splitting the settled amount proportional to each account's
-// configured share (splitAmountByShares) - degenerates to exactly one leg,
-// identical to pre-T218 behavior, when the budget has 0 or 1 connected
-// accounts. Shared by settleOccurrence's income-linked branch and
-// settleBudgetReplenish (own-schedule budgets) below, whose forecasted-
-// amount sign conventions differ (see each call site), so both are passed
-// in already correctly signed rather than negated here.
+// T218: writes a budget's replenishment as one leg per connected account,
+// splitting the settled amount proportional to each account's configured
+// share (splitAmountByShares) - degenerates to exactly one leg, identical to
+// pre-T218 behavior, when the budget has 0 or 1 connected accounts. Shared
+// by settleOccurrence's income-linked branch and settleBudgetReplenish
+// (own-schedule budgets) below, whose forecasted-amount sign conventions
+// differ (see each call site), so both are passed in already correctly
+// signed rather than negated here.
+//
+// T284: each leg now credits a real `balances` row via `applyToBudgetAccount`
+// (repointed to `balances` by T284 - still no fee, this is bookkeeping
+// against the user's own money, not an external settlement) - "the
+// replenishment logic works like an auto-move," the same real-money-moves
+// shape `income_auto_moves` already established. The income-linked branch's
+// own source-side debit is unchanged (already netted in one write by
+// settleOccurrence, T151/Bug #14, before this function is ever called) - an
+// own-schedule budget still has no source account to debit at all.
 async function writeBudgetReplenishLegs(
   supabase: Awaited<ReturnType<typeof createClient>>,
   userId: string,
@@ -233,7 +242,7 @@ async function writeBudgetReplenishLegs(
   const links = await loadBudgetAccountLinks(supabase, budgetId);
 
   if (links.length <= 1) {
-    const budgetAccountId = links[0]?.budgetAccountId ?? null;
+    const balanceId = links[0]?.balanceId ?? null;
 
     const { error: entryError } = await supabase.from("budget_entries").insert({
       user_id: userId,
@@ -242,12 +251,12 @@ async function writeBudgetReplenishLegs(
       amount: actualMagnitude,
       note: noteLabel,
       direction: "incoming",
-      budget_account_id: budgetAccountId,
+      balance_id: balanceId,
     });
     if (entryError) return entryError.message;
 
-    if (budgetAccountId && actualMagnitude > 0) {
-      const accountError = await applyToBudgetAccount(supabase, budgetAccountId, actualMagnitude);
+    if (balanceId && actualMagnitude > 0) {
+      const accountError = await applyToBudgetAccount(supabase, balanceId, actualMagnitude);
       if (accountError) return accountError;
     }
 
@@ -262,7 +271,7 @@ async function writeBudgetReplenishLegs(
       forecasted_date: forecastedDate,
       actual_date: entryDate,
       forecasted_balance: forecastedBalance,
-      budget_account_id: budgetAccountId,
+      balance_id: balanceId,
     });
     return settlementError?.message ?? null;
   }
@@ -288,11 +297,11 @@ async function writeBudgetReplenishLegs(
       amount: actualLegs[i],
       note: legNote,
       direction: "incoming",
-      budget_account_id: link.budgetAccountId,
+      balance_id: link.balanceId,
     });
     if (entryError) return entryError.message;
 
-    const accountError = await applyToBudgetAccount(supabase, link.budgetAccountId, actualLegs[i]);
+    const accountError = await applyToBudgetAccount(supabase, link.balanceId, actualLegs[i]);
     if (accountError) return accountError;
 
     const { error: settlementError } = await supabase.from("settlements").insert({
@@ -306,7 +315,7 @@ async function writeBudgetReplenishLegs(
       forecasted_date: forecastedDate,
       actual_date: entryDate,
       forecasted_balance: forecastedBalance,
-      budget_account_id: link.budgetAccountId,
+      balance_id: link.balanceId,
     });
     if (settlementError) return settlementError.message;
   }

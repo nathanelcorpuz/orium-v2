@@ -14,6 +14,10 @@ export interface Balance {
   // Optional/undefined means no fee (0), matching the DB default - keeps
   // every existing fixture and test constructor valid.
   transactionFeeCentavos?: number;
+  // T284: opt-in tag, independent of whether any budget currently links to
+  // this account - what "Cash Flow Only" (cashFlowFilter.ts) excludes.
+  // Optional/undefined means false, matching the DB default.
+  usedForBudgets?: boolean;
 }
 
 export interface RecurringItem {
@@ -216,13 +220,25 @@ export interface BudgetEntry {
   // need touching.
   direction?: "incoming" | "outgoing";
   // T222 (user request 2026-08-02): which one of the budget's connected
-  // budget accounts (T218) this specific entry actually touched - null for
-  // an entry that predates T218/T044's `budget_account_id` column, or a
-  // budget with no connected account at all. Lets a budget's own ledger
-  // total (`computeBudgetBalance`, ignores this field) be broken down
-  // further into "how much of this budget's money sits in this particular
-  // account" (`computeBudgetAccountBalance`, below).
-  budgetAccountId?: string | null;
+  // accounts (T218, folded into plain `balances` by T284) this specific
+  // entry actually touched - null for an entry that predates T218/T044's
+  // link column, or a budget with no connected account at all. Lets a
+  // budget's own ledger total (`computeBudgetBalance`, ignores this field)
+  // be broken down further into "how much of this budget's money sits in
+  // this particular account" (`computeBudgetAccountBalance`, below).
+  balanceId?: string | null;
+}
+
+// T284 (SPEC.md Phase 49): a budget's configured link to a real account
+// (formerly `budget_budget_accounts` -> `budget_accounts`, now -> plain
+// `balances` - "just one accounts category"). `replenishAmount` is this
+// account's configured share of the budget's automatic replenishment,
+// meaningless/ignored for a budget with no income-link or own schedule -
+// see `budget_budget_accounts` in SPEC.md's data model.
+export interface BudgetBalanceLink {
+  budgetId: string;
+  balanceId: string;
+  replenishAmount: number; // centavos, >= 0
 }
 
 export interface ForecastRow {
@@ -339,6 +355,10 @@ export interface GenerateForecastInput {
   budgets?: Budget[];
   budgetEntries?: BudgetEntry[];
   budgetReplenishOverrides?: BudgetReplenishOverride[];
+  // T284: every budget's configured account link(s) - drives the hidden
+  // credit leg(s) a replenishment writes into its linked balance(s), the
+  // same paired-row shape `incomeAutoMoves` below already established.
+  budgetBalanceLinks?: BudgetBalanceLink[];
   incomeAutoMoves?: IncomeAutoMove[];
   incomeAutoMoveOverrides?: IncomeAutoMoveOverride[];
   today: string; // YYYY-MM-DD

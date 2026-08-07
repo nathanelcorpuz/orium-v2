@@ -36,6 +36,8 @@ export type BudgetEntryRow = {
   // Phase 10 (migration 0009): 'incoming' (replenishment) or 'outgoing' (a
   // spend or manual take) - see budgetLedger.ts.
   direction?: "incoming" | "outgoing";
+  // T222/T284: which real account this entry actually touched, if any.
+  balance_id?: string | null;
 };
 
 export function toEngineBudget(budget: BudgetRow): Budget {
@@ -67,5 +69,6 @@ export function toEngineEntries(entries: BudgetEntryRow[], budgetId: string): Bu
     amount: entry.amount,
     note: entry.note,
     direction: entry.direction,
+    balanceId: entry.balance_id,
   }));
 }

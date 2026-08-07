@@ -11,8 +11,14 @@ import { RecurrencePicker, type RecurrenceValue } from "@/components/recurring/R
 import { summarizeRecurrence } from "@/lib/recurrenceSummary";
 import { type BudgetRow } from "@/lib/budgetView";
 import { createBudget, updateBudget, type BudgetActionState } from "./actions";
-import type { BudgetAccountRow } from "./BudgetAccountModal";
 import type { IncomeItemRow } from "./BudgetCard";
+
+// T284: budget accounts collapsed into plain `balances` rows (SPEC.md Phase
+// 49) - "just one accounts category" now. This is the minimal shape every
+// picker in the Budgets folder needs (id/name only - nothing here ever
+// showed a live amount), replacing the old separate `BudgetAccountRow`
+// (BudgetAccountModal.tsx, deleted).
+export type AccountOption = { id: string; name: string };
 
 export type { BudgetRow } from "@/lib/budgetView";
 
@@ -50,12 +56,12 @@ const REPLENISH_OPTIONS: { value: ReplenishSource; label: string }[] = [
 
 const initialState: BudgetActionState = { error: null };
 
-type AccountLinkRow = { budgetAccountId: string; replenishPesos: string };
+type AccountLinkRow = { balanceId: string; replenishPesos: string };
 
 export function BudgetModal({
   budget,
   incomes,
-  budgetAccounts = [],
+  balances = [],
   initialAccountLinks = [],
   onClose,
   // T115: fired only on a genuine successful save, distinct from onClose
@@ -70,13 +76,15 @@ export function BudgetModal({
   // the selected income's own frequency (summarizeRecurrence) - optional,
   // see IncomeOption above.
   incomes: IncomeOption[];
-  // T204: storage account list to choose from - default `[]` keeps every
-  // existing caller (e.g. the onboarding wizard, if it ever creates budgets)
-  // valid without threading this everywhere at once.
-  budgetAccounts?: BudgetAccountRow[];
+  // T284: the regular accounts list (balances) to connect this budget to -
+  // there's no separate "budget accounts" category anymore (T204's old
+  // BudgetAccountRow). Default `[]` keeps every existing caller (e.g. the
+  // onboarding wizard, if it ever creates budgets) valid without threading
+  // this everywhere at once.
+  balances?: AccountOption[];
   // T218: this budget's currently connected accounts (edit mode only -
   // empty for a new budget), each with its own configured replenish share.
-  initialAccountLinks?: { budgetAccountId: string; replenishAmount: number }[];
+  initialAccountLinks?: { balanceId: string; replenishAmount: number }[];
   onClose: () => void;
   onSaved?: () => void;
   createActionOverride?: typeof createBudget;
@@ -103,12 +111,12 @@ export function BudgetModal({
   // budgets/actions.ts) since a plain form can't post a nested array.
   const [accountLinks, setAccountLinks] = useState<AccountLinkRow[]>(
     initialAccountLinks.map((link) => ({
-      budgetAccountId: link.budgetAccountId,
+      balanceId: link.balanceId,
       replenishPesos: centavosToPesosString(link.replenishAmount),
     })),
   );
-  const connectedIds = new Set(accountLinks.map((link) => link.budgetAccountId));
-  const availableToAdd = budgetAccounts.filter((account) => !connectedIds.has(account.id));
+  const connectedIds = new Set(accountLinks.map((link) => link.balanceId));
+  const availableToAdd = balances.filter((account) => !connectedIds.has(account.id));
   const totalAllocationCentavos = accountLinks.reduce(
     (sum, link) => sum + (parseCentavos(link.replenishPesos) ?? 0),
     0,
@@ -117,7 +125,7 @@ export function BudgetModal({
   function addAccountRow() {
     const next = availableToAdd[0];
     if (!next) return;
-    setAccountLinks((rows) => [...rows, { budgetAccountId: next.id, replenishPesos: "" }]);
+    setAccountLinks((rows) => [...rows, { balanceId: next.id, replenishPesos: "" }]);
   }
   function removeAccountRow(index: number) {
     setAccountLinks((rows) => rows.filter((_, i) => i !== index));
@@ -126,8 +134,8 @@ export function BudgetModal({
     setAccountLinks((rows) => rows.map((row, i) => (i === index ? { ...row, ...patch } : row)));
   }
   // T229 (user request 2026-08-02): "when adding a new budget and it is
-  // manual replenishment, no need to set amounts for budget accounts...
-  // the selections can simply just be budget accounts." A manual budget
+  // manual replenishment, no need to set amounts for connected accounts...
+  // the selections can simply just be connected accounts." A manual budget
   // never auto-replenishes, so there's nothing to split proportionally -
   // Log spend/Add/Take funds already ask which connected account a
   // transaction affects at the moment it happens (T218/T222), so the
@@ -136,9 +144,9 @@ export function BudgetModal({
   // equivalent to add/removeAccountRow above, just without an amount.
   function toggleManualAccount(accountId: string, checked: boolean) {
     if (checked) {
-      setAccountLinks((rows) => [...rows, { budgetAccountId: accountId, replenishPesos: "0" }]);
+      setAccountLinks((rows) => [...rows, { balanceId: accountId, replenishPesos: "0" }]);
     } else {
-      setAccountLinks((rows) => rows.filter((row) => row.budgetAccountId !== accountId));
+      setAccountLinks((rows) => rows.filter((row) => row.balanceId !== accountId));
     }
   }
 
@@ -237,26 +245,24 @@ export function BudgetModal({
             regardless of which UI below produced `accountLinks`, so both
             branches submit the exact same way. */}
         <div>
-          <p className="mb-1 block text-sm text-slate-600">Budget accounts (optional)</p>
+          <p className="mb-1 block text-sm text-slate-600">Connected accounts (optional)</p>
           {accountLinks.map((link) => (
-            <input key={link.budgetAccountId} type="hidden" name="budgetAccountLinkIds" value={link.budgetAccountId} />
+            <input key={link.balanceId} type="hidden" name="budgetAccountLinkIds" value={link.balanceId} />
           ))}
           {accountLinks.map((link) => (
             <input
-              key={link.budgetAccountId}
+              key={link.balanceId}
               type="hidden"
               name="budgetAccountLinkAmountsPesos"
               value={source === "manual" ? "0" : link.replenishPesos}
             />
           ))}
           {source === "manual" ? (
-            budgetAccounts.length === 0 ? (
-              <p className="text-sm text-slate-400">
-                No budget accounts yet - add one from the Budget Accounts section on the Budgets page.
-              </p>
+            balances.length === 0 ? (
+              <p className="text-sm text-slate-400">No accounts yet - add one from the Accounts page.</p>
             ) : (
               <div className="space-y-1">
-                {budgetAccounts.map((account) => (
+                {balances.map((account) => (
                   <label key={account.id} className="flex items-center gap-2 text-sm text-notion-text">
                     <input
                       type="checkbox"
@@ -271,20 +277,20 @@ export function BudgetModal({
             )
           ) : accountLinks.length === 0 ? (
             <p className="text-sm text-slate-400">
-              Not connected to any budget account - this budget just tracks its own running total.
+              Not connected to any account - this budget just tracks its own running total.
             </p>
           ) : (
             <div className="space-y-2">
               {accountLinks.map((link, index) => (
                 <div key={index} className="flex items-center gap-2">
                   <select
-                    value={link.budgetAccountId}
-                    onChange={(event) => updateAccountRow(index, { budgetAccountId: event.target.value })}
+                    value={link.balanceId}
+                    onChange={(event) => updateAccountRow(index, { balanceId: event.target.value })}
                     required
                     className="min-w-0 flex-1 rounded border border-notion-hairline p-2 text-notion-text focus:border-notion-accent focus:outline-none"
                   >
-                    {budgetAccounts
-                      .filter((account) => account.id === link.budgetAccountId || !connectedIds.has(account.id))
+                    {balances
+                      .filter((account) => account.id === link.balanceId || !connectedIds.has(account.id))
                       .map((account) => (
                         <option key={account.id} value={account.id}>
                           {account.name}
@@ -319,7 +325,7 @@ export function BudgetModal({
               onClick={addAccountRow}
               className="mt-2 rounded border border-notion-hairline px-3 py-1.5 text-sm text-notion-text hover:bg-notion-hover"
             >
-              + Add budget account
+              + Add account
             </button>
           )}
           {source !== "manual" && accountLinks.length > 0 && (

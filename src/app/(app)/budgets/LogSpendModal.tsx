@@ -45,15 +45,18 @@ export function LogSpendModal({
         <input type="hidden" name="budgetId" value={budgetId} />
         <input type="hidden" name="budgetName" value={budgetName} />
         {/* T218: only shown when there's a real choice to make - a single
-            connected account is used automatically, same as before T218. */}
+            connected account is used automatically, same as before T218.
+            T284: field renamed to `balanceId` to match writeLedgerEntry's
+            own form field (budgets/actions.ts) - a connected account is now
+            just a regular `balances` row. */}
         {accounts.length > 1 && (
           <div>
-            <label className="block text-sm text-slate-600" htmlFor="budgetAccountId">
-              Budget account
+            <label className="block text-sm text-slate-600" htmlFor="balanceId">
+              Account
             </label>
             <select
-              id="budgetAccountId"
-              name="budgetAccountId"
+              id="balanceId"
+              name="balanceId"
               required
               defaultValue=""
               className="mt-1 w-full rounded border border-notion-hairline p-2 text-notion-text focus:border-notion-accent focus:outline-none"

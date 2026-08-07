@@ -2,11 +2,13 @@ import { createClient } from "@/lib/supabase/server";
 import { todayInManila } from "@/lib/date";
 import { addYears, MAX_TRACKING_YEARS } from "@/lib/engine/date-utils";
 import { generateForecast } from "@/lib/engine/forecast";
+import { filterCashFlowOnly } from "@/lib/engine/cashFlowFilter";
 import { toEngineBudget, toEngineEntries, type BudgetEntryRow, type BudgetRow } from "@/lib/budgetView";
 import { DEFAULT_TIER_LABELS } from "@/lib/balanceColor";
 import type {
   Balance,
   Budget,
+  BudgetBalanceLink,
   BudgetEntry,
   BudgetReplenishOverride,
   ForecastRow,
@@ -40,17 +42,30 @@ export async function getCurrency(): Promise<string> {
 // page's edit modal (which needs it), unlike the engine's minimal Balance.
 // T172: also carries the snake_case `transaction_fee_centavos`, alongside
 // `Balance`'s own camelCase `transactionFeeCentavos` - see the mapping
-// below for why both are needed on the same object.
-export type ForecastBalance = Balance & { comments: string | null; transaction_fee_centavos?: number };
+// below for why both are needed on the same object. T284: same for
+// `used_for_budgets` alongside `Balance.usedForBudgets`.
+export type ForecastBalance = Balance & {
+  comments: string | null;
+  transaction_fee_centavos?: number;
+  used_for_budgets?: boolean;
+};
 
 export type ForecastData = {
   forecast: ForecastRow[];
+  // T284: the same forecast, recomputed with every `usedForBudgets` account
+  // (and every row attributed to one) excluded - what the Forecast/Peaks and
+  // Drops pages render when their own "Cash Flow Only" toggle is on. Always
+  // computed (cheap - a pure post-pass, no second engine run) so the toggle
+  // is instant client-side with no reload.
+  forecastCashFlowOnly: ForecastRow[];
+  cashFlowOnlyStartingBalance: number;
   balances: ForecastBalance[];
   recurringItems: RecurringItem[];
   overrides: OccurrenceOverride[];
   budgets: Budget[];
   budgetEntries: BudgetEntry[];
   budgetReplenishOverrides: BudgetReplenishOverride[];
+  budgetBalanceLinks: BudgetBalanceLink[];
   incomeAutoMoves: IncomeAutoMove[];
   incomeAutoMoveOverrides: IncomeAutoMoveOverride[];
   currency: string;
@@ -84,12 +99,13 @@ export async function loadForecast(): Promise<ForecastData> {
     budgetsRes,
     entriesRes,
     replenishOverridesRes,
+    budgetBalanceLinksRes,
     autoMovesRes,
     autoMoveOverridesRes,
     preferencesRes,
     activeScenariosRes,
   ] = await Promise.all([
-    supabase.from("balances").select("id, name, amount, comments, transaction_fee_centavos"),
+    supabase.from("balances").select("id, name, amount, comments, transaction_fee_centavos, used_for_budgets"),
     supabase
       .from("recurring_items")
       .select(
@@ -104,10 +120,13 @@ export async function loadForecast(): Promise<ForecastData> {
     supabase.from("budgets").select(BUDGET_COLUMNS),
     // Every entry, not just future ones - the Dashboard's budget card
     // needs full history to compute a running total (budgetLedger.ts).
-    supabase.from("budget_entries").select("id, budget_id, entry_date, amount, note, direction"),
+    supabase.from("budget_entries").select("id, budget_id, entry_date, amount, note, direction, balance_id"),
     supabase
       .from("budget_replenish_overrides")
       .select("id, budget_id, original_date, skipped, new_date, new_amount"),
+    // T284: every budget's configured account link(s) - drives the
+    // forecast's hidden replenish credit leg(s), see forecast.ts.
+    supabase.from("budget_budget_accounts").select("budget_id, balance_id, replenish_amount"),
     // T212: every rule, not just ones with active income occurrences ahead -
     // generateForecast itself decides which ones actually produce rows.
     supabase.from("income_auto_moves").select("id, income_id, destination_balance_id, amount"),
@@ -138,6 +157,7 @@ export async function loadForecast(): Promise<ForecastData> {
     budgetsRes.error ??
     entriesRes.error ??
     replenishOverridesRes.error ??
+    budgetBalanceLinksRes.error ??
     autoMovesRes.error ??
     autoMoveOverridesRes.error;
   if (criticalError) {
@@ -163,6 +183,12 @@ export async function loadForecast(): Promise<ForecastData> {
     comments: row.comments,
     transactionFeeCentavos: row.transaction_fee_centavos,
     transaction_fee_centavos: row.transaction_fee_centavos,
+    usedForBudgets: row.used_for_budgets,
+    // T284: same dual-field pattern as transaction_fee_centavos above - this
+    // exact array also gets threaded straight into BalanceRow[]
+    // (ForecastClient.tsx -> BalanceModal.tsx, T152/Bug #12), which reads
+    // the snake_case column name.
+    used_for_budgets: row.used_for_budgets,
   }));
 
   const recurringItems: RecurringItem[] = (recurringRes.data ?? []).map((row) => ({
@@ -220,6 +246,7 @@ export async function loadForecast(): Promise<ForecastData> {
       amount: row.amount,
       note: row.note,
       direction: row.direction,
+      balance_id: row.balance_id,
     });
     entriesByBudgetId.set(row.budget_id, list);
   }
@@ -235,6 +262,12 @@ export async function loadForecast(): Promise<ForecastData> {
     // T168 (migration 0027)
     newDate: row.new_date,
     newAmount: row.new_amount,
+  }));
+
+  const budgetBalanceLinks: BudgetBalanceLink[] = (budgetBalanceLinksRes.data ?? []).map((row) => ({
+    budgetId: row.budget_id,
+    balanceId: row.balance_id,
+    replenishAmount: row.replenish_amount,
   }));
 
   const incomeAutoMoves: IncomeAutoMove[] = (autoMovesRes.data ?? []).map((row) => ({
@@ -386,20 +419,36 @@ export async function loadForecast(): Promise<ForecastData> {
     budgets,
     budgetEntries,
     budgetReplenishOverrides,
+    budgetBalanceLinks,
     incomeAutoMoves,
     incomeAutoMoveOverrides,
     today,
     horizon,
   };
 
+  const forecast = generateForecast(input);
+  const startingBalance = balances.reduce((sum, balance) => sum + balance.amount, 0);
+  // T284: computed alongside the normal forecast, always - a cheap pure
+  // post-pass (cashFlowFilter.ts), not a second engine run - so the
+  // Forecast/Peaks and Drops pages' own "Cash Flow Only" toggle is instant
+  // client-side, no reload/refetch needed to switch views.
+  const { rows: forecastCashFlowOnly, startingBalance: cashFlowOnlyStartingBalance } = filterCashFlowOnly(
+    forecast,
+    balances,
+    startingBalance,
+  );
+
   return {
-    forecast: generateForecast(input),
+    forecast,
+    forecastCashFlowOnly,
+    cashFlowOnlyStartingBalance,
     balances,
     recurringItems,
     overrides,
     budgets,
     budgetEntries,
     budgetReplenishOverrides,
+    budgetBalanceLinks,
     incomeAutoMoves,
     incomeAutoMoveOverrides,
     currency: preferencesRes.data?.currency ?? DEFAULT_CURRENCY,

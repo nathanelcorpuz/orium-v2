@@ -41,12 +41,11 @@ export type SettlementRow = {
   forecasted_date: string;
   actual_date: string;
   forecasted_balance: number;
-  // T217: which real account this settlement moved - at most one is ever
-  // set (a budget-type row can carry budget_account_id, everything else can
-  // carry balance_id), both null when the underlying item/budget wasn't
-  // connected to any account.
+  // T217/T284: which real account this settlement moved - null when the
+  // underlying item/budget wasn't connected to any account. A budget
+  // settlement uses this same column now too (the old separate
+  // `budget_account_id` is gone - migration 0054).
   balance_id: string | null;
-  budget_account_id: string | null;
 };
 
 // T181: History's own filter bar - name search, type, amount range, and a
@@ -58,21 +57,17 @@ export function HistoryClient({
   rows,
   currency,
   balances,
-  budgetAccounts,
 }: {
   rows: SettlementRow[];
   currency: string;
-  // T217: just id/name, resolved against each row's balance_id/
-  // budget_account_id below for the Account column.
+  // T217/T284: just id/name, resolved against each row's balance_id below
+  // for the Account column - a budget settlement resolves against this same
+  // list now too (there's no separate budget-accounts list anymore).
   balances: { id: string; name: string }[];
-  budgetAccounts: { id: string; name: string }[];
 }) {
   function accountNameFor(row: SettlementRow): string | null {
-    if (row.balance_id) return balances.find((balance) => balance.id === row.balance_id)?.name ?? null;
-    if (row.budget_account_id) {
-      return budgetAccounts.find((account) => account.id === row.budget_account_id)?.name ?? null;
-    }
-    return null;
+    if (!row.balance_id) return null;
+    return balances.find((balance) => balance.id === row.balance_id)?.name ?? null;
   }
 
   const [nameFilter, setNameFilter] = useState("");

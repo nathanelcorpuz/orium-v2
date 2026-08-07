@@ -137,7 +137,7 @@ export async function activateScenarioPermanently(
     supabase
       .from("scenario_budgets")
       .select(
-        "id, name, allocation, linked_income_id, linked_scenario_income_id, budget_account_id, start_date, interval, unit, weekdays, days_of_month, ordinal, ordinal_weekday, ends_type, end_date, occurrence_count",
+        "id, name, allocation, linked_income_id, linked_scenario_income_id, balance_id, start_date, interval, unit, weekdays, days_of_month, ordinal, ordinal_weekday, ends_type, end_date, occurrence_count",
       )
       .eq("scenario_id", id),
     supabase
@@ -187,10 +187,10 @@ export async function activateScenarioPermanently(
   // above (falls back to no link if that lookup somehow misses - a
   // scenario income should always have been activated in the same pass
   // just above, but a dangling budget with no matching income row is not
-  // impossible, e.g. after manual data edits). `budget_account_id` doesn't
-  // go on the `budgets` insert itself (T218 replaced that single column
-  // with the `budget_budget_accounts` join table) - handled in its own
-  // loop just below instead.
+  // impossible, e.g. after manual data edits). `balance_id` doesn't go on
+  // the `budgets` insert itself (T218 replaced that single column with the
+  // `budget_budget_accounts` join table) - handled in its own loop just
+  // below instead.
   const budgetIdMap = new Map<string, string>();
   for (const scenarioBudget of scenarioBudgetsRes.data ?? []) {
     const linkedIncomeId =
@@ -222,15 +222,15 @@ export async function activateScenarioPermanently(
     if (error) return { error: error.message };
     budgetIdMap.set(scenarioBudget.id, inserted.id);
 
-    // T223: this budget's real-account reference (if any) becomes a real
-    // connection at exactly the moment the budget itself becomes real -
-    // the same "replenish_amount defaults to the allocation" backfill
+    // T223/T284: this budget's real-account reference (if any) becomes a
+    // real connection at exactly the moment the budget itself becomes real
+    // - the same "replenish_amount defaults to the allocation" backfill
     // migration 0043 used for every pre-T218 single-account budget.
-    if (scenarioBudget.budget_account_id) {
+    if (scenarioBudget.balance_id) {
       const { error: linkError } = await supabase.from("budget_budget_accounts").insert({
         user_id: user.id,
         budget_id: inserted.id,
-        budget_account_id: scenarioBudget.budget_account_id,
+        balance_id: scenarioBudget.balance_id,
         replenish_amount: scenarioBudget.allocation,
       });
       if (linkError) return { error: linkError.message };
@@ -588,7 +588,7 @@ type ScenarioBudgetFormFields =
       allocation: number;
       linkedIncomeId: string | null;
       linkedScenarioIncomeId: string | null;
-      budgetAccountId: string | null;
+      balanceId: string | null;
       startDate: string | null;
       interval: number | null;
       unit: RecurrenceUnit | null;
@@ -631,7 +631,7 @@ function readScenarioBudgetForm(formData: FormData): ScenarioBudgetFormFields {
   // T223: optional regardless of replenish source - purely a reference to
   // where this budget's money would live, never mutated by scenario
   // activity (see migration 0047's own comment).
-  const budgetAccountId = (formData.get("budgetAccountId") as string) || null;
+  const balanceId = (formData.get("balanceId") as string) || null;
 
   if (source === "schedule") {
     const startDate = (formData.get("startDate") as string) || "";
@@ -644,7 +644,7 @@ function readScenarioBudgetForm(formData: FormData): ScenarioBudgetFormFields {
       allocation,
       linkedIncomeId: null,
       linkedScenarioIncomeId: null,
-      budgetAccountId,
+      balanceId,
       startDate,
       interval: rule.interval,
       unit: rule.unit,
@@ -674,7 +674,7 @@ function readScenarioBudgetForm(formData: FormData): ScenarioBudgetFormFields {
       allocation,
       linkedIncomeId,
       linkedScenarioIncomeId,
-      budgetAccountId,
+      balanceId,
       ...SCENARIO_BUDGET_EMPTY_SCHEDULE,
     };
   }
@@ -685,7 +685,7 @@ function readScenarioBudgetForm(formData: FormData): ScenarioBudgetFormFields {
     allocation,
     linkedIncomeId: null,
     linkedScenarioIncomeId: null,
-    budgetAccountId,
+    balanceId,
     ...SCENARIO_BUDGET_EMPTY_SCHEDULE,
   };
 }
@@ -711,7 +711,7 @@ export async function createScenarioBudget(
     allocation: fields.allocation,
     linked_income_id: fields.linkedIncomeId,
     linked_scenario_income_id: fields.linkedScenarioIncomeId,
-    budget_account_id: fields.budgetAccountId,
+    balance_id: fields.balanceId,
     start_date: fields.startDate,
     interval: fields.interval,
     unit: fields.unit,
@@ -762,7 +762,7 @@ export async function updateScenarioBudget(
       allocation: fields.allocation,
       linked_income_id: fields.linkedIncomeId,
       linked_scenario_income_id: fields.linkedScenarioIncomeId,
-      budget_account_id: fields.budgetAccountId,
+      balance_id: fields.balanceId,
       start_date: fields.startDate,
       interval: fields.interval,
       unit: fields.unit,

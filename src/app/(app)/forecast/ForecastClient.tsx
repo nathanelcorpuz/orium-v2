@@ -152,6 +152,8 @@ function ForecastBalanceCell({
 
 export function ForecastClient({
   forecast,
+  forecastCashFlowOnly,
+  cashFlowOnlyStartingBalance,
   balances,
   recurringItems,
   budgets,
@@ -172,6 +174,13 @@ export function ForecastClient({
   incomeAutoMoveOverrides = [],
 }: {
   forecast: ForecastRow[];
+  // T284 (SPEC.md Phase 49): the same forecast, recomputed with every
+  // `usedForBudgets` account (and every row attributed to one) excluded -
+  // what renders when the "Cash Flow Only" toggle below is on. Precomputed
+  // server-side (loadForecast()) so switching the toggle is instant
+  // client-side, no reload/refetch.
+  forecastCashFlowOnly: ForecastRow[];
+  cashFlowOnlyStartingBalance: number;
   balances: BalanceRow[];
   // T199: for the "frequency" line in EditSettleModal/CalendarGrid - a
   // recurring row's own rule, or a budget_replenish row's linked income's
@@ -231,7 +240,18 @@ export function ForecastClient({
   // (T164) per user request - the calendar view is unfiltered (same as the
   // old page), so the Filter button/badge only make sense in table mode.
   const [viewMode, setViewMode] = useState<"table" | "calendar">("table");
+  // T284: defaults OFF - everything counts by default, same as before this
+  // toggle existed. Switches which of the two precomputed datasets the rest
+  // of this page renders (the table/calendar rows, the total balance figure
+  // at the top, and the per-account balance chips) - purely a client-side
+  // swap, no reload.
+  const [cashFlowOnly, setCashFlowOnly] = useState(false);
   const activeScenarios = allScenarios.filter((s) => s.is_active);
+  const displayedForecast = cashFlowOnly ? forecastCashFlowOnly : forecast;
+  const displayedBalances = cashFlowOnly ? balances.filter((balance) => !balance.used_for_budgets) : balances;
+  const displayedTotalBalance = cashFlowOnly
+    ? cashFlowOnlyStartingBalance
+    : balances.reduce((sum, balance) => sum + balance.amount, 0);
 
   useEffect(() => {
     // Reading localStorage during the lazy useState initializer instead
@@ -386,7 +406,7 @@ export function ForecastClient({
 
   const filteredForecast = useMemo(() => {
     const name = nameFilter.trim().toLowerCase();
-    return forecast.filter((row) => {
+    return displayedForecast.filter((row) => {
       // T212 follow-up: a `hidden` row (an auto-move's own debit/credit leg)
       // still counts toward runningBalance/per-account attribution above -
       // both of which walk the full unfiltered `forecast` prop - but never
@@ -403,7 +423,7 @@ export function ForecastClient({
       return true;
     });
   }, [
-    forecast,
+    displayedForecast,
     dateFrom,
     dateTo,
     nameFilter,
@@ -442,7 +462,6 @@ export function ForecastClient({
     setVisibleCount(INITIAL_VISIBLE_ROWS);
   }
 
-  const totalBalance = balances.reduce((sum, balance) => sum + balance.amount, 0);
   const visibleForecast = filteredForecast.slice(0, visibleCount);
 
   // T90, now the only table's grouping (T161): drops the per-row Date column
@@ -495,17 +514,23 @@ export function ForecastClient({
                 make Balance accounts bold" - part of "focus the entire app
                 on enter > forecast > review > keep clean," the number this
                 whole page exists to answer given more visual weight. */}
-            <p className="text-sm text-slate-500">Total balance</p>
+            <p className="text-sm text-slate-500">
+              Total balance{cashFlowOnly ? " (Cash Flow Only)" : ""}
+            </p>
             <p className="text-2xl font-semibold text-notion-text">
-              {formatCentavos(totalBalance, currency)}
+              {formatCentavos(displayedTotalBalance, currency)}
             </p>
             <div className="mt-2 flex flex-wrap gap-2">
-              {balances.map((balance) => {
+              {displayedBalances.map((balance) => {
                 // T180, made visible per user follow-up feedback (previously
                 // hover-only, which was too easy to miss) - now a plain
                 // second line under the balance, same wording and the same
                 // stat this page's `findAccountLowestPoints` call already
                 // computes, matching what the Accounts page now shows too.
+                // T284: `accountLowestPoints` is always computed over the
+                // full, unfiltered forecast (a per-account display stat,
+                // "don't recompute anything server-side" per the toggle's
+                // own spec) - only which accounts are chipped here changes.
                 const lowest = accountLowestPoints.get(balance.id);
                 const projectionLine =
                   lowest && lowest.date !== todayInManila()
@@ -524,6 +549,13 @@ export function ForecastClient({
                   >
                     <span className="font-semibold">
                       {balance.name}: {formatCentavos(balance.amount, currency)}
+                      {/* T284: same pill styling as the "Auto-debited"
+                          badge (T232) for visual consistency. */}
+                      {balance.used_for_budgets && (
+                        <span className="ml-1.5 rounded-full bg-slate-200 px-1.5 py-0.5 text-xs font-medium text-slate-600">
+                          Used for budgets
+                        </span>
+                      )}
                     </span>
                     {projectionLine && <span className="block text-xs text-slate-400">{projectionLine}</span>}
                   </button>
@@ -647,7 +679,7 @@ export function ForecastClient({
                   Calendar
                 </button>
               </div>
-              {viewMode === "table" && forecast.length > 0 && (
+              {viewMode === "table" && displayedForecast.length > 0 && (
                 <button
                   type="button"
                   onClick={() => setFilterModalOpen(true)}
@@ -659,6 +691,19 @@ export function ForecastClient({
                       {activeFilterCount}
                     </span>
                   )}
+                </button>
+              )}
+              {/* T284: only worth showing once at least one account is
+                  actually tagged `usedForBudgets` - otherwise the two
+                  datasets are always identical and the toggle would do
+                  nothing. Defaults OFF (everything counts by default). */}
+              {balances.some((balance) => balance.used_for_budgets) && (
+                <button
+                  type="button"
+                  onClick={() => setCashFlowOnly((prev) => !prev)}
+                  className={`rounded border px-3 py-1.5 text-xs ${cashFlowOnly ? "border-notion-accent bg-notion-accent text-white" : "border-notion-hairline bg-white text-notion-text hover:bg-notion-hover"}`}
+                >
+                  Cash Flow Only
                 </button>
               )}
               {/* T183: independent per-scenario toggles, replacing the single
@@ -689,7 +734,7 @@ export function ForecastClient({
                     Clear filters
                   </button>
                   <p className="text-xs text-slate-400">
-                    Showing {filteredForecast.length} of {forecast.length} transactions
+                    Showing {filteredForecast.length} of {displayedForecast.length} transactions
                   </p>
                 </>
               )}
@@ -764,11 +809,11 @@ export function ForecastClient({
           )}
 
           {viewMode === "calendar" ? (
-            forecast.length === 0 ? (
+            displayedForecast.length === 0 ? (
               <p className="text-slate-500">No upcoming transactions yet.</p>
             ) : (
               <CalendarGrid
-                forecast={forecast}
+                forecast={displayedForecast}
                 balances={balances}
                 recurringItems={recurringItems}
                 budgets={budgets}
@@ -779,7 +824,7 @@ export function ForecastClient({
                 incomeAutoMoveOverrides={incomeAutoMoveOverrides}
               />
             )
-          ) : forecast.length === 0 ? (
+          ) : displayedForecast.length === 0 ? (
             <p className="text-slate-500">No upcoming transactions yet.</p>
           ) : filteredForecast.length === 0 ? (
             <p className="text-slate-500">No transactions match these filters.</p>

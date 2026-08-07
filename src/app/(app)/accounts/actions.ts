@@ -28,6 +28,11 @@ export async function createBalance(
   const amount = parseCentavos(formData.get("amountPesos") as string);
   const comments = ((formData.get("comments") as string) || "").trim() || null;
   const feeFields = readTransactionFeeForm(formData);
+  // T284: a plain opt-in tag (SPEC.md Phase 49) - lets the Forecast/Peaks
+  // and Drops pages' "Cash Flow Only" toggle exclude this account on
+  // demand. Doesn't change how this account behaves anywhere else; it's
+  // still a real account counted in Total Balance/the forecast by default.
+  const usedForBudgets = formData.get("usedForBudgets") === "on";
 
   if (!name) return { error: "Name is required." };
   if (amount === null) return { error: "Enter a valid amount." };
@@ -45,6 +50,7 @@ export async function createBalance(
     amount,
     comments,
     transaction_fee_centavos: feeFields.fee,
+    used_for_budgets: usedForBudgets,
   });
   if (error) return { error: error.message };
 
@@ -72,6 +78,9 @@ export async function updateBalance(
   const name = (formData.get("name") as string).trim();
   const comments = ((formData.get("comments") as string) || "").trim() || null;
   const feeFields = readTransactionFeeForm(formData);
+  // T284: see createBalance's own comment above - a plain opt-in tag, not a
+  // different account category.
+  const usedForBudgets = formData.get("usedForBudgets") === "on";
 
   if (!name) return { error: "Name is required." };
   if (feeFields.error) return { error: feeFields.error };
@@ -82,7 +91,7 @@ export async function updateBalance(
   } = await supabase.auth.getUser();
   const { error } = await supabase
     .from("balances")
-    .update({ name, comments, transaction_fee_centavos: feeFields.fee })
+    .update({ name, comments, transaction_fee_centavos: feeFields.fee, used_for_budgets: usedForBudgets })
     .eq("id", id);
   if (error) return { error: error.message };
 

@@ -155,7 +155,18 @@ export function BalancesClient({
               >
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div className="min-w-0">
-                  <p className="font-medium text-notion-text">{balance.name}</p>
+                  <p className="font-medium text-notion-text">
+                    {balance.name}
+                    {/* T284 (SPEC.md Phase 49): same pill styling as the
+                        "Auto-debited" badge (T232) for visual consistency -
+                        a plain opt-in tag, not a different account
+                        category. */}
+                    {balance.used_for_budgets && (
+                      <span className="ml-1.5 rounded-full bg-slate-200 px-1.5 py-0.5 text-xs font-medium text-slate-600">
+                        Used for budgets
+                      </span>
+                    )}
+                  </p>
                   <p className="text-lg font-medium text-notion-text">{formatCentavos(balance.amount, currency)}</p>
                   {lowest && (
                     <p className="text-xs text-slate-400">

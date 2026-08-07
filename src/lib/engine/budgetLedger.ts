@@ -41,11 +41,11 @@ export function computeBudgetBalance(entries: BudgetEntry[], budgetId: string, a
 export function computeBudgetAccountBalance(
   entries: BudgetEntry[],
   budgetId: string,
-  budgetAccountId: string,
+  balanceId: string,
   asOf: string,
 ): number {
   return entries
-    .filter((e) => e.budgetId === budgetId && e.budgetAccountId === budgetAccountId && e.entryDate <= asOf)
+    .filter((e) => e.budgetId === budgetId && e.balanceId === balanceId && e.entryDate <= asOf)
     .reduce((sum, e) => sum + signedAmount(e), 0);
 }
 

@@ -1870,3 +1870,149 @@ describe("generateForecast fromScenario pass-through (T174)", () => {
     ]);
   });
 });
+
+describe("generateForecast budget replenishment credit legs (SPEC.md T284)", () => {
+  it("credits an income-linked budget's single connected account, hidden, net-zero on the combined total", () => {
+    const income = monthlyItem({
+      id: "income-1",
+      type: "income",
+      amount: 2000000,
+      daysOfMonth: [5],
+      balanceId: "checking",
+    });
+    const linkedBudget = testBudget({ linkedIncomeId: "income-1" });
+
+    const result = generateForecast({
+      balances: [
+        { id: "checking", name: "Checking", amount: 100000 },
+        { id: "groceries-acct", name: "Groceries account", amount: 0, usedForBudgets: true },
+      ],
+      recurringItems: [income],
+      overrides: [],
+      oneOffs: [],
+      budgets: [linkedBudget],
+      budgetEntries: [],
+      budgetBalanceLinks: [{ budgetId: "budget-1", balanceId: "groceries-acct", replenishAmount: 500000 }],
+      today: "2026-01-01",
+      horizon: "2026-01-05",
+    });
+
+    const debit = result.find((row) => row.sourceType === "budget_replenish" && row.amount < 0)!;
+    const credit = result.find((row) => row.sourceType === "budget_replenish" && row.amount > 0)!;
+    expect(debit.balanceId).toBe("checking");
+    expect(debit.hidden).toBeUndefined();
+    expect(credit.balanceId).toBe("groceries-acct");
+    expect(credit.amount).toBe(500000);
+    expect(credit.hidden).toBe(true);
+
+    // Combined total: +2,000,000 income, then the replenishment debit/credit
+    // net to zero (real money just relocated between two tracked accounts).
+    const incomeRow = result.find((row) => row.sourceType === "recurring")!;
+    expect(incomeRow.runningBalance).toBe(100000 + 2000000);
+    const finalRow = result[result.length - 1];
+    expect(finalRow.runningBalance).toBe(100000 + 2000000);
+  });
+
+  it("splits a replenishment across multiple connected accounts proportional to their configured share", () => {
+    const weeklyBudget = testBudget({
+      startDate: "2026-01-05",
+      interval: 1,
+      unit: "week",
+      weekdays: [1],
+      endsType: "never",
+      allocation: 1300,
+    });
+
+    const result = generateForecast({
+      balances: [
+        { id: "acct-a", name: "A", amount: 0, usedForBudgets: true },
+        { id: "acct-b", name: "B", amount: 0, usedForBudgets: true },
+      ],
+      recurringItems: [],
+      overrides: [],
+      oneOffs: [],
+      budgets: [weeklyBudget],
+      budgetEntries: [],
+      budgetBalanceLinks: [
+        { budgetId: "budget-1", balanceId: "acct-a", replenishAmount: 300 },
+        { budgetId: "budget-1", balanceId: "acct-b", replenishAmount: 1000 },
+      ],
+      today: "2026-01-01",
+      horizon: "2026-01-05",
+    });
+
+    const credits = result.filter((row) => row.sourceType === "budget_replenish" && row.amount > 0);
+    expect(credits.map((row) => ({ balanceId: row.balanceId, amount: row.amount }))).toEqual([
+      { balanceId: "acct-a", amount: 300 },
+      { balanceId: "acct-b", amount: 1000 },
+    ]);
+  });
+
+  it("an own-schedule budget's replenishment still nets to zero on the combined total once linked (unattributed debit + attributed credit)", () => {
+    const weeklyBudget = testBudget({
+      startDate: "2026-01-05",
+      interval: 1,
+      unit: "week",
+      weekdays: [1],
+      endsType: "never",
+    });
+
+    const result = generateForecast({
+      balances: [{ id: "acct-a", name: "A", amount: 0, usedForBudgets: true }],
+      recurringItems: [],
+      overrides: [],
+      oneOffs: [],
+      budgets: [weeklyBudget],
+      budgetEntries: [],
+      budgetBalanceLinks: [{ budgetId: "budget-1", balanceId: "acct-a", replenishAmount: 500000 }],
+      today: "2026-01-01",
+      horizon: "2026-01-05",
+    });
+
+    // The plain unattributed deduction row already existed pre-T284
+    // (SPEC.md T240's "budget amounts are excluded... considered 'paid'").
+    // T284 adds the hidden, attributed credit alongside it - together they
+    // net to zero on the combined total, since the money didn't leave the
+    // tracked universe, it landed in a now-visible linked account.
+    const debit = result.find((row) => row.sourceType === "budget_replenish" && row.amount < 0)!;
+    const credit = result.find((row) => row.sourceType === "budget_replenish" && row.amount > 0)!;
+    expect(debit.balanceId).toBeUndefined();
+    expect(credit.balanceId).toBe("acct-a");
+    expect(credit.hidden).toBe(true);
+    const finalRow = result[result.length - 1];
+    expect(finalRow.runningBalance).toBe(0);
+  });
+
+  it("skips a credit leg entirely when its destination account isn't in the current balances set (Cash Flow Only)", () => {
+    const income = monthlyItem({
+      id: "income-1",
+      type: "income",
+      amount: 2000000,
+      daysOfMonth: [5],
+      balanceId: "checking",
+    });
+    const linkedBudget = testBudget({ linkedIncomeId: "income-1" });
+
+    const result = generateForecast({
+      // "groceries-acct" deliberately omitted, simulating a Cash-Flow-Only
+      // filtered balances list.
+      balances: [{ id: "checking", name: "Checking", amount: 100000 }],
+      recurringItems: [income],
+      overrides: [],
+      oneOffs: [],
+      budgets: [linkedBudget],
+      budgetEntries: [],
+      budgetBalanceLinks: [{ budgetId: "budget-1", balanceId: "groceries-acct", replenishAmount: 500000 }],
+      today: "2026-01-01",
+      horizon: "2026-01-05",
+    });
+
+    expect(result.some((row) => row.sourceType === "budget_replenish" && row.amount > 0)).toBe(false);
+    const debit = result.find((row) => row.sourceType === "budget_replenish")!;
+    expect(debit.amount).toBe(-500000);
+    // The debit still reduces the combined total, since its credit half
+    // isn't visible in this (already-filtered) computation.
+    const finalRow = result[result.length - 1];
+    expect(finalRow.runningBalance).toBe(100000 + 2000000 - 500000);
+  });
+});

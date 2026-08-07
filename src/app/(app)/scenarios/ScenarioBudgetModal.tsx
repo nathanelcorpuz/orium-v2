@@ -9,21 +9,23 @@ import { todayInManila } from "@/lib/date";
 import { RecurrencePicker, type RecurrenceValue } from "@/components/recurring/RecurrencePicker";
 import { summarizeRecurrence } from "@/lib/recurrenceSummary";
 import { createScenarioBudget, updateScenarioBudget, type ScenarioActionState } from "./actions";
-import type { BudgetAccountRow } from "../budgets/BudgetAccountModal";
+import type { BalanceOption } from "./ScenarioItemModal";
 
 // T218 follow-up (REMINDER, 2026-08-02): full parity with a real budget's
 // own row shape (`BudgetRow`, BudgetModal.tsx). T223 (same day, "adding
 // budgets in scenarios should inherit all actual data"): can now also link
-// to a real income and/or a real budget account, not just this scenario's
-// own hypothetical income items - see actions.ts's `readScenarioBudgetForm`
-// and migration 0047's own comment.
+// to a real income and/or a real account, not just this scenario's own
+// hypothetical income items - see actions.ts's `readScenarioBudgetForm` and
+// migration 0047's own comment. T284: `budget_account_id` renamed to
+// `balance_id` - it always pointed at a real account (never scenario data),
+// and that account is now just a regular `balances` row (migration 0054).
 export type ScenarioBudgetRow = {
   id: string;
   name: string;
   allocation: number;
   linked_income_id: string | null;
   linked_scenario_income_id: string | null;
-  budget_account_id: string | null;
+  balance_id: string | null;
   start_date: string | null;
   interval: number | null;
   unit: "day" | "week" | "month" | "year" | null;
@@ -75,7 +77,7 @@ export function ScenarioBudgetModal({
   budget,
   incomes,
   realIncomes,
-  budgetAccounts,
+  balances,
   onClose,
 }: {
   scenarioId: string;
@@ -84,9 +86,10 @@ export function ScenarioBudgetModal({
   incomes: ScenarioIncomeOption[];
   // T223: every real income, offered as an option too.
   realIncomes: ScenarioIncomeOption[];
-  // T223: every real budget account, as an optional storage reference -
-  // never mutated by scenario activity (see migration 0047's own comment).
-  budgetAccounts: BudgetAccountRow[];
+  // T223/T284: every real account, as an optional storage reference - never
+  // mutated by scenario activity (see migration 0047's own comment). There's
+  // no separate "budget accounts" list anymore.
+  balances: BalanceOption[];
   onClose: () => void;
 }) {
   const isEdit = budget !== null;
@@ -179,21 +182,21 @@ export function ScenarioBudgetModal({
           <p className="mt-1 text-sm text-slate-400">How much this hypothetical pot gets topped up by.</p>
         </div>
 
-        {/* T223: purely a reference to where this budget's money would
+        {/* T223/T284: purely a reference to where this budget's money would
             live - never touched by logging a scenario entry, only becomes
             a real connection if this scenario is later activated. */}
         <div>
-          <label className="block text-sm text-slate-600" htmlFor="budgetAccountId">
-            Budget account (optional)
+          <label className="block text-sm text-slate-600" htmlFor="balanceId">
+            Account (optional)
           </label>
           <select
-            id="budgetAccountId"
-            name="budgetAccountId"
-            defaultValue={budget?.budget_account_id ?? ""}
+            id="balanceId"
+            name="balanceId"
+            defaultValue={budget?.balance_id ?? ""}
             className="mt-1 w-full rounded border border-notion-hairline p-2 text-notion-text focus:border-notion-accent focus:outline-none"
           >
             <option value="">No account</option>
-            {budgetAccounts.map((account) => (
+            {balances.map((account) => (
               <option key={account.id} value={account.id}>
                 {account.name}
               </option>

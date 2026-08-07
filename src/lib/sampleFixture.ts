@@ -1,6 +1,7 @@
 import { todayInManila } from "@/lib/date";
 import { addDays, addYears, MAX_TRACKING_YEARS } from "@/lib/engine/date-utils";
 import { generateForecast } from "@/lib/engine/forecast";
+import { filterCashFlowOnly } from "@/lib/engine/cashFlowFilter";
 import { DEFAULT_TIER_LABELS } from "@/lib/balanceColor";
 import type { ForecastBalance, ForecastData } from "@/lib/forecastData";
 import type { Budget, BudgetEntry, GenerateForecastInput, OneOffItem, RecurringItem } from "@/lib/engine/types";
@@ -203,23 +204,39 @@ export function getSampleFixtureData(): ForecastData {
     horizon,
   };
 
+  // T150 (Bug #11): past-due rows are dropped here, deliberately. The
+  // fixture backdates every rule by 180 days (`startDate` above) purely so
+  // the recurrence summaries read like an established household - not
+  // because this family owes six months of rent. Preview mode has no
+  // settling, so nothing here could ever *be* settled, and without this
+  // filter a brand-new user's very first look at Orium (the tour renders
+  // preview mode) would be roughly sixty red past-due rows and a wildly
+  // negative balance. Real accounts keep their backlog; only this static
+  // display fixture is exempt.
+  const forecast = generateForecast(input).filter((row) => !row.pastDue);
+  const startingBalance = balances.reduce((sum, balance) => sum + balance.amount, 0);
+  // T284: same cheap pure post-pass loadForecast() runs for real data - none
+  // of this fixture's accounts are tagged `usedForBudgets`, so the two
+  // datasets happen to be identical here, but computing it for real keeps
+  // the Forecast/Peaks and Drops pages' "Cash Flow Only" toggle working the
+  // same way in preview mode as it does for real data.
+  const { rows: forecastCashFlowOnly, startingBalance: cashFlowOnlyStartingBalance } = filterCashFlowOnly(
+    forecast,
+    balances,
+    startingBalance,
+  );
+
   return {
-    // T150 (Bug #11): past-due rows are dropped here, deliberately. The
-    // fixture backdates every rule by 180 days (`startDate` above) purely so
-    // the recurrence summaries read like an established household - not
-    // because this family owes six months of rent. Preview mode has no
-    // settling, so nothing here could ever *be* settled, and without this
-    // filter a brand-new user's very first look at Orium (the tour renders
-    // preview mode) would be roughly sixty red past-due rows and a wildly
-    // negative balance. Real accounts keep their backlog; only this static
-    // display fixture is exempt.
-    forecast: generateForecast(input).filter((row) => !row.pastDue),
+    forecast,
+    forecastCashFlowOnly,
+    cashFlowOnlyStartingBalance,
     balances,
     recurringItems,
     overrides: [],
     budgets,
     budgetEntries,
     budgetReplenishOverrides: [],
+    budgetBalanceLinks: [],
     incomeAutoMoves: [],
     incomeAutoMoveOverrides: [],
     currency: "₱",

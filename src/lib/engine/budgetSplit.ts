@@ -1,9 +1,12 @@
-// T218: splits a single settled amount across however many budget accounts
-// are connected to a budget, proportional to each account's configured
+// T218: splits a single settled amount across however many accounts are
+// connected to a budget, proportional to each account's configured
 // `replenish_amount` share (budget_budget_accounts). Pure/integer-only so a
 // multi-account replenishment (or a per-occurrence override total, T168/
 // Bug#15) always lands on exact centavos with no float drift, matching
-// every other money computation in this app.
+// every other money computation in this app. Moved into the engine by T284
+// so the forecast's own projected replenish credit-leg split (forecast.ts)
+// can share the exact same math the real settle-time split
+// (forecast/actions.ts) already used.
 //
 // If every configured share is 0 (accounts just connected, shares not set
 // up yet), splits evenly instead of dividing by zero - a defined fallback

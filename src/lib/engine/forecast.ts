@@ -1,4 +1,5 @@
 import type {
+  BudgetBalanceLink,
   BudgetReplenishOverride,
   ForecastRow,
   GenerateForecastInput,
@@ -9,6 +10,7 @@ import type {
 } from "./types";
 import { expandRecurrenceOccurrences } from "./recurrence";
 import { budgetReplenishRule, futureBudgetLedgerEntries, futureBudgetReplenishDates } from "./budgetLedger";
+import { splitAmountByShares } from "./budgetSplit";
 
 function toRecurrenceRule(item: RecurringItem): RecurrenceRule {
   return {
@@ -77,6 +79,18 @@ export function generateForecast(input: GenerateForecastInput): ForecastRow[] {
   // not go unattributed. Looked up by id once here rather than re-scanning
   // `recurringItems` per budget below.
   const balanceIdByRecurringItemId = new Map(recurringItems.map((item) => [item.id, item.balanceId]));
+
+  // T284: every real account, and every budget's configured link(s) to one -
+  // both needed inside the budget loop below (to credit a replenishment's
+  // destination account(s)) as well as by the income-auto-move loop further
+  // down, so both are resolved once, up front.
+  const balanceById = new Map(balances.map((balance) => [balance.id, balance]));
+  const budgetBalanceLinksByBudgetId = new Map<string, BudgetBalanceLink[]>();
+  for (const link of input.budgetBalanceLinks ?? []) {
+    const list = budgetBalanceLinksByBudgetId.get(link.budgetId) ?? [];
+    list.push(link);
+    budgetBalanceLinksByBudgetId.set(link.budgetId, list);
+  }
 
   const rows: Omit<ForecastRow, "runningBalance">[] = [];
 
@@ -264,6 +278,46 @@ export function generateForecast(input: GenerateForecastInput): ForecastRow[] {
         // since its sourceId is a scenario_budgets id, not a real budgets one.
         fromScenario: budget.fromScenario,
       });
+
+      // T284: a replenishment now credits its linked account(s) for real
+      // (SPEC.md Phase 49 - "replenishment works like an auto-move"), so the
+      // destination's own projected balance (accountBalances.ts) reflects it
+      // ahead of settle time, the same way `income_auto_moves` already does.
+      // Split proportional to each link's configured share, same math the
+      // real settle-time write uses (writeBudgetReplenishLegs,
+      // forecast/actions.ts). Hidden - like an auto-move leg, this isn't a
+      // second transaction the user did, it's the other half of the row just
+      // pushed above. No explicit zero-contribution treatment: an
+      // income-linked replenishment's debit (above) and credit(s) (here)
+      // naturally net to the same combined total either way, and an
+      // own-schedule budget's credit is genuinely new money (no debit exists
+      // to net against) - see SPEC.md T284 write-up for the reasoning.
+      const links = budgetBalanceLinksByBudgetId.get(budget.id) ?? [];
+      if (links.length > 0) {
+        const totalAmount = editedAmount ?? budget.allocation;
+        const splitAmounts = splitAmountByShares(
+          totalAmount,
+          links.map((link) => link.replenishAmount),
+        );
+        links.forEach((link, i) => {
+          const destination = balanceById.get(link.balanceId);
+          const creditAmount = splitAmounts[i];
+          if (!destination || creditAmount <= 0) return;
+          rows.push({
+            sourceType: "budget_replenish",
+            sourceId: budget.id,
+            originalDate,
+            name: `${budget.name} replenishment`,
+            amount: creditAmount,
+            dueDate: editedDate ?? effectiveDate,
+            type: "budget",
+            budgetId: budget.id,
+            budgetName: budget.name,
+            balanceId: link.balanceId,
+            hidden: true,
+          });
+        });
+      }
     }
 
     for (const futureEntry of futureBudgetLedgerEntries(budgetEntries, budget.id, today)) {
@@ -278,6 +332,11 @@ export function generateForecast(input: GenerateForecastInput): ForecastRow[] {
         budgetId: budget.id,
         budgetName: budget.name,
         note: futureEntry.note,
+        // T284: which real account this ledger entry actually touched, when
+        // it has one - lets a future-dated manual add/take/spend against a
+        // budget-linked account be excluded by "Cash Flow Only"
+        // (cashFlowFilter.ts) the same uniform way any other row is.
+        balanceId: futureEntry.balanceId ?? undefined,
         fromScenario: budget.fromScenario,
       });
     }
@@ -296,7 +355,6 @@ export function generateForecast(input: GenerateForecastInput): ForecastRow[] {
   // account - otherwise there is nothing to move money out of, so it's
   // silently dormant rather than an error (matches how settleOccurrence
   // itself only applies a settlement to `fields.balanceId` when one is set).
-  const balanceById = new Map(balances.map((balance) => [balance.id, balance]));
   for (const autoMove of input.incomeAutoMoves ?? []) {
     const sourceBalanceId = balanceIdByRecurringItemId.get(autoMove.incomeId);
     if (!sourceBalanceId) continue;

@@ -43,12 +43,23 @@ const YEARS_PER_BATCH = 3;
 // right) plus the legend line, not color, so it's never color-alone.
 export function PeaksAndDropsCard({
   peaksAndDropsByYear,
+  peaksAndDropsByYearCashFlowOnly,
+  hasCashFlowOnlyAccounts,
   balanceRanges,
   currency,
   hasAnyFinancialData,
   allScenarios,
 }: {
   peaksAndDropsByYear: YearGroup[];
+  // T284 (SPEC.md Phase 49): the same year-grouped data, computed against
+  // the "Cash Flow Only" dataset (every `usedForBudgets` account/row
+  // excluded) - what renders when this card's own toggle below is on.
+  // Precomputed server-side so switching it is instant client-side.
+  peaksAndDropsByYearCashFlowOnly: YearGroup[];
+  // Only worth showing the toggle once at least one account is actually
+  // tagged `usedForBudgets` - otherwise the two datasets are always
+  // identical.
+  hasCashFlowOnlyAccounts: boolean;
   balanceRanges: number[];
   currency: string;
   hasAnyFinancialData: boolean;
@@ -64,13 +75,17 @@ export function PeaksAndDropsCard({
 }) {
   const [view, setView] = useState<"grid" | "graph">("grid");
   const [scenariosPanelOpen, setScenariosPanelOpen] = useState(false);
+  // T284: defaults OFF, same as the Forecast page's own toggle - everything
+  // counts by default.
+  const [cashFlowOnly, setCashFlowOnly] = useState(false);
   const [visibleYearCount, setVisibleYearCount] = useState(INITIAL_VISIBLE_YEARS);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const sentinelRef = useRef<HTMLDivElement>(null);
 
+  const displayedYears = cashFlowOnly ? peaksAndDropsByYearCashFlowOnly : peaksAndDropsByYear;
   const visibleYears = useMemo(
-    () => peaksAndDropsByYear.slice(0, visibleYearCount),
-    [peaksAndDropsByYear, visibleYearCount],
+    () => displayedYears.slice(0, visibleYearCount),
+    [displayedYears, visibleYearCount],
   );
   const activeScenarioCount = allScenarios.filter((scenario) => scenario.is_active).length;
 
@@ -82,7 +97,7 @@ export function PeaksAndDropsCard({
     const observer = new IntersectionObserver(
       ([entry]) => {
         if (entry.isIntersecting) {
-          setVisibleYearCount((count) => Math.min(count + YEARS_PER_BATCH, peaksAndDropsByYear.length));
+          setVisibleYearCount((count) => Math.min(count + YEARS_PER_BATCH, displayedYears.length));
         }
       },
       { root, rootMargin: "200px" },
@@ -92,7 +107,7 @@ export function PeaksAndDropsCard({
     // Re-attaches on `view` too - switching Grid/Graph mounts a new
     // scrollable container (a different DOM node), so the observer has to
     // re-bind to whichever one is current.
-  }, [peaksAndDropsByYear.length, view]);
+  }, [displayedYears.length, view]);
 
   return (
     <div className="mb-6 rounded-lg border border-notion-hairline bg-white" data-tour="dashboard-peaks-drops">
@@ -112,6 +127,18 @@ export function PeaksAndDropsCard({
               {activeScenarioCount > 0 && (
                 <span className="rounded-full bg-amber-500 px-1.5 text-white">{activeScenarioCount}</span>
               )}
+            </button>
+          )}
+          {/* T284: same toggle the Forecast page offers, mirrored here -
+              only worth showing once at least one account is actually
+              tagged `usedForBudgets`. Defaults OFF. */}
+          {hasCashFlowOnlyAccounts && (
+            <button
+              type="button"
+              onClick={() => setCashFlowOnly((prev) => !prev)}
+              className={`rounded border px-2 py-1 text-xs ${cashFlowOnly ? "border-notion-accent bg-notion-accent text-white" : "border-notion-hairline text-notion-text hover:bg-notion-hover"}`}
+            >
+              Cash Flow Only
             </button>
           )}
           {hasAnyFinancialData && (
@@ -164,7 +191,7 @@ export function PeaksAndDropsCard({
               </div>
             </div>
           ))}
-          {visibleYearCount < peaksAndDropsByYear.length && (
+          {visibleYearCount < displayedYears.length && (
             <div ref={sentinelRef} className="text-center text-xs text-slate-400">
               Loading more…
             </div>
@@ -210,7 +237,7 @@ export function PeaksAndDropsCard({
               </div>
             );
           })}
-          {visibleYearCount < peaksAndDropsByYear.length && (
+          {visibleYearCount < displayedYears.length && (
             <div ref={sentinelRef} className="text-center text-xs text-slate-400">
               Loading more…
             </div>

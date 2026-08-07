@@ -40,6 +40,13 @@ export type BalanceRow = {
   // fetched it (there are none left, but matching every other optional-DB-
   // column convention in this app) doesn't need a literal 0 everywhere.
   transaction_fee_centavos?: number;
+  // T284 (SPEC.md Phase 49): opt-in tag - lets the Forecast/Peaks and Drops
+  // pages' "Cash Flow Only" toggle exclude this account on demand. Doesn't
+  // change anything else about the account; still a real account counted in
+  // Total Balance/the forecast by default. Optional so a caller that hasn't
+  // fetched it treats it as false, same convention as every other optional
+  // field here.
+  used_for_budgets?: boolean;
 };
 
 const initialState: BalanceActionState = { error: null };
@@ -228,6 +235,27 @@ export function BalanceModal({
             account, incoming or outgoing - e.g. a bank that charges a fee per transaction. Leave
             blank for none. You can still override it for a single transaction later, when
             settling or moving funds.
+          </FormTip>
+        </div>
+        <div>
+          {/* T284 (SPEC.md Phase 49): a plain opt-in tag, not a different
+              account category - this is still a real account, counted in
+              Total Balance/the forecast by default. Only changes what the
+              Forecast/Peaks and Drops pages' "Cash Flow Only" toggle
+              excludes when switched on. */}
+          <label className="flex items-center gap-2 text-sm text-notion-text">
+            <input
+              type="checkbox"
+              name="usedForBudgets"
+              defaultChecked={balance?.used_for_budgets ?? false}
+              className="rounded border-notion-hairline"
+            />
+            Used for budgets
+          </label>
+          <FormTip tipKey="account-used-for-budgets">
+            Tag this account as budget money - lets you exclude it from the Forecast/Peaks and
+            Drops with the Cash Flow Only toggle. It still counts everywhere else, same as any
+            other account.
           </FormTip>
         </div>
         <div>

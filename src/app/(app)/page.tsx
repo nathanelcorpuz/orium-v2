@@ -132,6 +132,8 @@ export default async function Home({
   }
   const {
     forecast,
+    forecastCashFlowOnly,
+    cashFlowOnlyStartingBalance,
     balances,
     recurringItems,
     budgets,
@@ -282,6 +284,22 @@ export default async function Home({
   const lowestBalance = findLowestBalancePoint(upcoming, balanceAfterPastDue, today);
   const firstDanger = findFirstDangerPoint(upcoming, balanceAfterPastDue, balanceRanges[0], today);
 
+  // T284: the same Peaks and Drops computation, run again against the
+  // "Cash Flow Only" dataset (every `usedForBudgets` account/row excluded) -
+  // both grouped-by-year datasets are handed to PeaksAndDropsCard, which
+  // switches between them client-side with its own toggle, no reload.
+  const { upcoming: upcomingCashFlowOnly, balanceAfterPastDue: balanceAfterPastDueCashFlowOnly } = splitPastDue(
+    forecastCashFlowOnly,
+    cashFlowOnlyStartingBalance,
+  );
+  const peaksAndDropsCashFlowOnly = computeMonthlyPeaksAndDrops(
+    upcomingCashFlowOnly,
+    balanceAfterPastDueCashFlowOnly,
+    today,
+    horizon,
+  );
+  const peaksAndDropsByYearCashFlowOnly = groupPeaksAndDropsByYear(peaksAndDropsCashFlowOnly);
+
   // T117: every widget T117's spec lists (stat cards, Lowest Balance Ahead,
   // Peaks and Drops, Accounts, Remaining Debt, Savings, Budgets), handed to
   // `DashboardWidgetsPanel` as pre-rendered nodes rather than the page
@@ -384,6 +402,8 @@ export default async function Home({
       node: (
         <PeaksAndDropsCard
           peaksAndDropsByYear={peaksAndDropsByYear}
+          peaksAndDropsByYearCashFlowOnly={peaksAndDropsByYearCashFlowOnly}
+          hasCashFlowOnlyAccounts={balances.some((balance) => balance.usedForBudgets)}
           balanceRanges={balanceRanges}
           currency={currency}
           hasAnyFinancialData={hasAnyFinancialData}

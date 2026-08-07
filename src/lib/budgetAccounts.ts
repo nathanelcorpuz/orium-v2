@@ -1,38 +1,40 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-// T204: a budget account is deliberately separate from `balances` - it's
-// storage for budgets, never part of the cash-flow engine, so there's no
-// fee to deduct here the way applyToBalance (forecast/actions.ts) has to.
+// T284 (SPEC.md Phase 49): a budget's connected account is now a plain
+// `balances` row - "just one accounts category," no separate storage table.
 // Read-then-write, matching every other ledger-backed balance update in
-// this app (applyToBalance, accounts/actions.ts's adjustBalance) - accepted
-// non-transactional risk for a single-user/family app, same precedent.
+// this app (accounts/actions.ts's adjustBalance, forecast/actions.ts's
+// applyToBalance) - accepted non-transactional risk for a single-user/
+// family app, same precedent. Deliberately no fee here (unlike
+// applyToBalance) - a budget replenishment/manual action is bookkeeping
+// against the user's own money, not a real external settlement.
 export async function applyToBudgetAccount(
   supabase: SupabaseClient,
-  budgetAccountId: string,
+  balanceId: string,
   delta: number,
 ): Promise<string | null> {
   const { data: account, error: fetchError } = await supabase
-    .from("budget_accounts")
+    .from("balances")
     .select("amount")
-    .eq("id", budgetAccountId)
+    .eq("id", balanceId)
     .single();
   if (fetchError) return fetchError.message;
 
   const { error: updateError } = await supabase
-    .from("budget_accounts")
+    .from("balances")
     .update({ amount: account.amount + delta })
-    .eq("id", budgetAccountId);
+    .eq("id", balanceId);
   return updateError?.message ?? null;
 }
 
 export type BudgetAccountLink = {
-  budgetAccountId: string;
+  balanceId: string;
   replenishAmount: number;
   name: string;
 };
 
-// T218: every budget account currently connected to a budget, in the order
-// they were connected - the order both a manual-action picker and the
+// T218: every account currently connected to a budget, in the order they
+// were connected - the order both a manual-action picker and the
 // per-account breakdown line show accounts in. Replaces the single
 // `budgets.budget_account_id` lookup every caller used before T218.
 export async function loadBudgetAccountLinks(
@@ -41,16 +43,16 @@ export async function loadBudgetAccountLinks(
 ): Promise<BudgetAccountLink[]> {
   const { data } = await supabase
     .from("budget_budget_accounts")
-    .select("budget_account_id, replenish_amount, budget_accounts(name)")
+    .select("balance_id, replenish_amount, balances(name)")
     .eq("budget_id", budgetId)
     .order("created_at", { ascending: true });
 
   return (data ?? []).map((row) => ({
-    budgetAccountId: row.budget_account_id as string,
+    balanceId: row.balance_id as string,
     replenishAmount: row.replenish_amount as number,
     // Untyped Supabase client infers the embedded relation as an array
     // (the safe default without generated types), same as elsewhere in
     // this app (see budgets/actions.ts's deleteBudgetEntry).
-    name: (row.budget_accounts as unknown as { name: string }[])[0]?.name ?? "",
+    name: (row.balances as unknown as { name: string }[])[0]?.name ?? "",
   }));
 }

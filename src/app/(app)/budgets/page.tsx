@@ -2,8 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { idSetFromColumn } from "@/lib/editedItems";
 import { BudgetsClient } from "./BudgetsClient";
 import type { BudgetEntryRow, IncomeItemRow } from "./BudgetCard";
-import type { BudgetRow } from "./BudgetModal";
-import type { BudgetAccountRow } from "./BudgetAccountModal";
+import type { AccountOption, BudgetRow } from "./BudgetModal";
 
 export default async function BudgetsPage() {
   const supabase = await createClient();
@@ -14,7 +13,6 @@ export default async function BudgetsPage() {
     incomesRes,
     replenishOverridesRes,
     incomeOverridesRes,
-    budgetAccountsRes,
     balancesRes,
     budgetAccountLinksRes,
   ] = await Promise.all([
@@ -29,7 +27,7 @@ export default async function BudgetsPage() {
       // filter in BudgetCard narrows what's *displayed* client-side.
       supabase
         .from("budget_entries")
-        .select("id, budget_id, entry_date, amount, note, direction, budget_account_id")
+        .select("id, budget_id, entry_date, amount, note, direction, balance_id")
         .order("entry_date", { ascending: true }),
       // Phase 11 (T60): the recurrence rule columns too, not just id/name - an
       // income-linked budget's "days until replenish" progress bar
@@ -60,18 +58,16 @@ export default async function BudgetsPage() {
       // (`occurrence_overrides.skipped`) closes that gap: if the income itself
       // is done for that date, no budget can still be waiting on it.
       supabase.from("occurrence_overrides").select("recurring_item_id, original_date").eq("skipped", true),
-      // T204: budget accounts, for the Budgets page's own management
-      // sub-section and so each budget's create/edit form can offer the
-      // "Budget account" picker.
-      supabase.from("budget_accounts").select("id, name, amount, comments").order("name", { ascending: true }),
-      // User request 2026-08-01: "budget items should show the main
-      // account connected to the income connected to it" - just id/name,
-      // resolved against each income's own `balance_id` in BudgetCard.tsx.
+      // T284: the regular accounts list - doubles as both the source for a
+      // linked income's own connected main account (User request
+      // 2026-08-01) and the connected-account picker each budget's
+      // create/edit form offers. There's no separate "budget accounts"
+      // table anymore (T204's own, dropped by migration 0054).
       supabase.from("balances").select("id, name"),
-      // T218: every budget's connected budget account(s) - replaces T204's
+      // T218/T284: every budget's connected account(s) - replaces T204's
       // single `budgets.budget_account_id` column, for both the manual
       // Log spend/Add/Take funds picker and the per-account breakdown line.
-      supabase.from("budget_budget_accounts").select("budget_id, budget_account_id, replenish_amount"),
+      supabase.from("budget_budget_accounts").select("budget_id, balance_id, replenish_amount"),
     ]);
 
   if (budgetsRes.error) {
@@ -99,13 +95,6 @@ export default async function BudgetsPage() {
       </p>
     );
   }
-  if (budgetAccountsRes.error) {
-    return (
-      <p className="p-8 text-red-600">
-        Could not load budget accounts: {budgetAccountsRes.error.message}
-      </p>
-    );
-  }
   if (balancesRes.error) {
     return <p className="p-8 text-red-600">Could not load accounts: {balancesRes.error.message}</p>;
   }
@@ -118,16 +107,15 @@ export default async function BudgetsPage() {
   }
 
   const budgets: BudgetRow[] = budgetsRes.data ?? [];
-  const budgetAccounts: BudgetAccountRow[] = budgetAccountsRes.data ?? [];
-  const balances = balancesRes.data ?? [];
+  const balances: AccountOption[] = balancesRes.data ?? [];
 
-  // T218: every connected budget account per budget, in insert order -
-  // BudgetCard resolves each link's live name/amount against `budgetAccounts`
-  // above; BudgetModal uses the same list to prefill its edit form.
-  const accountLinksByBudgetId: Record<string, { budgetAccountId: string; replenishAmount: number }[]> = {};
+  // T218/T284: every connected account per budget, in insert order -
+  // BudgetCard resolves each link's live name against `balances` above;
+  // BudgetModal uses the same list to prefill its edit form.
+  const accountLinksByBudgetId: Record<string, { balanceId: string; replenishAmount: number }[]> = {};
   for (const link of budgetAccountLinksRes.data ?? []) {
     const list = accountLinksByBudgetId[link.budget_id] ?? [];
-    list.push({ budgetAccountId: link.budget_account_id, replenishAmount: link.replenish_amount });
+    list.push({ balanceId: link.balance_id, replenishAmount: link.replenish_amount });
     accountLinksByBudgetId[link.budget_id] = list;
   }
 
@@ -140,7 +128,7 @@ export default async function BudgetsPage() {
       amount: entry.amount,
       note: entry.note,
       direction: entry.direction,
-      budget_account_id: entry.budget_account_id,
+      balance_id: entry.balance_id,
     });
     entriesByBudgetId[entry.budget_id] = list;
   }
@@ -204,7 +192,6 @@ export default async function BudgetsPage() {
       balances={balances}
       editedIds={editedIds}
       handledDatesByBudgetId={handledDatesByBudgetId}
-      budgetAccounts={budgetAccounts}
       accountLinksByBudgetId={accountLinksByBudgetId}
     />
   );

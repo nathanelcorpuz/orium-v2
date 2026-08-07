@@ -18,7 +18,6 @@ export default async function ScenarioDetailPage({ params }: { params: Promise<{
     scenarioBudgetsRes,
     scenarioBudgetEntriesRes,
     realIncomesRes,
-    budgetAccountsRes,
   ] = await Promise.all([
     supabase.from("scenarios").select("id, name").eq("id", id).single(),
     supabase
@@ -39,7 +38,7 @@ export default async function ScenarioDetailPage({ params }: { params: Promise<{
     supabase
       .from("scenario_budgets")
       .select(
-        "id, name, allocation, linked_income_id, linked_scenario_income_id, budget_account_id, start_date, interval, unit, weekdays, days_of_month, ordinal, ordinal_weekday, ends_type, end_date, occurrence_count",
+        "id, name, allocation, linked_income_id, linked_scenario_income_id, balance_id, start_date, interval, unit, weekdays, days_of_month, ordinal, ordinal_weekday, ends_type, end_date, occurrence_count",
       )
       .eq("scenario_id", id)
       .order("name", { ascending: true }),
@@ -58,11 +57,6 @@ export default async function ScenarioDetailPage({ params }: { params: Promise<{
       )
       .eq("type", "income")
       .order("name", { ascending: true }),
-    // T223: "that goes with accounts as well... budget accounts" - every
-    // real budget account, selectable as a scenario budget's storage
-    // reference (never mutated by scenario activity - see migration 0047's
-    // own comment).
-    supabase.from("budget_accounts").select("id, name, amount, comments").order("name", { ascending: true }),
   ]);
 
   // RLS already scopes this to the current user's own scenarios; a missing
@@ -125,7 +119,6 @@ export default async function ScenarioDetailPage({ params }: { params: Promise<{
       scenarioBudgets={scenarioBudgetsRes.data ?? []}
       scenarioIncomes={scenarioIncomes}
       realIncomes={realIncomes}
-      budgetAccounts={budgetAccountsRes.data ?? []}
       entriesByBudgetId={entriesByBudgetId}
       balances={balancesRes.data ?? []}
     />

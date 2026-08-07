@@ -9,14 +9,12 @@ import { ReorderButtons } from "@/components/ReorderButtons";
 import { useOrderedList } from "@/lib/useOrderedList";
 import { formatCentavos } from "@/lib/money";
 import { todayInManila } from "@/lib/date";
-import { budgetReplenishRule, computeBudgetAccountBalance, computeBudgetBalance } from "@/lib/engine/budgetLedger";
+import { budgetReplenishRule, computeBudgetBalance } from "@/lib/engine/budgetLedger";
 import { monthlyEquivalent } from "@/lib/engine/monthlyTotals";
 import { toEngineBudget } from "@/lib/budgetView";
 import { isActive } from "@/lib/isActive";
 import { BudgetCard, toEngineEntries, type BudgetEntryRow, type IncomeItemRow } from "./BudgetCard";
-import { BudgetModal, type BudgetRow } from "./BudgetModal";
-import { BudgetAccountsSection } from "./BudgetAccountsSection";
-import type { BudgetAccountRow } from "./BudgetAccountModal";
+import { BudgetModal, type AccountOption, type BudgetRow } from "./BudgetModal";
 
 type ReplenishType = "manual" | "income" | "schedule";
 
@@ -39,24 +37,23 @@ export function BudgetsClient({
   balances,
   editedIds,
   handledDatesByBudgetId,
-  budgetAccounts,
   accountLinksByBudgetId,
 }: {
   budgets: BudgetRow[];
   entriesByBudgetId: Record<string, BudgetEntryRow[]>;
   incomes: IncomeItemRow[];
-  // User request 2026-08-01: so BudgetCard can show a linked income's own
-  // connected main account.
-  balances: { id: string; name: string }[];
+  // T284: the regular accounts list - resolves a linked income's own
+  // connected main account (User request 2026-08-01) and doubles as the
+  // connected-account picker source for BudgetCard/BudgetModal. There's no
+  // separate "budget accounts" category anymore (T204's old
+  // BudgetAccountsSection, deleted).
+  balances: AccountOption[];
   editedIds: Set<string>;
   // T167: skipped replenish occurrence dates per budget, so the card can
   // stop advertising a replenishment that already happened.
   handledDatesByBudgetId: Record<string, string[]>;
-  // T204: separate storage accounts for budgets - own sub-section below,
-  // and threaded into BudgetModal for the optional per-budget picker.
-  budgetAccounts: BudgetAccountRow[];
-  // T218: every budget's connected budget account(s), keyed by budget id.
-  accountLinksByBudgetId: Record<string, { budgetAccountId: string; replenishAmount: number }[]>;
+  // T218: every budget's connected account(s), keyed by budget id.
+  accountLinksByBudgetId: Record<string, { balanceId: string; replenishAmount: number }[]>;
 }) {
   const [modalState, setModalState] = useState<null | "new" | BudgetRow>(null);
 
@@ -169,29 +166,6 @@ export function BudgetsClient({
     [budgets, incomes],
   );
 
-  // T222 (user request 2026-08-02): "I need to be able to easily identify
-  // how much of the GCash Tatay amount only belongs to Pocket Money" - the
-  // inverse of each BudgetCard's own per-account breakdown. A budget
-  // account can hold more than one budget's money at once, so this groups
-  // every budget's own attributed share (computeBudgetAccountBalance) by
-  // which account it's actually sitting in, for BudgetAccountsSection to
-  // show alongside each account's raw total.
-  const budgetsByAccountId = useMemo(() => {
-    const map: Record<string, { budgetId: string; budgetName: string; amount: number }[]> = {};
-    for (const budget of budgets) {
-      const links = accountLinksByBudgetId[budget.id] ?? [];
-      if (links.length === 0) continue;
-      const engineEntries = toEngineEntries(entriesByBudgetId[budget.id] ?? [], budget.id);
-      for (const link of links) {
-        const amount = computeBudgetAccountBalance(engineEntries, budget.id, link.budgetAccountId, today);
-        const list = map[link.budgetAccountId] ?? [];
-        list.push({ budgetId: budget.id, budgetName: budget.name, amount });
-        map[link.budgetAccountId] = list;
-      }
-    }
-    return map;
-  }, [budgets, entriesByBudgetId, accountLinksByBudgetId, today]);
-
   return (
     <div className="p-4 md:p-8">
       <div className="mx-auto max-w-2xl">
@@ -228,8 +202,6 @@ export function BudgetsClient({
             Add budget
           </button>
         </div>
-
-        <BudgetAccountsSection accounts={budgetAccounts} budgetsByAccountId={budgetsByAccountId} />
 
         {budgets.length > 0 && (
           <CollapsibleFilters activeCount={activeFilterCount}>
@@ -303,7 +275,6 @@ export function BudgetsClient({
                     incomes={incomes}
                     balances={balances}
                     budgets={budgets}
-                    budgetAccounts={budgetAccounts}
                     accountLinks={accountLinksByBudgetId[budget.id] ?? []}
                     accountLinksByBudgetId={accountLinksByBudgetId}
                     onEdit={() => setModalState(budget)}
@@ -320,7 +291,7 @@ export function BudgetsClient({
           <BudgetModal
             budget={modalState === "new" ? null : modalState}
             incomes={incomes}
-            budgetAccounts={budgetAccounts}
+            balances={balances}
             initialAccountLinks={modalState === "new" ? [] : (accountLinksByBudgetId[modalState.id] ?? [])}
             onClose={() => setModalState(null)}
           />

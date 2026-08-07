@@ -5,8 +5,7 @@ import { Modal } from "@/components/Modal";
 import { blockNegativeKey, formatCentavos, parseCentavos } from "@/lib/money";
 import { todayInManila } from "@/lib/date";
 import { moveBudgetFunds, moveBudgetOwnAccountFunds, type BudgetActionState } from "./actions";
-import type { BudgetRow } from "./BudgetModal";
-import type { BudgetAccountRow } from "./BudgetAccountModal";
+import type { AccountOption, BudgetRow } from "./BudgetModal";
 
 const initialState: BudgetActionState = { error: null };
 
@@ -34,7 +33,7 @@ export function MoveBudgetFundsModal({
   accounts,
   budgets,
   accountLinksByBudgetId,
-  budgetAccounts,
+  balances,
   onClose,
 }: {
   budgetId: string;
@@ -45,8 +44,10 @@ export function MoveBudgetFundsModal({
   budgets: BudgetRow[];
   // Every budget's own connected accounts, so a chosen destination budget's
   // own picker can be resolved live.
-  accountLinksByBudgetId: Record<string, { budgetAccountId: string; replenishAmount: number }[]>;
-  budgetAccounts: BudgetAccountRow[];
+  accountLinksByBudgetId: Record<string, { balanceId: string; replenishAmount: number }[]>;
+  // T284: the regular accounts list - there's no separate "budget accounts"
+  // category anymore.
+  balances: AccountOption[];
   onClose: () => void;
 }) {
   const [fromAccountId, setFromAccountId] = useState(accounts[0]?.id ?? "");
@@ -63,9 +64,9 @@ export function MoveBudgetFundsModal({
   const toBudgetAccounts = useMemo(() => {
     if (!toBudgetId) return [];
     return (accountLinksByBudgetId[toBudgetId] ?? [])
-      .map((link) => budgetAccounts.find((account) => account.id === link.budgetAccountId))
-      .filter((account): account is BudgetAccountRow => account !== undefined);
-  }, [toBudgetId, accountLinksByBudgetId, budgetAccounts]);
+      .map((link) => balances.find((account) => account.id === link.balanceId))
+      .filter((account): account is AccountOption => account !== undefined);
+  }, [toBudgetId, accountLinksByBudgetId, balances]);
 
   // A destination-budget account pick from a *previous* destination can
   // never be silently submitted for the new one - reset inline on the

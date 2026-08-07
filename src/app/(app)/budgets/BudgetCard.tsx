@@ -23,7 +23,7 @@ import { BudgetEntriesModal } from "./BudgetEntriesModal";
 import { LogSpendModal } from "./LogSpendModal";
 import { FundsModal } from "./FundsModal";
 import { MoveBudgetFundsModal } from "./MoveBudgetFundsModal";
-import type { BudgetAccountRow } from "./BudgetAccountModal";
+import type { AccountOption } from "./BudgetModal";
 
 // Simplified, page-local shapes (SPEC.md Phase 10/T55) - the fuller
 // budgetView.ts versions of these still exist for actions.ts's own
@@ -35,10 +35,10 @@ export type BudgetEntryRow = {
   amount: number;
   note: string | null;
   direction?: "incoming" | "outgoing";
-  // T222: which connected budget account this entry touched, if any - lets
+  // T222/T284: which connected account this entry touched, if any - lets
   // a budget's per-account breakdown (below) show its own attributed share
   // of each account, not the account's raw total.
-  budget_account_id?: string | null;
+  balance_id?: string | null;
 };
 
 // Phase 11 (T60): the recurrence rule too, not just id/name - an
@@ -73,7 +73,7 @@ export function toEngineEntries(entries: BudgetEntryRow[], budgetId: string): Bu
     amount: entry.amount,
     note: entry.note,
     direction: entry.direction,
-    budgetAccountId: entry.budget_account_id,
+    balanceId: entry.balance_id,
   }));
 }
 
@@ -90,7 +90,6 @@ export function BudgetCard({
   incomes,
   balances,
   budgets,
-  budgetAccounts,
   accountLinks,
   accountLinksByBudgetId,
   onEdit,
@@ -100,25 +99,24 @@ export function BudgetCard({
   budget: BudgetRow;
   entries: BudgetEntryRow[];
   incomes: IncomeItemRow[];
-  // User request 2026-08-01: just enough to resolve a linked income's own
-  // connected main account by id - not the full `Balance`/`BalanceRow`
-  // shape, since nothing here needs an amount or a fee.
-  balances: { id: string; name: string }[];
+  // T284: the regular accounts list (balances) - resolves both a linked
+  // income's own connected account (just id/name, nothing here needs an
+  // amount or a fee) and each connected-account link below. There's no
+  // separate "budget accounts" category anymore (T204's old
+  // BudgetAccountRow/budgetAccounts prop).
+  balances: AccountOption[];
   // T203 (user request): the full budgets list, so Move funds has other
-  // budgets to move to. Optional so callers that never open move mode (there
-  // aren't any right now, but keeps this consistent with BudgetsClient's own
-  // BudgetAccountRow[] pattern) don't have to pass it.
+  // budgets to move to. Optional so callers that never open move mode don't
+  // have to pass it.
   budgets: BudgetRow[];
-  // T204: resolves each connected link's own name/live amount below.
-  budgetAccounts: BudgetAccountRow[];
-  // T218: every budget account currently connected to this budget, in
+  // T218/T284: every account currently connected to this budget, in
   // connection order - replaces T204's single `budget.budget_account_id`.
-  accountLinks: { budgetAccountId: string; replenishAmount: number }[];
+  accountLinks: { balanceId: string; replenishAmount: number }[];
   // T218 follow-up (REMINDER, 2026-08-02): every *other* budget's own
   // connected accounts too, keyed by budget id - Move funds needs this to
   // state where the money lands on whichever destination budget gets
   // picked, not just this card's own budget.
-  accountLinksByBudgetId: Record<string, { budgetAccountId: string; replenishAmount: number }[]>;
+  accountLinksByBudgetId: Record<string, { balanceId: string; replenishAmount: number }[]>;
   onEdit: () => void;
   edited: boolean;
   // T167: replenish occurrences already settled, so the countdown below moves
@@ -183,25 +181,26 @@ export function BudgetCard({
   const linkedAccountName = linkedIncome?.balanceId
     ? (balances.find((balance) => balance.id === linkedIncome.balanceId)?.name ?? null)
     : null;
-  // T218: every budget account this budget is connected to (T204's storage
-  // layer, now many-to-many) - distinct from linkedAccountName above, which
-  // is the linked income's own main account. Resolved against the live
-  // `budgetAccounts` list so the account's own name is never stale.
+  // T218/T284: every account this budget is connected to (T204's old
+  // separate storage layer is gone - these are now just regular accounts,
+  // many-to-many) - distinct from linkedAccountName above, which is the
+  // linked income's own main account. Resolved against the live `balances`
+  // list so the account's own name is never stale.
   //
   // T222 (user request 2026-08-02): "I need to be able to easily identify
-  // how much of the GCash Tatay amount only belongs to Pocket Money" - a
-  // budget account can hold more than one budget's money at once (nothing
-  // stops two budgets sharing an account), so the breakdown shows *this
-  // budget's own attributed share* of each account (computeBudgetAccountBalance,
+  // how much of the GCash Tatay amount only belongs to Pocket Money" - an
+  // account can hold more than one budget's money at once (nothing stops
+  // two budgets sharing an account), so the breakdown shows *this budget's
+  // own attributed share* of each account (computeBudgetAccountBalance,
   // summing only entries tagged with both this budget and that account),
   // not the account's raw total balance.
   const resolvedAccountLinks = accountLinks
     .map((link) => ({
       ...link,
-      account: budgetAccounts.find((account) => account.id === link.budgetAccountId),
-      attributedAmount: computeBudgetAccountBalance(engineEntries, budget.id, link.budgetAccountId, today),
+      account: balances.find((account) => account.id === link.balanceId),
+      attributedAmount: computeBudgetAccountBalance(engineEntries, budget.id, link.balanceId, today),
     }))
-    .filter((link): link is typeof link & { account: BudgetAccountRow } => link.account !== undefined);
+    .filter((link): link is typeof link & { account: AccountOption } => link.account !== undefined);
   // T175: undefined (older rows, or a fixture that never set it) means active.
   const isActive = budget.active !== false;
 
@@ -238,15 +237,17 @@ export function BudgetCard({
           )}
           {/* T218: a single connected account keeps T211's plain label; 2+
               shows a live per-account breakdown instead, e.g. "GCash Tatay
-              ₱300 · Cash Tatay ₱1,000" (user's own example). */}
+              ₱300 · Cash Tatay ₱1,000" (user's own example). T284: reworded
+              from "Budget account(s)" now that a connected account is just a
+              regular account, not a separate storage category. */}
           {resolvedAccountLinks.length === 1 && (
             <p className="mt-0.5 text-xs text-slate-400">
-              Budget account: {resolvedAccountLinks[0].account.name}
+              Connected account: {resolvedAccountLinks[0].account.name}
             </p>
           )}
           {resolvedAccountLinks.length > 1 && (
             <p className="mt-0.5 text-xs text-slate-400">
-              Budget accounts:{" "}
+              Connected accounts:{" "}
               {resolvedAccountLinks
                 .map((link) => `${link.account.name} ${formatCentavos(link.attributedAmount)}`)
                 .join(" · ")}
@@ -415,7 +416,7 @@ export function BudgetCard({
           accounts={resolvedAccountLinks.map((link) => ({ id: link.account.id, name: link.account.name }))}
           budgets={budgets}
           accountLinksByBudgetId={accountLinksByBudgetId}
-          budgetAccounts={budgetAccounts}
+          balances={balances}
           onClose={() => setActiveModal(null)}
         />
       )}
