@@ -51,14 +51,15 @@ export function PeaksAndDropsCard({
   allScenarios,
 }: {
   peaksAndDropsByYear: YearGroup[];
-  // T284 (SPEC.md Phase 49): the same year-grouped data, computed against
-  // the "Cash Flow Only" dataset (every `usedForBudgets` account/row
-  // excluded) - what renders when this card's own toggle below is on.
-  // Precomputed server-side so switching it is instant client-side.
+  // T284 (SPEC.md Phase 49), redesigned 2026-08-08: the same year-grouped
+  // data, computed against the "exclude budgets" dataset (every
+  // budget_replenish/budget_entry row excluded, plus each account's own
+  // budget-attributed portion netted out of its starting balance) - what
+  // renders when this card's own toggle below is on. Precomputed
+  // server-side so switching it is instant client-side.
   peaksAndDropsByYearCashFlowOnly: YearGroup[];
-  // Only worth showing the toggle once at least one account is actually
-  // tagged `usedForBudgets` - otherwise the two datasets are always
-  // identical.
+  // Only worth showing the toggle once at least one budget actually has a
+  // connected account - otherwise the two datasets are always identical.
   hasCashFlowOnlyAccounts: boolean;
   balanceRanges: number[];
   currency: string;
@@ -130,15 +131,15 @@ export function PeaksAndDropsCard({
             </button>
           )}
           {/* T284: same toggle the Forecast page offers, mirrored here -
-              only worth showing once at least one account is actually
-              tagged `usedForBudgets`. Defaults OFF. */}
+              only worth showing once at least one budget actually has a
+              connected account. Defaults OFF. */}
           {hasCashFlowOnlyAccounts && (
             <button
               type="button"
               onClick={() => setCashFlowOnly((prev) => !prev)}
               className={`rounded border px-2 py-1 text-xs ${cashFlowOnly ? "border-notion-accent bg-notion-accent text-white" : "border-notion-hairline text-notion-text hover:bg-notion-hover"}`}
             >
-              Cash Flow Only
+              Exclude budgets
             </button>
           )}
           {hasAnyFinancialData && (

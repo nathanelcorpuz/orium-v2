@@ -53,6 +53,8 @@ export default async function ForecastPage({
     balances,
     recurringItems,
     budgets,
+    budgetEntries,
+    budgetBalanceLinks,
     incomeAutoMoves,
     incomeAutoMoveOverrides,
     currency,
@@ -81,6 +83,8 @@ export default async function ForecastPage({
       balances={balances}
       recurringItems={recurringItems}
       budgets={budgets}
+      budgetEntries={budgetEntries}
+      budgetBalanceLinks={budgetBalanceLinks}
       currency={currency}
       balanceRanges={balanceRanges}
       tierLabels={tierLabels}

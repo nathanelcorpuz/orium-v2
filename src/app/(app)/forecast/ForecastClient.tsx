@@ -7,6 +7,8 @@ import { formatFullDate, todayInManila } from "@/lib/date";
 import { daysBetween } from "@/lib/engine/date-utils";
 import { balanceRangeColorClass, balanceRangeTier, firstDangerLabel, lowestBalanceLabel } from "@/lib/balanceColor";
 import { accountBalanceForRow, computeAccountBalancesAfterEachRow, findAccountLowestPoints } from "@/lib/engine/accountBalances";
+import { computeBudgetBalance } from "@/lib/engine/budgetLedger";
+import { budgetPortionByBalanceId } from "@/lib/engine/cashFlowFilter";
 import { BalanceModal, type BalanceRow } from "@/app/(app)/accounts/BalanceModal";
 import { AmountRangeFilter, matchesAmountFilter, type ComparisonOp } from "@/components/AmountRangeFilter";
 import { MultiSelectChips } from "@/components/MultiSelectChips";
@@ -20,7 +22,15 @@ import { SubmitButton } from "@/components/SubmitButton";
 import { toggleScenarioActive } from "@/app/(app)/scenarios/actions";
 import { TYPE_COLOR, TYPE_LABEL } from "@/lib/forecastLabels";
 import { summarizeRecurrence, budgetReplenishRuleSummary } from "@/lib/recurrenceSummary";
-import type { ForecastRow, Budget, IncomeAutoMove, IncomeAutoMoveOverride, RecurringItem } from "@/lib/engine/types";
+import type {
+  ForecastRow,
+  Budget,
+  BudgetBalanceLink,
+  BudgetEntry,
+  IncomeAutoMove,
+  IncomeAutoMoveOverride,
+  RecurringItem,
+} from "@/lib/engine/types";
 import {
   buildAutoMoveOverrideByKey,
   buildAutoMoveRulesByIncomeId,
@@ -157,6 +167,8 @@ export function ForecastClient({
   balances,
   recurringItems,
   budgets,
+  budgetEntries,
+  budgetBalanceLinks,
   currency,
   balanceRanges,
   tierLabels,
@@ -174,11 +186,12 @@ export function ForecastClient({
   incomeAutoMoveOverrides = [],
 }: {
   forecast: ForecastRow[];
-  // T284 (SPEC.md Phase 49): the same forecast, recomputed with every
-  // `usedForBudgets` account (and every row attributed to one) excluded -
-  // what renders when the "Cash Flow Only" toggle below is on. Precomputed
-  // server-side (loadForecast()) so switching the toggle is instant
-  // client-side, no reload/refetch.
+  // T284 (SPEC.md Phase 49), redesigned 2026-08-08: the same forecast, with
+  // every budget_replenish/budget_entry row excluded (wherever its money
+  // lives - not whole accounts, so a mixed-use account keeps its ordinary
+  // bills/income) - what renders when the "Exclude budgets" toggle below is
+  // on. Precomputed server-side (loadForecast()) so switching the toggle is
+  // instant client-side, no reload/refetch.
   forecastCashFlowOnly: ForecastRow[];
   cashFlowOnlyStartingBalance: number;
   balances: BalanceRow[];
@@ -187,6 +200,11 @@ export function ForecastClient({
   // rule (via budgetReplenishRuleSummary).
   recurringItems: RecurringItem[];
   budgets: Budget[];
+  // T284: for the always-visible "Total remaining budget" figure and the
+  // "Exclude budgets" toggle's per-account portion (cashFlowFilter.ts) -
+  // both computed client-side so nothing here needs a server round-trip.
+  budgetEntries: BudgetEntry[];
+  budgetBalanceLinks: BudgetBalanceLink[];
   currency: string;
   balanceRanges: number[];
   tierLabels: string[];
@@ -248,10 +266,37 @@ export function ForecastClient({
   const [cashFlowOnly, setCashFlowOnly] = useState(false);
   const activeScenarios = allScenarios.filter((s) => s.is_active);
   const displayedForecast = cashFlowOnly ? forecastCashFlowOnly : forecast;
-  const displayedBalances = cashFlowOnly ? balances.filter((balance) => !balance.used_for_budgets) : balances;
+  const today = todayInManila();
+  // T284 (redesigned 2026-08-08): "Exclude budgets" hides budget money, not
+  // whole accounts - a mixed-use account keeps showing here, just with its
+  // own budget-attributed portion netted out of the figure. Every account
+  // still renders (never filtered out), matching how the row list itself
+  // now only drops budget-type rows, never a whole account's other rows.
+  const budgetPortionByAccount = useMemo(
+    () => budgetPortionByBalanceId(budgetEntries, budgetBalanceLinks, today),
+    [budgetEntries, budgetBalanceLinks, today],
+  );
+  const displayedBalances = useMemo(
+    () =>
+      cashFlowOnly
+        ? balances.map((balance) => ({
+            ...balance,
+            amount: balance.amount - (budgetPortionByAccount.get(balance.id) ?? 0),
+          }))
+        : balances,
+    [balances, cashFlowOnly, budgetPortionByAccount],
+  );
   const displayedTotalBalance = cashFlowOnly
     ? cashFlowOnlyStartingBalance
     : balances.reduce((sum, balance) => sum + balance.amount, 0);
+  // T284 follow-up (user request 2026-08-08): "always put a total remaining
+  // budget number somewhere in the forecast page" - the same running-total
+  // math the Budgets page's own "Total across all budgets" line uses
+  // (BudgetsClient.tsx), shown here regardless of the toggle above.
+  const totalRemainingBudget = useMemo(
+    () => budgets.reduce((sum, budget) => sum + computeBudgetBalance(budgetEntries, budget.id, today), 0),
+    [budgets, budgetEntries, today],
+  );
 
   useEffect(() => {
     // Reading localStorage during the lazy useState initializer instead
@@ -515,11 +560,23 @@ export function ForecastClient({
                 on enter > forecast > review > keep clean," the number this
                 whole page exists to answer given more visual weight. */}
             <p className="text-sm text-slate-500">
-              Total balance{cashFlowOnly ? " (Cash Flow Only)" : ""}
+              Total balance{cashFlowOnly ? " (excluding budgets)" : ""}
             </p>
             <p className="text-2xl font-semibold text-notion-text">
               {formatCentavos(displayedTotalBalance, currency)}
             </p>
+            {/* T284 follow-up: always visible, regardless of the toggle below
+                - "how much do I have set aside across every budget right
+                now," the same figure the Budgets page's own "Total across
+                all budgets" line shows. */}
+            {budgets.length > 0 && (
+              <p className="mt-1 text-sm text-slate-500">
+                Total remaining budget:{" "}
+                <span className={totalRemainingBudget < 0 ? "text-red-600" : "font-medium text-notion-text"}>
+                  {formatCentavos(totalRemainingBudget, currency)}
+                </span>
+              </p>
+            )}
             <div className="mt-2 flex flex-wrap gap-2">
               {displayedBalances.map((balance) => {
                 // T180, made visible per user follow-up feedback (previously
@@ -693,17 +750,18 @@ export function ForecastClient({
                   )}
                 </button>
               )}
-              {/* T284: only worth showing once at least one account is
-                  actually tagged `usedForBudgets` - otherwise the two
-                  datasets are always identical and the toggle would do
-                  nothing. Defaults OFF (everything counts by default). */}
-              {balances.some((balance) => balance.used_for_budgets) && (
+              {/* T284, redesigned 2026-08-08: only worth showing once at
+                  least one budget actually has a connected account -
+                  otherwise the two datasets are always identical and the
+                  toggle would do nothing. Defaults OFF (everything counts by
+                  default). */}
+              {budgetBalanceLinks.length > 0 && (
                 <button
                   type="button"
                   onClick={() => setCashFlowOnly((prev) => !prev)}
                   className={`rounded border px-3 py-1.5 text-xs ${cashFlowOnly ? "border-notion-accent bg-notion-accent text-white" : "border-notion-hairline bg-white text-notion-text hover:bg-notion-hover"}`}
                 >
-                  Cash Flow Only
+                  Exclude budgets
                 </button>
               )}
               {/* T183: independent per-scenario toggles, replacing the single

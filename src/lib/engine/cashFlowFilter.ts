@@ -1,36 +1,48 @@
-import type { Balance, ForecastRow } from "./types";
+import type { BudgetBalanceLink, BudgetEntry, ForecastRow } from "./types";
+import { computeBudgetAccountBalance } from "./budgetLedger";
 
 export interface CashFlowOnlyResult {
   rows: ForecastRow[];
   startingBalance: number;
 }
 
-// T284 (SPEC.md Phase 49): "Cash Flow Only" - a presentation-layer filter
-// over an already-computed forecast, not a second engine run. Accounts
-// tagged `usedForBudgets` (and every row attributed to one, via
-// `balanceId`) are treated as if they don't exist: their starting amount is
-// dropped from the total, and the running balance is recomputed over
-// whatever rows remain. A budget's projected replenish debit (attributed to
-// its *income's* account, not the flagged destination) survives this
-// filter and still reduces the total normally - money leaving toward a
-// budget still leaves your cash-flow-only view, exactly reproducing the
-// pre-T284 default where budget accounts were always excluded. The hidden
-// credit leg into the flagged destination (forecast.ts) simply never
-// appears here, since its own `balanceId` is flagged.
+// T284 (SPEC.md Phase 49), redesigned per user follow-up (2026-08-08):
+// "Exclude budgets" hides budget MONEY, not whole accounts - an account
+// used for both budgets and regular cash flow keeps showing its ordinary
+// bills/income when this is on, only its budget-attributed rows/amount
+// disappear.
+//
+// Row filter: any "budget_replenish" (both the visible debit and the
+// hidden credit leg(s), forecast.ts) or "budget_entry" row is dropped,
+// unconditionally - these rows ARE the budget money moving, wherever they
+// live, so which account they're attributed to is irrelevant here.
+//
+// Starting-total filter: an account's *whole* balance is never dropped
+// anymore. Instead, for every budget-account link, `computeBudgetAccountBalance`
+// (T222 - already built to answer "how much of this account is Pocket
+// Money vs Groceries") gives exactly the portion of that account's current
+// balance attributable to budget activity, summed over every link. This is
+// self-consistent even when negative (a budget that spent more from an
+// account than it was ever credited there) - every budget-attributed entry
+// always moves the account's *real* balance by the same amount (T204/T218's
+// `applyToBudgetAccount`), so `balance - budgetPortion` always equals
+// exactly the account's non-budget activity, never more or less.
 export function filterCashFlowOnly(
   rows: ForecastRow[],
-  balances: Balance[],
+  budgetEntries: BudgetEntry[],
+  budgetBalanceLinks: BudgetBalanceLink[],
   startingTotal: number,
+  today: string,
 ): CashFlowOnlyResult {
-  const flaggedIds = new Set(balances.filter((b) => b.usedForBudgets).map((b) => b.id));
-  if (flaggedIds.size === 0) return { rows, startingBalance: startingTotal };
+  const budgetPortion = budgetBalanceLinks.reduce(
+    (sum, link) => sum + computeBudgetAccountBalance(budgetEntries, link.budgetId, link.balanceId, today),
+    0,
+  );
+  const startingBalance = startingTotal - budgetPortion;
 
-  const flaggedStartingSum = balances
-    .filter((b) => flaggedIds.has(b.id))
-    .reduce((sum, b) => sum + b.amount, 0);
-  const startingBalance = startingTotal - flaggedStartingSum;
-
-  const filteredRows = rows.filter((row) => !(row.balanceId && flaggedIds.has(row.balanceId)));
+  const filteredRows = rows.filter(
+    (row) => row.sourceType !== "budget_replenish" && row.sourceType !== "budget_entry",
+  );
 
   let running = startingBalance;
   const recomputed = filteredRows.map((row) => {
@@ -43,4 +55,21 @@ export function filterCashFlowOnly(
   });
 
   return { rows: recomputed, startingBalance };
+}
+
+// T284 follow-up: per-account budget portion, exposed on its own so the
+// Forecast page's balance chips can show "this account minus its own
+// budget-attributed money" when "Exclude budgets" is on, rather than only
+// adjusting the combined total.
+export function budgetPortionByBalanceId(
+  budgetEntries: BudgetEntry[],
+  budgetBalanceLinks: BudgetBalanceLink[],
+  today: string,
+): Map<string, number> {
+  const result = new Map<string, number>();
+  for (const link of budgetBalanceLinks) {
+    const portion = computeBudgetAccountBalance(budgetEntries, link.budgetId, link.balanceId, today);
+    result.set(link.balanceId, (result.get(link.balanceId) ?? 0) + portion);
+  }
+  return result;
 }

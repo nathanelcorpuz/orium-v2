@@ -139,6 +139,7 @@ export default async function Home({
     budgets,
     budgetEntries,
     budgetReplenishOverrides,
+    budgetBalanceLinks,
     currency,
     balanceRanges,
     tierLabels,
@@ -403,7 +404,7 @@ export default async function Home({
         <PeaksAndDropsCard
           peaksAndDropsByYear={peaksAndDropsByYear}
           peaksAndDropsByYearCashFlowOnly={peaksAndDropsByYearCashFlowOnly}
-          hasCashFlowOnlyAccounts={balances.some((balance) => balance.usedForBudgets)}
+          hasCashFlowOnlyAccounts={budgetBalanceLinks.length > 0}
           balanceRanges={balanceRanges}
           currency={currency}
           hasAnyFinancialData={hasAnyFinancialData}

@@ -430,12 +430,18 @@ export async function loadForecast(): Promise<ForecastData> {
   const startingBalance = balances.reduce((sum, balance) => sum + balance.amount, 0);
   // T284: computed alongside the normal forecast, always - a cheap pure
   // post-pass (cashFlowFilter.ts), not a second engine run - so the
-  // Forecast/Peaks and Drops pages' own "Cash Flow Only" toggle is instant
-  // client-side, no reload/refetch needed to switch views.
+  // Forecast/Peaks and Drops pages' own "Exclude budgets" toggle is instant
+  // client-side, no reload/refetch needed to switch views. Redesigned
+  // 2026-08-08 to exclude budget *money* (any budget_replenish/budget_entry
+  // row, plus each account's own budget-attributed portion) rather than
+  // whole flagged accounts, so a mixed-use account keeps its ordinary bills/
+  // income visible.
   const { rows: forecastCashFlowOnly, startingBalance: cashFlowOnlyStartingBalance } = filterCashFlowOnly(
     forecast,
-    balances,
+    budgetEntries,
+    budgetBalanceLinks,
     startingBalance,
+    today,
   );
 
   return {
