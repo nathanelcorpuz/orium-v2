@@ -862,3 +862,26 @@ export async function moveBudgetFunds(
   revalidatePath("/");
   return { error: null };
 }
+
+// T284 follow-up (SPEC.md Phase 49, user request 2026-08-08): "how much of
+// this budget's money do you assume is already spoken for" - drives the
+// Forecast/Peaks and Drops "Budget usage" sliders. Called directly (not
+// FormData/useActionState) since a slider fires many times while being
+// dragged - BudgetUsagePanel.tsx debounces and calls this plainly, updating
+// its own local state instantly for live feedback rather than waiting on
+// this round-trip. No logActivity call - a personal display assumption, not
+// a financial record, and would spam the Updates feed on every drag tick.
+export async function updateBudgetAssumedSpendPercent(budgetId: string, percent: number): Promise<{ error: string | null }> {
+  if (!Number.isInteger(percent) || percent < 0 || percent > 100) {
+    return { error: "Percent must be a whole number between 0 and 100." };
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase.from("budgets").update({ assumed_spend_percent: percent }).eq("id", budgetId);
+  if (error) return { error: error.message };
+
+  revalidatePath("/forecast");
+  revalidatePath("/");
+  revalidatePath("/budgets");
+  return { error: null };
+}

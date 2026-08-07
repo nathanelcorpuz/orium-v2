@@ -55,3 +55,19 @@ export function computeMonthlyPeaksAndDrops(
 
   return results;
 }
+
+export type YearGroup = { year: number; months: MonthlyPeakDrop[] };
+
+// T284 follow-up: moved here (was a local, unexported helper in
+// page.tsx) so PeaksAndDropsCard.tsx (a client component) can re-run this
+// same reshaping itself for its "Budget usage" slider's live recompute,
+// instead of only ever receiving an already-grouped dataset from the server.
+export function groupPeaksAndDropsByYear(rows: MonthlyPeakDrop[]): YearGroup[] {
+  const byYear = new Map<number, MonthlyPeakDrop[]>();
+  for (const row of rows) {
+    const [year] = row.month.split("-").map(Number);
+    if (!byYear.has(year)) byYear.set(year, []);
+    byYear.get(year)!.push(row);
+  }
+  return [...byYear.entries()].sort(([a], [b]) => a - b).map(([year, months]) => ({ year, months }));
+}

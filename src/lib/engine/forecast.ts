@@ -1,5 +1,7 @@
 import type {
+  Budget,
   BudgetBalanceLink,
+  BudgetEntry,
   BudgetReplenishOverride,
   ForecastRow,
   GenerateForecastInput,
@@ -9,7 +11,12 @@ import type {
   RecurringItem,
 } from "./types";
 import { expandRecurrenceOccurrences } from "./recurrence";
-import { budgetReplenishRule, futureBudgetLedgerEntries, futureBudgetReplenishDates } from "./budgetLedger";
+import {
+  budgetReplenishRule,
+  computeBudgetBalance,
+  futureBudgetLedgerEntries,
+  futureBudgetReplenishDates,
+} from "./budgetLedger";
 import { splitAmountByShares } from "./budgetSplit";
 
 function toRecurrenceRule(item: RecurringItem): RecurrenceRule {
@@ -287,11 +294,11 @@ export function generateForecast(input: GenerateForecastInput): ForecastRow[] {
       // real settle-time write uses (writeBudgetReplenishLegs,
       // forecast/actions.ts). Hidden - like an auto-move leg, this isn't a
       // second transaction the user did, it's the other half of the row just
-      // pushed above. No explicit zero-contribution treatment: an
-      // income-linked replenishment's debit (above) and credit(s) (here)
-      // naturally net to the same combined total either way, and an
-      // own-schedule budget's credit is genuinely new money (no debit exists
-      // to net against) - see SPEC.md T284 write-up for the reasoning.
+      // pushed above. This credit leg's own *combined-total* contribution is
+      // always its full amount, unscaled - the budget's `assumedSpendPercent`
+      // (T284 follow-up, below) is applied to the debit row instead, so the
+      // two together land on exactly "P% of this replenishment is treated as
+      // already spent" - see the final reduce's own comment for the math.
       const links = budgetBalanceLinksByBudgetId.get(budget.id) ?? [];
       if (links.length > 0) {
         const totalAmount = editedAmount ?? budget.allocation;
@@ -333,9 +340,8 @@ export function generateForecast(input: GenerateForecastInput): ForecastRow[] {
         budgetName: budget.name,
         note: futureEntry.note,
         // T284: which real account this ledger entry actually touched, when
-        // it has one - lets a future-dated manual add/take/spend against a
-        // budget-linked account be excluded by "Cash Flow Only"
-        // (cashFlowFilter.ts) the same uniform way any other row is.
+        // it has one - real per-account attribution (accountBalances.ts),
+        // same as any other row.
         balanceId: futureEntry.balanceId ?? undefined,
         fromScenario: budget.fromScenario,
       });
@@ -426,7 +432,95 @@ export function generateForecast(input: GenerateForecastInput): ForecastRow[] {
     return 0;
   });
 
-  let runningBalance = balances.reduce((sum, balance) => sum + balance.amount, 0);
+  return computeRunningBalances(rows, balances, budgets, budgetEntries, input.budgetBalanceLinks ?? [], today);
+}
+
+// T284 follow-up (SPEC.md Phase 49, user request 2026-08-08): extracted out
+// of generateForecast so the Forecast page's "Budget usage" sliders can
+// re-run *just this part* client-side for instant feedback while dragging -
+// re-sorting/re-expanding every rule on every drag tick would be needless
+// work, since only the assumed-spend math below actually depends on a
+// budget's own percent. Every other field on each row (amount, balanceId,
+// sourceType, dueDate, sort order) is already final by the time this runs.
+// A budget with no linked account at all has no credit leg to net the debit
+// against - its debit row is *already* the whole "money is gone" effect
+// (there's nowhere for it to visibly land), so it must not also get the
+// extra assumed-spend adjustment (that would double-deduct it) - neither on
+// its future replenish rows nor its own spends/adds, and nor on the
+// *already-happened* portion of its ledger folded into the starting balance
+// below. Driven by the real link data (not "does a future row happen to
+// exist within the horizon", which a lapsed/exhausted schedule could make
+// wrongly say no).
+function budgetsWithLinkedAccountSet(budgetBalanceLinks: BudgetBalanceLink[]): Set<string> {
+  return new Set(budgetBalanceLinks.map((link) => link.budgetId));
+}
+
+// T284 follow-up: "Total balance" isn't the raw account sum anymore - it's
+// discounted by each linked budget's own already-happened ledger activity,
+// at that budget's own `assumedSpendPercent`. Exported on its own (not just
+// inlined in `computeRunningBalances` below) so the Forecast page's header
+// figure can be recomputed the same way `computeRunningBalances`'s starting
+// point is, live, as a "Budget usage" slider moves, before any row is
+// walked at all.
+export function computeAssumedAvailableStartingBalance(
+  balances: { amount: number }[],
+  budgets: Budget[],
+  budgetEntries: BudgetEntry[],
+  budgetBalanceLinks: BudgetBalanceLink[],
+  today: string,
+): number {
+  const budgetsWithLinkedAccount = budgetsWithLinkedAccountSet(budgetBalanceLinks);
+  return (
+    balances.reduce((sum, balance) => sum + balance.amount, 0) -
+    budgets.reduce((sum, budget) => {
+      if (!budgetsWithLinkedAccount.has(budget.id)) return sum;
+      const percent = budget.assumedSpendPercent ?? 100;
+      if (percent === 0) return sum;
+      return sum + Math.round((computeBudgetBalance(budgetEntries, budget.id, today) * percent) / 100);
+    }, 0)
+  );
+}
+
+export function computeRunningBalances(
+  rows: Omit<ForecastRow, "runningBalance">[],
+  balances: { amount: number }[],
+  budgets: Budget[],
+  budgetEntries: BudgetEntry[],
+  budgetBalanceLinks: BudgetBalanceLink[],
+  today: string,
+): ForecastRow[] {
+  const budgetsById = new Map(budgets.map((budget) => [budget.id, budget]));
+  const budgetsWithLinkedAccount = budgetsWithLinkedAccountSet(budgetBalanceLinks);
+
+  // Every budget now carries its own `assumedSpendPercent` (0-100, DB
+  // default 100), "how much of this budget's money do you assume is already
+  // spoken for." Already-happened budget activity (real `budget_entries`
+  // rows dated today or earlier) is priced into the starting total here, at
+  // each budget's own percent - the *projected* future activity is priced in
+  // per-row, in the reduce below.
+  let runningBalance = computeAssumedAvailableStartingBalance(balances, budgets, budgetEntries, budgetBalanceLinks, today);
+
+  // A budget_replenish row's own "ledger delta" - how much this row moves
+  // that budget's running ledger total (Σincoming−Σoutgoing, budgetLedger.ts)
+  // - independent of which account(s) the money is attributed to. The
+  // *debit* row (visible, negative `amount`) is what actually credits the
+  // ledger (delta = +totalAmount = -row.amount); its hidden credit leg(s)
+  // (positive `amount`, one per linked account) don't move the ledger a
+  // second time - they're only about *where* the money physically lands, so
+  // their own delta is 0. A `budget_entry` row already *is* a ledger entry,
+  // so its delta is simply its own signed `amount`.
+  function budgetLedgerDelta(row: Omit<ForecastRow, "runningBalance">): number {
+    // A budget with no linked account has nowhere for "the rest" to
+    // visibly sit as available cash - its debit already unconditionally
+    // means "gone" (same as before this feature existed), so neither its
+    // replenish nor any of its own spends/adds get the extra adjustment,
+    // regardless of the slider. See the comment on
+    // `budgetsWithLinkedAccount` above for the full reasoning.
+    if (!row.budgetId || !budgetsWithLinkedAccount.has(row.budgetId)) return 0;
+    if (row.sourceType === "budget_replenish") return row.hidden ? 0 : -row.amount;
+    if (row.sourceType === "budget_entry") return row.amount;
+    return 0;
+  }
 
   return rows.map((row) => {
     // Bug fix (2026-08-02, reported against real production data): an
@@ -450,7 +544,19 @@ export function generateForecast(input: GenerateForecastInput): ForecastRow[] {
     // `balanceId` directly, never `runningBalance` - so excluding these two
     // legs from the *combined* total here doesn't touch what each account's
     // own projected balance shows.
-    const contribution = row.sourceType === "income_auto_move" ? 0 : row.amount;
+    // T284 follow-up: on top of the row's own normal effect, a budget-ledger-
+    // moving row (see budgetLedgerDelta above) gets an extra adjustment of
+    // `-delta * assumedSpendPercent/100` - at 100% this exactly cancels the
+    // credit leg's own full contribution (net -totalAmount, "fully spent the
+    // moment it's set aside") and zeroes out a later actual spend entirely
+    // (already priced in at replenish time, so it can't be deducted twice);
+    // at 0% it's a no-op (today's original, pre-this-follow-up behavior).
+    const delta = budgetLedgerDelta(row);
+    const assumedSpendAdjustment =
+      delta !== 0 && row.budgetId
+        ? -Math.round((delta * (budgetsById.get(row.budgetId)?.assumedSpendPercent ?? 100)) / 100)
+        : 0;
+    const contribution = row.sourceType === "income_auto_move" ? 0 : row.amount + assumedSpendAdjustment;
     // T172: the fee is always a cost, subtracted regardless of the
     // transaction's own direction - a fee credited back would be a
     // different feature (already representable as its own bill/income/misc

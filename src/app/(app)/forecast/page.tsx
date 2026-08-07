@@ -48,8 +48,6 @@ export default async function ForecastPage({
 
   const {
     forecast,
-    forecastCashFlowOnly,
-    cashFlowOnlyStartingBalance,
     balances,
     recurringItems,
     budgets,
@@ -78,8 +76,6 @@ export default async function ForecastPage({
   return (
     <ForecastClient
       forecast={forecast}
-      forecastCashFlowOnly={forecastCashFlowOnly}
-      cashFlowOnlyStartingBalance={cashFlowOnlyStartingBalance}
       balances={balances}
       recurringItems={recurringItems}
       budgets={budgets}

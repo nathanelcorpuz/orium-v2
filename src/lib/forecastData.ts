@@ -2,7 +2,6 @@ import { createClient } from "@/lib/supabase/server";
 import { todayInManila } from "@/lib/date";
 import { addYears, MAX_TRACKING_YEARS } from "@/lib/engine/date-utils";
 import { generateForecast } from "@/lib/engine/forecast";
-import { filterCashFlowOnly } from "@/lib/engine/cashFlowFilter";
 import { toEngineBudget, toEngineEntries, type BudgetEntryRow, type BudgetRow } from "@/lib/budgetView";
 import { DEFAULT_TIER_LABELS } from "@/lib/balanceColor";
 import type {
@@ -21,7 +20,7 @@ import type {
 } from "@/lib/engine/types";
 
 const BUDGET_COLUMNS =
-  "id, name, monthly_allocation, allocation, created_at, linked_income_id, start_date, interval, unit, weekdays, days_of_month, ordinal, ordinal_weekday, ends_type, end_date, occurrence_count, active";
+  "id, name, monthly_allocation, allocation, created_at, linked_income_id, start_date, interval, unit, weekdays, days_of_month, ordinal, ordinal_weekday, ends_type, end_date, occurrence_count, active, assumed_spend_percent";
 
 const DEFAULT_BALANCE_RANGES = [0, 500000, 2000000, 5000000, 10000000];
 const DEFAULT_CURRENCY = "₱";
@@ -52,13 +51,6 @@ export type ForecastBalance = Balance & {
 
 export type ForecastData = {
   forecast: ForecastRow[];
-  // T284: the same forecast, recomputed with every `usedForBudgets` account
-  // (and every row attributed to one) excluded - what the Forecast/Peaks and
-  // Drops pages render when their own "Cash Flow Only" toggle is on. Always
-  // computed (cheap - a pure post-pass, no second engine run) so the toggle
-  // is instant client-side with no reload.
-  forecastCashFlowOnly: ForecastRow[];
-  cashFlowOnlyStartingBalance: number;
   balances: ForecastBalance[];
   recurringItems: RecurringItem[];
   overrides: OccurrenceOverride[];
@@ -427,27 +419,9 @@ export async function loadForecast(): Promise<ForecastData> {
   };
 
   const forecast = generateForecast(input);
-  const startingBalance = balances.reduce((sum, balance) => sum + balance.amount, 0);
-  // T284: computed alongside the normal forecast, always - a cheap pure
-  // post-pass (cashFlowFilter.ts), not a second engine run - so the
-  // Forecast/Peaks and Drops pages' own "Exclude budgets" toggle is instant
-  // client-side, no reload/refetch needed to switch views. Redesigned
-  // 2026-08-08 to exclude budget *money* (any budget_replenish/budget_entry
-  // row, plus each account's own budget-attributed portion) rather than
-  // whole flagged accounts, so a mixed-use account keeps its ordinary bills/
-  // income visible.
-  const { rows: forecastCashFlowOnly, startingBalance: cashFlowOnlyStartingBalance } = filterCashFlowOnly(
-    forecast,
-    budgetEntries,
-    budgetBalanceLinks,
-    startingBalance,
-    today,
-  );
 
   return {
     forecast,
-    forecastCashFlowOnly,
-    cashFlowOnlyStartingBalance,
     balances,
     recurringItems,
     overrides,

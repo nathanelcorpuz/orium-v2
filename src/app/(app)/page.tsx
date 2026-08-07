@@ -8,9 +8,9 @@ import { displayName } from "@/lib/displayName";
 import { monthlyEquivalent } from "@/lib/engine/monthlyTotals";
 import { remainingTotal, ruleEndDate } from "@/lib/engine/remaining";
 import { goalProgress } from "@/lib/engine/goalProgress";
-import { computeMonthlyPeaksAndDrops } from "@/lib/engine/peaksAndDrops";
+import { computeMonthlyPeaksAndDrops, groupPeaksAndDropsByYear } from "@/lib/engine/peaksAndDrops";
 import { findFirstDangerPoint, findLowestBalancePoint } from "@/lib/engine/lowestBalance";
-import { splitPastDue } from "@/lib/engine/forecast";
+import { computeAssumedAvailableStartingBalance, splitPastDue } from "@/lib/engine/forecast";
 import {
   budgetProgressFraction,
   budgetReplenishRule,
@@ -28,24 +28,6 @@ import { DashboardWidgetsPanel, type DashboardWidget } from "@/components/Dashbo
 import { PeaksAndDropsCard } from "./PeaksAndDropsCard";
 import { getSampleFixtureData } from "@/lib/sampleFixture";
 import type { RecurringItem } from "@/lib/engine/types";
-
-// T48/user follow-up: reshapes computeMonthlyPeaksAndDrops's flat "YYYY-MM"
-// list into one block per year, each holding just its own present months (no
-// padding for out-of-horizon months) - a wrapping card grid, not a table, so
-// months reflow to the next line within their year block instead of forcing
-// horizontal scroll. Purely presentational; the engine's data shape is
-// untouched.
-function groupPeaksAndDropsByYear(
-  rows: { month: string; peak: number; drop: number }[],
-): { year: number; months: { month: string; peak: number; drop: number }[] }[] {
-  const byYear = new Map<number, { month: string; peak: number; drop: number }[]>();
-  for (const row of rows) {
-    const [year] = row.month.split("-").map(Number);
-    if (!byYear.has(year)) byYear.set(year, []);
-    byYear.get(year)!.push(row);
-  }
-  return [...byYear.entries()].sort(([a], [b]) => a - b).map(([year, months]) => ({ year, months }));
-}
 
 // T72: aggregates settled/total occurrences across every item of one type
 // (debt or savings) into a single Dashboard-level progress bar - each
@@ -132,8 +114,6 @@ export default async function Home({
   }
   const {
     forecast,
-    forecastCashFlowOnly,
-    cashFlowOnlyStartingBalance,
     balances,
     recurringItems,
     budgets,
@@ -173,7 +153,13 @@ export default async function Home({
   const hasAnyFinancialData =
     balances.length > 0 || recurringItems.length > 0 || budgets.length > 0 || forecast.length > 0;
 
-  const totalBalance = balances.reduce((sum, balance) => sum + balance.amount, 0);
+  // T284 follow-up (SPEC.md Phase 49): "Total Balance" is discounted by each
+  // linked budget's own already-happened ledger activity, at its own
+  // "assumed spend" percent (default 100 - bills-like) - not the raw account
+  // sum. Matches the Forecast page's own header figure, computed the same
+  // way (`generateForecast`'s own `runningBalance` series already bakes the
+  // same math in per-row, via `computeRunningBalances`).
+  const totalBalance = computeAssumedAvailableStartingBalance(balances, budgets, budgetEntries, budgetBalanceLinks, today);
 
   // T197 (user request): Misc has no "monthly" concept (one-offs, not
   // recurring), so these total whatever's still pending in the forecast
@@ -285,22 +271,6 @@ export default async function Home({
   const lowestBalance = findLowestBalancePoint(upcoming, balanceAfterPastDue, today);
   const firstDanger = findFirstDangerPoint(upcoming, balanceAfterPastDue, balanceRanges[0], today);
 
-  // T284: the same Peaks and Drops computation, run again against the
-  // "Cash Flow Only" dataset (every `usedForBudgets` account/row excluded) -
-  // both grouped-by-year datasets are handed to PeaksAndDropsCard, which
-  // switches between them client-side with its own toggle, no reload.
-  const { upcoming: upcomingCashFlowOnly, balanceAfterPastDue: balanceAfterPastDueCashFlowOnly } = splitPastDue(
-    forecastCashFlowOnly,
-    cashFlowOnlyStartingBalance,
-  );
-  const peaksAndDropsCashFlowOnly = computeMonthlyPeaksAndDrops(
-    upcomingCashFlowOnly,
-    balanceAfterPastDueCashFlowOnly,
-    today,
-    horizon,
-  );
-  const peaksAndDropsByYearCashFlowOnly = groupPeaksAndDropsByYear(peaksAndDropsCashFlowOnly);
-
   // T117: every widget T117's spec lists (stat cards, Lowest Balance Ahead,
   // Peaks and Drops, Accounts, Remaining Debt, Savings, Budgets), handed to
   // `DashboardWidgetsPanel` as pre-rendered nodes rather than the page
@@ -403,8 +373,13 @@ export default async function Home({
       node: (
         <PeaksAndDropsCard
           peaksAndDropsByYear={peaksAndDropsByYear}
-          peaksAndDropsByYearCashFlowOnly={peaksAndDropsByYearCashFlowOnly}
-          hasCashFlowOnlyAccounts={budgetBalanceLinks.length > 0}
+          forecast={forecast}
+          balances={balances}
+          budgets={budgets}
+          budgetEntries={budgetEntries}
+          budgetBalanceLinks={budgetBalanceLinks}
+          today={today}
+          horizon={horizon}
           balanceRanges={balanceRanges}
           currency={currency}
           hasAnyFinancialData={hasAnyFinancialData}

@@ -138,6 +138,14 @@ export interface Budget {
   // T182: true when this budget was merged in from an active "what-if"
   // scenario rather than being a real row - see RecurringItem.fromScenario.
   fromScenario?: true;
+  // T284 follow-up (SPEC.md Phase 49, user request 2026-08-08): 0-100 -
+  // "how much of this budget's money do you assume is already spoken for."
+  // 0 = fully available cash flow (never deducted until actually spent),
+  // 100 = bills-like (deducted from the Forecast total the moment it's set
+  // aside, matching the pre-T284 default). Optional/undefined defaults to
+  // 100 (the DB default) - keeps every existing fixture/test constructor
+  // valid, same convention as `active`/`fromScenario` above.
+  assumedSpendPercent?: number;
 
   // Phase 11 (T58): a budget's own replenish schedule ("replenish every"),
   // set only when linkedIncomeId is null (DB-enforced mutual exclusivity -

@@ -26,6 +26,10 @@ export type BudgetRow = {
   ends_type: "never" | "on_date" | "after_count" | null;
   end_date: string | null;
   occurrence_count: number | null;
+  // T284 follow-up: undefined for callers that do not select it, same
+  // convention as `active` above - the engine defaults a missing value to
+  // 100 (the DB default), not 0.
+  assumed_spend_percent?: number;
 };
 
 export type BudgetEntryRow = {
@@ -58,6 +62,7 @@ export function toEngineBudget(budget: BudgetRow): Budget {
     endsType: budget.ends_type,
     endDate: budget.end_date,
     occurrenceCount: budget.occurrence_count,
+    assumedSpendPercent: budget.assumed_spend_percent,
   };
 }
 

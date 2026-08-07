@@ -1,7 +1,6 @@
 import { todayInManila } from "@/lib/date";
 import { addDays, addYears, MAX_TRACKING_YEARS } from "@/lib/engine/date-utils";
 import { generateForecast } from "@/lib/engine/forecast";
-import { filterCashFlowOnly } from "@/lib/engine/cashFlowFilter";
 import { DEFAULT_TIER_LABELS } from "@/lib/balanceColor";
 import type { ForecastBalance, ForecastData } from "@/lib/forecastData";
 import type { Budget, BudgetEntry, GenerateForecastInput, OneOffItem, RecurringItem } from "@/lib/engine/types";
@@ -214,24 +213,9 @@ export function getSampleFixtureData(): ForecastData {
   // negative balance. Real accounts keep their backlog; only this static
   // display fixture is exempt.
   const forecast = generateForecast(input).filter((row) => !row.pastDue);
-  const startingBalance = balances.reduce((sum, balance) => sum + balance.amount, 0);
-  // T284: same cheap pure post-pass loadForecast() runs for real data - this
-  // fixture's budgets have no account links, so the two datasets happen to
-  // be identical here, but computing it for real keeps the Forecast/Peaks
-  // and Drops pages' "Exclude budgets" toggle working the same way in
-  // preview mode as it does for real data.
-  const { rows: forecastCashFlowOnly, startingBalance: cashFlowOnlyStartingBalance } = filterCashFlowOnly(
-    forecast,
-    budgetEntries,
-    [],
-    startingBalance,
-    today,
-  );
 
   return {
     forecast,
-    forecastCashFlowOnly,
-    cashFlowOnlyStartingBalance,
     balances,
     recurringItems,
     overrides: [],

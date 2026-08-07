@@ -8,7 +8,8 @@ import { daysBetween } from "@/lib/engine/date-utils";
 import { balanceRangeColorClass, balanceRangeTier, firstDangerLabel, lowestBalanceLabel } from "@/lib/balanceColor";
 import { accountBalanceForRow, computeAccountBalancesAfterEachRow, findAccountLowestPoints } from "@/lib/engine/accountBalances";
 import { computeBudgetBalance } from "@/lib/engine/budgetLedger";
-import { budgetPortionByBalanceId } from "@/lib/engine/cashFlowFilter";
+import { computeAssumedAvailableStartingBalance, computeRunningBalances } from "@/lib/engine/forecast";
+import { BudgetUsagePanel } from "@/components/BudgetUsagePanel";
 import { BalanceModal, type BalanceRow } from "@/app/(app)/accounts/BalanceModal";
 import { AmountRangeFilter, matchesAmountFilter, type ComparisonOp } from "@/components/AmountRangeFilter";
 import { MultiSelectChips } from "@/components/MultiSelectChips";
@@ -162,8 +163,6 @@ function ForecastBalanceCell({
 
 export function ForecastClient({
   forecast,
-  forecastCashFlowOnly,
-  cashFlowOnlyStartingBalance,
   balances,
   recurringItems,
   budgets,
@@ -186,23 +185,17 @@ export function ForecastClient({
   incomeAutoMoveOverrides = [],
 }: {
   forecast: ForecastRow[];
-  // T284 (SPEC.md Phase 49), redesigned 2026-08-08: the same forecast, with
-  // every budget_replenish/budget_entry row excluded (wherever its money
-  // lives - not whole accounts, so a mixed-use account keeps its ordinary
-  // bills/income) - what renders when the "Exclude budgets" toggle below is
-  // on. Precomputed server-side (loadForecast()) so switching the toggle is
-  // instant client-side, no reload/refetch.
-  forecastCashFlowOnly: ForecastRow[];
-  cashFlowOnlyStartingBalance: number;
   balances: BalanceRow[];
   // T199: for the "frequency" line in EditSettleModal/CalendarGrid - a
   // recurring row's own rule, or a budget_replenish row's linked income's
   // rule (via budgetReplenishRuleSummary).
   recurringItems: RecurringItem[];
   budgets: Budget[];
-  // T284: for the always-visible "Total remaining budget" figure and the
-  // "Exclude budgets" toggle's per-account portion (cashFlowFilter.ts) -
-  // both computed client-side so nothing here needs a server round-trip.
+  // T284 follow-up: for the always-visible "Total remaining budget" figure
+  // and the "Budget usage" sliders' own live recompute
+  // (computeRunningBalances/computeAssumedAvailableStartingBalance,
+  // engine/forecast.ts) - both run client-side so dragging a slider needs no
+  // server round-trip to show its effect.
   budgetEntries: BudgetEntry[];
   budgetBalanceLinks: BudgetBalanceLink[];
   currency: string;
@@ -258,41 +251,49 @@ export function ForecastClient({
   // (T164) per user request - the calendar view is unfiltered (same as the
   // old page), so the Filter button/badge only make sense in table mode.
   const [viewMode, setViewMode] = useState<"table" | "calendar">("table");
-  // T284: defaults OFF - everything counts by default, same as before this
-  // toggle existed. Switches which of the two precomputed datasets the rest
-  // of this page renders (the table/calendar rows, the total balance figure
-  // at the top, and the per-account balance chips) - purely a client-side
-  // swap, no reload.
-  const [cashFlowOnly, setCashFlowOnly] = useState(false);
   const activeScenarios = allScenarios.filter((s) => s.is_active);
-  const displayedForecast = cashFlowOnly ? forecastCashFlowOnly : forecast;
   const today = todayInManila();
-  // T284 (redesigned 2026-08-08): "Exclude budgets" hides budget money, not
-  // whole accounts - a mixed-use account keeps showing here, just with its
-  // own budget-attributed portion netted out of the figure. Every account
-  // still renders (never filtered out), matching how the row list itself
-  // now only drops budget-type rows, never a whole account's other rows.
-  const budgetPortionByAccount = useMemo(
-    () => budgetPortionByBalanceId(budgetEntries, budgetBalanceLinks, today),
-    [budgetEntries, budgetBalanceLinks, today],
-  );
-  const displayedBalances = useMemo(
+  // T284 follow-up (SPEC.md Phase 49, user request 2026-08-08): replaces the
+  // earlier binary "Exclude budgets" toggle - every budget now carries its
+  // own "assumed spend" percent, adjustable live via the "Budget usage"
+  // panel below. `localPercentOverrides` holds only what's been dragged
+  // *this session* and not yet confirmed by the next server round-trip
+  // (BudgetUsagePanel.tsx debounces the actual save) - once `budgets` itself
+  // refreshes with the saved value, the override becomes redundant but
+  // harmless (same number either way).
+  const [budgetUsageOpen, setBudgetUsageOpen] = useState(false);
+  const [localPercentOverrides, setLocalPercentOverrides] = useState<Record<string, number>>({});
+  const liveBudgets = useMemo(
     () =>
-      cashFlowOnly
-        ? balances.map((balance) => ({
-            ...balance,
-            amount: balance.amount - (budgetPortionByAccount.get(balance.id) ?? 0),
-          }))
-        : balances,
-    [balances, cashFlowOnly, budgetPortionByAccount],
+      Object.keys(localPercentOverrides).length === 0
+        ? budgets
+        : budgets.map((budget) =>
+            localPercentOverrides[budget.id] !== undefined
+              ? { ...budget, assumedSpendPercent: localPercentOverrides[budget.id] }
+              : budget,
+          ),
+    [budgets, localPercentOverrides],
   );
-  const displayedTotalBalance = cashFlowOnly
-    ? cashFlowOnlyStartingBalance
-    : balances.reduce((sum, balance) => sum + balance.amount, 0);
+  // Recomputes only the running-balance pass (not the whole engine run) -
+  // cheap enough to redo on every slider tick. `forecast` already has every
+  // row's amount/sourceType/dueDate/sort order finalized; only the
+  // assumed-spend math depends on `liveBudgets`.
+  const liveForecast = useMemo(
+    () => computeRunningBalances(forecast, balances, liveBudgets, budgetEntries, budgetBalanceLinks, today),
+    [forecast, balances, liveBudgets, budgetEntries, budgetBalanceLinks, today],
+  );
+  const liveTotalBalance = useMemo(
+    () => computeAssumedAvailableStartingBalance(balances, liveBudgets, budgetEntries, budgetBalanceLinks, today),
+    [balances, liveBudgets, budgetEntries, budgetBalanceLinks, today],
+  );
+  const displayedForecast = liveForecast;
+  const displayedBalances = balances;
+  const displayedTotalBalance = liveTotalBalance;
   // T284 follow-up (user request 2026-08-08): "always put a total remaining
   // budget number somewhere in the forecast page" - the same running-total
   // math the Budgets page's own "Total across all budgets" line uses
-  // (BudgetsClient.tsx), shown here regardless of the toggle above.
+  // (BudgetsClient.tsx), always shown regardless of any slider above (this
+  // is the budget's own ledger total, not a cash-flow assumption).
   const totalRemainingBudget = useMemo(
     () => budgets.reduce((sum, budget) => sum + computeBudgetBalance(budgetEntries, budget.id, today), 0),
     [budgets, budgetEntries, today],
@@ -559,16 +560,13 @@ export function ForecastClient({
                 make Balance accounts bold" - part of "focus the entire app
                 on enter > forecast > review > keep clean," the number this
                 whole page exists to answer given more visual weight. */}
-            <p className="text-sm text-slate-500">
-              Total balance{cashFlowOnly ? " (excluding budgets)" : ""}
-            </p>
+            <p className="text-sm text-slate-500">Total balance</p>
             <p className="text-2xl font-semibold text-notion-text">
               {formatCentavos(displayedTotalBalance, currency)}
             </p>
-            {/* T284 follow-up: always visible, regardless of the toggle below
-                - "how much do I have set aside across every budget right
-                now," the same figure the Budgets page's own "Total across
-                all budgets" line shows. */}
+            {/* T284 follow-up: always visible - "how much do I have set aside
+                across every budget right now," the same figure the Budgets
+                page's own "Total across all budgets" line shows. */}
             {budgets.length > 0 && (
               <p className="mt-1 text-sm text-slate-500">
                 Total remaining budget:{" "}
@@ -750,18 +748,17 @@ export function ForecastClient({
                   )}
                 </button>
               )}
-              {/* T284, redesigned 2026-08-08: only worth showing once at
-                  least one budget actually has a connected account -
-                  otherwise the two datasets are always identical and the
-                  toggle would do nothing. Defaults OFF (everything counts by
-                  default). */}
-              {budgetBalanceLinks.length > 0 && (
+              {/* T284 follow-up (user request 2026-08-08): replaces the
+                  earlier binary "Exclude budgets" toggle with a per-budget
+                  slider panel - "how much of this budget's money do you
+                  assume is already spent." */}
+              {budgets.length > 0 && (
                 <button
                   type="button"
-                  onClick={() => setCashFlowOnly((prev) => !prev)}
-                  className={`rounded border px-3 py-1.5 text-xs ${cashFlowOnly ? "border-notion-accent bg-notion-accent text-white" : "border-notion-hairline bg-white text-notion-text hover:bg-notion-hover"}`}
+                  onClick={() => setBudgetUsageOpen(true)}
+                  className="rounded border border-notion-hairline bg-white px-3 py-1.5 text-xs text-notion-text hover:bg-notion-hover"
                 >
-                  Exclude budgets
+                  Budget usage
                 </button>
               )}
               {/* T183: independent per-scenario toggles, replacing the single
@@ -1101,6 +1098,22 @@ export function ForecastClient({
             </Link>
           </div>
         </Modal>
+      )}
+      {/* T284 follow-up (user request 2026-08-08): live-updates
+          `localPercentOverrides` on every drag tick (instant recompute above,
+          no reload) and separately debounce-saves via its own server action. */}
+      {budgetUsageOpen && (
+        <BudgetUsagePanel
+          budgets={budgets.map((budget) => ({
+            id: budget.id,
+            name: budget.name,
+            assumedSpendPercent: budget.assumedSpendPercent ?? 100,
+          }))}
+          onClose={() => setBudgetUsageOpen(false)}
+          onChange={(budgetId, percent) =>
+            setLocalPercentOverrides((prev) => ({ ...prev, [budgetId]: percent }))
+          }
+        />
       )}
     </div>
   );

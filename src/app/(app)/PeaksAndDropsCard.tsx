@@ -5,13 +5,14 @@ import Link from "next/link";
 import { SegmentedControl } from "@/components/SegmentedControl";
 import { Modal } from "@/components/Modal";
 import { SubmitButton } from "@/components/SubmitButton";
+import { BudgetUsagePanel } from "@/components/BudgetUsagePanel";
 import { formatCentavos } from "@/lib/money";
 import { formatMonthYear } from "@/lib/date";
 import { balanceRangeColorClass } from "@/lib/balanceColor";
 import { toggleScenarioActive } from "@/app/(app)/scenarios/actions";
-
-type MonthEntry = { month: string; peak: number; drop: number };
-type YearGroup = { year: number; months: MonthEntry[] };
+import { computeAssumedAvailableStartingBalance, computeRunningBalances, splitPastDue } from "@/lib/engine/forecast";
+import { computeMonthlyPeaksAndDrops, groupPeaksAndDropsByYear, type YearGroup } from "@/lib/engine/peaksAndDrops";
+import type { Balance, Budget, BudgetBalanceLink, BudgetEntry, ForecastRow } from "@/lib/engine/types";
 
 const MAX_BAR_HEIGHT = 96;
 
@@ -43,24 +44,33 @@ const YEARS_PER_BATCH = 3;
 // right) plus the legend line, not color, so it's never color-alone.
 export function PeaksAndDropsCard({
   peaksAndDropsByYear,
-  peaksAndDropsByYearCashFlowOnly,
-  hasCashFlowOnlyAccounts,
+  forecast,
+  balances,
+  budgets,
+  budgetEntries,
+  budgetBalanceLinks,
+  today,
+  horizon,
   balanceRanges,
   currency,
   hasAnyFinancialData,
   allScenarios,
 }: {
+  // Server-computed default view (already-saved percents baked in via
+  // generateForecast) - shown until a "Budget usage" slider is dragged, at
+  // which point `liveYears` below takes over so this stays instant with no
+  // reload.
   peaksAndDropsByYear: YearGroup[];
-  // T284 (SPEC.md Phase 49), redesigned 2026-08-08: the same year-grouped
-  // data, computed against the "exclude budgets" dataset (every
-  // budget_replenish/budget_entry row excluded, plus each account's own
-  // budget-attributed portion netted out of its starting balance) - what
-  // renders when this card's own toggle below is on. Precomputed
-  // server-side so switching it is instant client-side.
-  peaksAndDropsByYearCashFlowOnly: YearGroup[];
-  // Only worth showing the toggle once at least one budget actually has a
-  // connected account - otherwise the two datasets are always identical.
-  hasCashFlowOnlyAccounts: boolean;
+  // T284 follow-up (SPEC.md Phase 49, user request 2026-08-08): raw
+  // ingredients for the live recompute - same shape ForecastClient.tsx uses,
+  // reused here so both pages' sliders behave identically.
+  forecast: ForecastRow[];
+  balances: Balance[];
+  budgets: Budget[];
+  budgetEntries: BudgetEntry[];
+  budgetBalanceLinks: BudgetBalanceLink[];
+  today: string;
+  horizon: string;
   balanceRanges: number[];
   currency: string;
   hasAnyFinancialData: boolean;
@@ -76,14 +86,37 @@ export function PeaksAndDropsCard({
 }) {
   const [view, setView] = useState<"grid" | "graph">("grid");
   const [scenariosPanelOpen, setScenariosPanelOpen] = useState(false);
-  // T284: defaults OFF, same as the Forecast page's own toggle - everything
-  // counts by default.
-  const [cashFlowOnly, setCashFlowOnly] = useState(false);
+  const [budgetUsageOpen, setBudgetUsageOpen] = useState(false);
   const [visibleYearCount, setVisibleYearCount] = useState(INITIAL_VISIBLE_YEARS);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const sentinelRef = useRef<HTMLDivElement>(null);
 
-  const displayedYears = cashFlowOnly ? peaksAndDropsByYearCashFlowOnly : peaksAndDropsByYear;
+  // T284 follow-up: same live-recompute pattern as ForecastClient.tsx - only
+  // re-runs while `localPercentOverrides` actually holds something (a
+  // slider's been touched this session), otherwise renders the
+  // server-computed `peaksAndDropsByYear` directly with no extra work.
+  const [localPercentOverrides, setLocalPercentOverrides] = useState<Record<string, number>>({});
+  const hasOverrides = Object.keys(localPercentOverrides).length > 0;
+  const liveYears = useMemo(() => {
+    if (!hasOverrides) return peaksAndDropsByYear;
+    const liveBudgets = budgets.map((budget) =>
+      localPercentOverrides[budget.id] !== undefined
+        ? { ...budget, assumedSpendPercent: localPercentOverrides[budget.id] }
+        : budget,
+    );
+    const liveRows = computeRunningBalances(forecast, balances, liveBudgets, budgetEntries, budgetBalanceLinks, today);
+    const liveStartingBalance = computeAssumedAvailableStartingBalance(
+      balances,
+      liveBudgets,
+      budgetEntries,
+      budgetBalanceLinks,
+      today,
+    );
+    const { upcoming, balanceAfterPastDue } = splitPastDue(liveRows, liveStartingBalance);
+    return groupPeaksAndDropsByYear(computeMonthlyPeaksAndDrops(upcoming, balanceAfterPastDue, today, horizon));
+  }, [hasOverrides, peaksAndDropsByYear, budgets, localPercentOverrides, forecast, balances, budgetEntries, budgetBalanceLinks, today, horizon]);
+
+  const displayedYears = liveYears;
   const visibleYears = useMemo(
     () => displayedYears.slice(0, visibleYearCount),
     [displayedYears, visibleYearCount],
@@ -130,16 +163,16 @@ export function PeaksAndDropsCard({
               )}
             </button>
           )}
-          {/* T284: same toggle the Forecast page offers, mirrored here -
-              only worth showing once at least one budget actually has a
-              connected account. Defaults OFF. */}
-          {hasCashFlowOnlyAccounts && (
+          {/* T284 follow-up: same "Budget usage" panel the Forecast page
+              offers, mirrored here per the user's own request ("controllable
+              from the forecast and peaks/drops"). */}
+          {budgets.length > 0 && (
             <button
               type="button"
-              onClick={() => setCashFlowOnly((prev) => !prev)}
-              className={`rounded border px-2 py-1 text-xs ${cashFlowOnly ? "border-notion-accent bg-notion-accent text-white" : "border-notion-hairline text-notion-text hover:bg-notion-hover"}`}
+              onClick={() => setBudgetUsageOpen(true)}
+              className="rounded border border-notion-hairline px-2 py-1 text-xs text-notion-text hover:bg-notion-hover"
             >
-              Exclude budgets
+              Budget usage
             </button>
           )}
           {hasAnyFinancialData && (
@@ -281,6 +314,19 @@ export function PeaksAndDropsCard({
             </Link>
           </div>
         </Modal>
+      )}
+      {budgetUsageOpen && (
+        <BudgetUsagePanel
+          budgets={budgets.map((budget) => ({
+            id: budget.id,
+            name: budget.name,
+            assumedSpendPercent: budget.assumedSpendPercent ?? 100,
+          }))}
+          onClose={() => setBudgetUsageOpen(false)}
+          onChange={(budgetId, percent) =>
+            setLocalPercentOverrides((prev) => ({ ...prev, [budgetId]: percent }))
+          }
+        />
       )}
     </div>
   );
