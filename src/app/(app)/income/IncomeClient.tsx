@@ -31,6 +31,13 @@ const UNIT_OPTIONS: { value: RecurrenceUnit; label: string }[] = [
   { value: "year", label: "Year" },
 ];
 
+// T245: a short suffix for the "Funds ₱X {label}" pill - "per week" for the
+// common case, "every 2 weeks" etc. once an interval is actually in play.
+function fundsFrequencyLabel(income: IncomeRow): string {
+  const interval = income.interval ?? 1;
+  return interval === 1 ? `per ${income.unit}` : `every ${interval} ${income.unit}s`;
+}
+
 function incomeRule(income: IncomeRow) {
   return {
     startDate: income.start_date,
@@ -47,8 +54,9 @@ function incomeRule(income: IncomeRow) {
 }
 
 // T71 follow-up: a budget replenished from a given income, for display next
-// to that income's row.
-type LinkedBudget = { id: string; name: string; linked_income_id: string | null };
+// to that income's row. T245: `allocation` (the budget's own per-
+// replenishment amount) added so that pill can show a total, not just names.
+type LinkedBudget = { id: string; name: string; linked_income_id: string | null; allocation: number };
 
 export function IncomeClient({
   incomes,
@@ -176,13 +184,21 @@ export function IncomeClient({
     () => buildAutoMoveOverrideByKey(incomeAutoMoveOverrides),
     [incomeAutoMoveOverrides],
   );
-  const budgetNamesByIncomeId = useMemo(() => {
-    const map = new Map<string, string[]>();
+  // T245 (user request 2026-08-08): "i need to be able to quickly see the
+  // total amount of the budget funds a certain income funds... based on the
+  // frequency it's in." A linked budget always replenishes at its income's
+  // own cadence (it has no schedule of its own once income-linked - same
+  // rule `budgetReplenishRule`, engine/budgetLedger.ts, already relies on),
+  // so "broken down by frequency" is just this income's own recurrence -
+  // shown via `fundsFrequencyLabel` below, no per-budget frequency needed.
+  const budgetFundingByIncomeId = useMemo(() => {
+    const map = new Map<string, { names: string[]; total: number }>();
     for (const budget of linkedBudgets) {
       if (!budget.linked_income_id) continue;
-      const list = map.get(budget.linked_income_id) ?? [];
-      list.push(budget.name);
-      map.set(budget.linked_income_id, list);
+      const entry = map.get(budget.linked_income_id) ?? { names: [], total: 0 };
+      entry.names.push(budget.name);
+      entry.total += budget.allocation;
+      map.set(budget.linked_income_id, entry);
     }
     return map;
   }, [linkedBudgets]);
@@ -316,7 +332,7 @@ export function IncomeClient({
         ) : (
           <ul className="space-y-2">
             {sortedIncomes.map((income, index) => {
-              const funds = budgetNamesByIncomeId.get(income.id);
+              const funds = budgetFundingByIncomeId.get(income.id);
               const autoMoves = autoMovesByIncomeId.get(income.id) ?? [];
               return (
               <li
@@ -371,12 +387,12 @@ export function IncomeClient({
                         {balanceNameById.get(income.balance_id) ?? "-"}
                       </span>
                     )}
-                    {funds && funds.length > 0 && (
+                    {funds && funds.names.length > 0 && (
                       <span
                         className="rounded-full bg-notion-hover px-2 py-0.5 text-xs font-medium text-slate-500"
                         title="Budgets funded from this income"
                       >
-                        Funds: {funds.join(", ")}
+                        Funds {formatCentavos(funds.total)} {fundsFrequencyLabel(income)}: {funds.names.join(", ")}
                       </span>
                     )}
                     {autoMoves.length > 0 && (

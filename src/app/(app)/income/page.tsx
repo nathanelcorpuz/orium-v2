@@ -24,7 +24,12 @@ export default async function IncomePage() {
       // T71: options for the optional "connected account" dropdown.
       supabase.from("balances").select("id, name").order("name", { ascending: true }),
       // T71 follow-up: which budgets replenish from each income, for display.
-      supabase.from("budgets").select("id, name, linked_income_id").not("linked_income_id", "is", null),
+      // T245: `allocation` added so the page can show how much of the
+      // income each linked budget actually takes, not just its name.
+      supabase
+        .from("budgets")
+        .select("id, name, linked_income_id, allocation")
+        .not("linked_income_id", "is", null),
       // T212: every income's auto-move rules, for both display (the "Auto-
       // moves: X" pill) and prefilling IncomeModal's edit form.
       supabase.from("income_auto_moves").select("id, income_id, destination_balance_id, amount"),
