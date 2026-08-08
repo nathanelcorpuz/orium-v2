@@ -10,7 +10,7 @@ import { formatCentavos } from "@/lib/money";
 import { formatMonthYear } from "@/lib/date";
 import { balanceRangeColorClass } from "@/lib/balanceColor";
 import { toggleScenarioActive } from "@/app/(app)/scenarios/actions";
-import { computeAssumedAvailableStartingBalance, computeRunningBalances, splitPastDue } from "@/lib/engine/forecast";
+import { computeRunningBalances, splitPastDue } from "@/lib/engine/forecast";
 import { computeMonthlyPeaksAndDrops, groupPeaksAndDropsByYear, type YearGroup } from "@/lib/engine/peaksAndDrops";
 import type { Balance, Budget, BudgetBalanceLink, BudgetEntry, ForecastRow } from "@/lib/engine/types";
 
@@ -97,24 +97,27 @@ export function PeaksAndDropsCard({
   // server-computed `peaksAndDropsByYear` directly with no extra work.
   const [localPercentOverrides, setLocalPercentOverrides] = useState<Record<string, number>>({});
   const hasOverrides = Object.keys(localPercentOverrides).length > 0;
+  const liveBudgets = useMemo(
+    () =>
+      hasOverrides
+        ? budgets.map((budget) =>
+            localPercentOverrides[budget.id] !== undefined
+              ? { ...budget, assumedSpendPercent: localPercentOverrides[budget.id] }
+              : budget,
+          )
+        : budgets,
+    [budgets, hasOverrides, localPercentOverrides],
+  );
   const liveYears = useMemo(() => {
     if (!hasOverrides) return peaksAndDropsByYear;
-    const liveBudgets = budgets.map((budget) =>
-      localPercentOverrides[budget.id] !== undefined
-        ? { ...budget, assumedSpendPercent: localPercentOverrides[budget.id] }
-        : budget,
-    );
     const liveRows = computeRunningBalances(forecast, balances, liveBudgets, budgetEntries, budgetBalanceLinks, today);
-    const liveStartingBalance = computeAssumedAvailableStartingBalance(
-      balances,
-      liveBudgets,
-      budgetEntries,
-      budgetBalanceLinks,
-      today,
-    );
-    const { upcoming, balanceAfterPastDue } = splitPastDue(liveRows, liveStartingBalance);
+    // User correction (2026-08-08): the starting balance is always the plain
+    // real account sum, never discounted by an "assumed spend" slider - only
+    // the projected rows above move.
+    const startingBalance = balances.reduce((sum, balance) => sum + balance.amount, 0);
+    const { upcoming, balanceAfterPastDue } = splitPastDue(liveRows, startingBalance);
     return groupPeaksAndDropsByYear(computeMonthlyPeaksAndDrops(upcoming, balanceAfterPastDue, today, horizon));
-  }, [hasOverrides, peaksAndDropsByYear, budgets, localPercentOverrides, forecast, balances, budgetEntries, budgetBalanceLinks, today, horizon]);
+  }, [hasOverrides, peaksAndDropsByYear, liveBudgets, forecast, balances, budgetEntries, budgetBalanceLinks, today, horizon]);
 
   const displayedYears = liveYears;
   const visibleYears = useMemo(
@@ -317,7 +320,7 @@ export function PeaksAndDropsCard({
       )}
       {budgetUsageOpen && (
         <BudgetUsagePanel
-          budgets={budgets.map((budget) => ({
+          budgets={liveBudgets.map((budget) => ({
             id: budget.id,
             name: budget.name,
             assumedSpendPercent: budget.assumedSpendPercent ?? 100,

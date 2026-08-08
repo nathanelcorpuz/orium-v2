@@ -109,7 +109,14 @@ export async function loadForecast(): Promise<ForecastData> {
         "id, recurring_item_id, original_date, new_date, new_amount, new_name, skipped, new_balance_id, balance_id_overridden",
       ),
     supabase.from("one_off_items").select("id, name, amount, due_date, balance_id, comments, active"),
-    supabase.from("budgets").select(BUDGET_COLUMNS),
+    // Bug report (2026-08-08): "every time i drag sliders in the budget
+    // usage it changes the order of the list" - this query had no ORDER BY,
+    // so Postgres was free to return rows in a different physical order
+    // after any UPDATE to the table (exactly what dragging a slider does,
+    // via updateBudgetAssumedSpendPercent) - not a client-side bug at all.
+    // Matches the Budgets page's own query ordering (budgets/page.tsx) for
+    // consistency between the two.
+    supabase.from("budgets").select(BUDGET_COLUMNS).order("name", { ascending: true }),
     // Every entry, not just future ones - the Dashboard's budget card
     // needs full history to compute a running total (budgetLedger.ts).
     supabase.from("budget_entries").select("id, budget_id, entry_date, amount, note, direction, balance_id"),

@@ -4,7 +4,10 @@ Format per bug: steps to reproduce → what happened → what was expected. Clau
 
 ## Open
 
-*(none)*
+### Bug #28 - Editing an account's balance doesn't immediately reflect in the form's own "running balance" display
+- **Reproduce**: open an account (`BalanceModal.tsx`, from either `/accounts` or `/forecast`), edit its amount, save.
+- **Reported** by the user 2026-08-08 (REMINDER.md): "saving an account after modifying balance does not immediately reflect the change in the running balance in the form."
+- **Not yet investigated** - logged for the next session rather than guessed at. Likely candidates worth checking first: whether the modal keeps its own local copy of the balance that isn't updated after the server action resolves and `revalidatePath` fires, or a stale-closure issue in whichever component renders the "running balance" line inside the modal itself.
 
 ## Fixed
 

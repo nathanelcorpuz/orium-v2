@@ -12,11 +12,22 @@ export type BudgetUsageEntry = { id: string; name: string; assumedSpendPercent: 
 // `PeaksAndDropsCard.tsx` so the two pages don't drift into two different
 // controls for the same setting. Dragging a slider updates the live figures
 // on whichever page it's open on *instantly* via `onChange` (the parent
-// recomputes with `computeRunningBalances`/`computeAssumedAvailableStartingBalance`,
-// engine/forecast.ts - no server round-trip needed for that part) - the
-// actual save is debounced separately so a fast drag doesn't fire a write
-// per pixel.
+// recomputes with `computeRunningBalances`, engine/forecast.ts - no server
+// round-trip needed for that part; the plain "Total balance" figure itself
+// never moves - only the projection does, per the user's own correction
+// 2026-08-08) - the actual save is debounced separately so a fast drag
+// doesn't fire a write per pixel.
 const SAVE_DEBOUNCE_MS = 400;
+
+// User request (2026-08-08): "add quick buttons... 1. all consumed 2.
+// halfway consumed 3. not consumed at all." Reuses the slider labels'
+// own wording ("Fully available"/"Fully spent") for a consistent vocabulary
+// across the panel.
+const PRESETS = [
+  { label: "None spent", percent: 0 },
+  { label: "Half spent", percent: 50 },
+  { label: "All spent", percent: 100 },
+] as const;
 
 export function BudgetUsagePanel({
   budgets,
@@ -42,14 +53,32 @@ export function BudgetUsagePanel({
     }, SAVE_DEBOUNCE_MS);
   }
 
+  function applyPresetToAll(percent: number) {
+    for (const budget of budgets) handleChange(budget.id, percent);
+  }
+
   return (
     <Modal title="Budget usage" onClose={onClose}>
-      <p className="mb-4 text-sm text-slate-500">
+      <p className="mb-3 text-sm text-slate-500">
         How much of each budget&apos;s money do you assume is already spoken for? Drag toward
         &ldquo;Fully spent&rdquo; to treat it like a bill - deducted from your forecast the moment
         it&apos;s set aside. Drag toward &ldquo;Fully available&rdquo; to keep counting it as free
         cash until you actually log a spend.
       </p>
+      {budgets.length > 0 && (
+        <div className="mb-4 flex flex-wrap gap-2">
+          {PRESETS.map((preset) => (
+            <button
+              key={preset.percent}
+              type="button"
+              onClick={() => applyPresetToAll(preset.percent)}
+              className="rounded border border-notion-hairline px-2 py-1 text-xs text-notion-text hover:bg-notion-hover"
+            >
+              {preset.label}
+            </button>
+          ))}
+        </div>
+      )}
       {budgets.length === 0 ? (
         <p className="text-sm text-slate-500">No budgets yet.</p>
       ) : (

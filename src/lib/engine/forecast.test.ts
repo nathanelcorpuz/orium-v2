@@ -2141,7 +2141,7 @@ describe("generateForecast budget replenishment credit legs (SPEC.md T284)", () 
     expect(finalRow.runningBalance).toBe(100000 + 2000000 - 500000);
   });
 
-  it("already-happened budget activity (before today) is discounted by the same percent, only for a linked budget", () => {
+  it("already-happened budget activity (before today) never discounts the starting total, regardless of percent - only settling moves the real balance", () => {
     const linkedBudget = testBudget({ linkedIncomeId: "income-1" }); // default 100%
     // A one-off probe row, unrelated to the budget, just to read the
     // starting-total-derived runningBalance from somewhere.
@@ -2162,8 +2162,10 @@ describe("generateForecast budget replenishment credit legs (SPEC.md T284)", () 
       horizon: "2026-01-02",
     });
 
-    // The 500,000 already-settled budget-incoming entry is discounted out of
-    // the starting total at 100%, leaving only the non-budget 400,000.
-    expect(result).toEqual([expect.objectContaining({ runningBalance: 400000 })]);
+    // User correction (2026-08-08): the starting total is always the real
+    // account sum - already-settled budget activity is exactly as real as
+    // any other money already sitting in an account, so it's never
+    // discounted, no matter what the budget's own percent is set to.
+    expect(result).toEqual([expect.objectContaining({ runningBalance: 900000 })]);
   });
 });

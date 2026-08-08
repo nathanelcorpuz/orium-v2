@@ -10,7 +10,7 @@ import { remainingTotal, ruleEndDate } from "@/lib/engine/remaining";
 import { goalProgress } from "@/lib/engine/goalProgress";
 import { computeMonthlyPeaksAndDrops, groupPeaksAndDropsByYear } from "@/lib/engine/peaksAndDrops";
 import { findFirstDangerPoint, findLowestBalancePoint } from "@/lib/engine/lowestBalance";
-import { computeAssumedAvailableStartingBalance, splitPastDue } from "@/lib/engine/forecast";
+import { splitPastDue } from "@/lib/engine/forecast";
 import {
   budgetProgressFraction,
   budgetReplenishRule,
@@ -153,13 +153,20 @@ export default async function Home({
   const hasAnyFinancialData =
     balances.length > 0 || recurringItems.length > 0 || budgets.length > 0 || forecast.length > 0;
 
-  // T284 follow-up (SPEC.md Phase 49): "Total Balance" is discounted by each
-  // linked budget's own already-happened ledger activity, at its own
-  // "assumed spend" percent (default 100 - bills-like) - not the raw account
-  // sum. Matches the Forecast page's own header figure, computed the same
-  // way (`generateForecast`'s own `runningBalance` series already bakes the
-  // same math in per-row, via `computeRunningBalances`).
-  const totalBalance = computeAssumedAvailableStartingBalance(balances, budgets, budgetEntries, budgetBalanceLinks, today);
+  // User correction (2026-08-08): "nothing in the forecast should move the
+  // total current balance unless it's settled" - Total Balance is always the
+  // plain, real account sum. A "Budget usage" assumption only shapes the
+  // *projection* forward from here (generateForecast's own runningBalance
+  // series), never this snapshot.
+  const totalBalance = balances.reduce((sum, balance) => sum + balance.amount, 0);
+  // T284 follow-up (user request 2026-08-08): "add total remaining budgets
+  // in the total balance, just an indicator that 14k of that is budgets" -
+  // the same running-total math the Budgets page's own "Total across all
+  // budgets" line uses, shown as a share of the figure above it.
+  const totalRemainingBudget = budgets.reduce(
+    (sum, budget) => sum + computeBudgetBalance(budgetEntries, budget.id, today),
+    0,
+  );
 
   // T197 (user request): Misc has no "monthly" concept (one-offs, not
   // recurring), so these total whatever's still pending in the forecast
@@ -399,6 +406,18 @@ export default async function Home({
         <div className="mb-6 rounded-lg border border-notion-hairline bg-white p-4" data-tour="dashboard-stats">
           <p className="text-sm text-slate-500">Total Balance</p>
           <p className="text-xl font-semibold text-notion-text">{formatCentavos(totalBalance, currency)}</p>
+          {/* T284 follow-up (user request 2026-08-08): "add total remaining
+              budgets in the total balance, just an indicator that 14k of
+              that is budgets." */}
+          {budgets.length > 0 && (
+            <p className="text-sm text-slate-500">
+              of which{" "}
+              <span className={totalRemainingBudget < 0 ? "text-red-600" : "font-medium text-notion-text"}>
+                {formatCentavos(totalRemainingBudget, currency)}
+              </span>{" "}
+              is budgets
+            </p>
+          )}
           {balances.length > 0 && (
             <ul className="mt-3 space-y-1 border-t border-notion-hairline pt-2 text-sm">
               {balances.map((balance) => (
@@ -573,17 +592,8 @@ export default async function Home({
                   each budget's own line below. */}
               <p className="mb-2 text-sm font-medium text-notion-text">
                 Total across all budgets:{" "}
-                <span
-                  className={
-                    budgets.reduce((sum, b) => sum + computeBudgetBalance(budgetEntries, b.id, today), 0) < 0
-                      ? "text-red-600"
-                      : ""
-                  }
-                >
-                  {formatCentavos(
-                    budgets.reduce((sum, b) => sum + computeBudgetBalance(budgetEntries, b.id, today), 0),
-                    currency,
-                  )}
+                <span className={totalRemainingBudget < 0 ? "text-red-600" : ""}>
+                  {formatCentavos(totalRemainingBudget, currency)}
                 </span>
               </p>
               <ul className="space-y-2">

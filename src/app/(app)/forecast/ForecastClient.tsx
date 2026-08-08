@@ -8,7 +8,7 @@ import { daysBetween } from "@/lib/engine/date-utils";
 import { balanceRangeColorClass, balanceRangeTier, firstDangerLabel, lowestBalanceLabel } from "@/lib/balanceColor";
 import { accountBalanceForRow, computeAccountBalancesAfterEachRow, findAccountLowestPoints } from "@/lib/engine/accountBalances";
 import { computeBudgetBalance } from "@/lib/engine/budgetLedger";
-import { computeAssumedAvailableStartingBalance, computeRunningBalances } from "@/lib/engine/forecast";
+import { computeRunningBalances } from "@/lib/engine/forecast";
 import { BudgetUsagePanel } from "@/components/BudgetUsagePanel";
 import { BalanceModal, type BalanceRow } from "@/app/(app)/accounts/BalanceModal";
 import { AmountRangeFilter, matchesAmountFilter, type ComparisonOp } from "@/components/AmountRangeFilter";
@@ -282,13 +282,13 @@ export function ForecastClient({
     () => computeRunningBalances(forecast, balances, liveBudgets, budgetEntries, budgetBalanceLinks, today),
     [forecast, balances, liveBudgets, budgetEntries, budgetBalanceLinks, today],
   );
-  const liveTotalBalance = useMemo(
-    () => computeAssumedAvailableStartingBalance(balances, liveBudgets, budgetEntries, budgetBalanceLinks, today),
-    [balances, liveBudgets, budgetEntries, budgetBalanceLinks, today],
-  );
   const displayedForecast = liveForecast;
   const displayedBalances = balances;
-  const displayedTotalBalance = liveTotalBalance;
+  // User correction (2026-08-08): "nothing in the forecast should move the
+  // total current balance unless it's settled" - Total balance is always
+  // the plain, real account sum, never adjusted by a "Budget usage" slider.
+  // Only the projected rows above (and Peaks and Drops) move with it.
+  const displayedTotalBalance = balances.reduce((sum, balance) => sum + balance.amount, 0);
   // T284 follow-up (user request 2026-08-08): "always put a total remaining
   // budget number somewhere in the forecast page" - the same running-total
   // math the Budgets page's own "Total across all budgets" line uses
@@ -564,15 +564,18 @@ export function ForecastClient({
             <p className="text-2xl font-semibold text-notion-text">
               {formatCentavos(displayedTotalBalance, currency)}
             </p>
-            {/* T284 follow-up: always visible - "how much do I have set aside
-                across every budget right now," the same figure the Budgets
-                page's own "Total across all budgets" line shows. */}
+            {/* T284 follow-up (user request 2026-08-08): "add total remaining
+                budgets in the total balance, just an indicator that 14k of
+                that is budgets" - the same figure the Budgets page's own
+                "Total across all budgets" line shows, framed as a share of
+                the number just above it rather than a separate stat. */}
             {budgets.length > 0 && (
               <p className="mt-1 text-sm text-slate-500">
-                Total remaining budget:{" "}
+                of which{" "}
                 <span className={totalRemainingBudget < 0 ? "text-red-600" : "font-medium text-notion-text"}>
                   {formatCentavos(totalRemainingBudget, currency)}
-                </span>
+                </span>{" "}
+                is budgets
               </p>
             )}
             <div className="mt-2 flex flex-wrap gap-2">
@@ -1101,10 +1104,18 @@ export function ForecastClient({
       )}
       {/* T284 follow-up (user request 2026-08-08): live-updates
           `localPercentOverrides` on every drag tick (instant recompute above,
-          no reload) and separately debounce-saves via its own server action. */}
+          no reload) and separately debounce-saves via its own server action.
+          Bug report (2026-08-08): closing and quickly reopening this panel
+          showed stale values, because the panel used to re-derive its own
+          starting state from the `budgets` prop alone - if the debounced
+          save + revalidate hadn't landed yet, that prop was still the old
+          server value. Sourced from `liveBudgets` instead (already merges
+          `localPercentOverrides` on top of `budgets`), so the panel always
+          opens on the most recent value this page itself knows about,
+          regardless of whether the server has caught up. */}
       {budgetUsageOpen && (
         <BudgetUsagePanel
-          budgets={budgets.map((budget) => ({
+          budgets={liveBudgets.map((budget) => ({
             id: budget.id,
             name: budget.name,
             assumedSpendPercent: budget.assumedSpendPercent ?? 100,

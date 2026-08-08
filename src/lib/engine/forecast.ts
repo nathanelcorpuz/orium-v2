@@ -11,12 +11,7 @@ import type {
   RecurringItem,
 } from "./types";
 import { expandRecurrenceOccurrences } from "./recurrence";
-import {
-  budgetReplenishRule,
-  computeBudgetBalance,
-  futureBudgetLedgerEntries,
-  futureBudgetReplenishDates,
-} from "./budgetLedger";
+import { budgetReplenishRule, futureBudgetLedgerEntries, futureBudgetReplenishDates } from "./budgetLedger";
 import { splitAmountByShares } from "./budgetSplit";
 
 function toRecurrenceRule(item: RecurringItem): RecurrenceRule {
@@ -455,32 +450,6 @@ function budgetsWithLinkedAccountSet(budgetBalanceLinks: BudgetBalanceLink[]): S
   return new Set(budgetBalanceLinks.map((link) => link.budgetId));
 }
 
-// T284 follow-up: "Total balance" isn't the raw account sum anymore - it's
-// discounted by each linked budget's own already-happened ledger activity,
-// at that budget's own `assumedSpendPercent`. Exported on its own (not just
-// inlined in `computeRunningBalances` below) so the Forecast page's header
-// figure can be recomputed the same way `computeRunningBalances`'s starting
-// point is, live, as a "Budget usage" slider moves, before any row is
-// walked at all.
-export function computeAssumedAvailableStartingBalance(
-  balances: { amount: number }[],
-  budgets: Budget[],
-  budgetEntries: BudgetEntry[],
-  budgetBalanceLinks: BudgetBalanceLink[],
-  today: string,
-): number {
-  const budgetsWithLinkedAccount = budgetsWithLinkedAccountSet(budgetBalanceLinks);
-  return (
-    balances.reduce((sum, balance) => sum + balance.amount, 0) -
-    budgets.reduce((sum, budget) => {
-      if (!budgetsWithLinkedAccount.has(budget.id)) return sum;
-      const percent = budget.assumedSpendPercent ?? 100;
-      if (percent === 0) return sum;
-      return sum + Math.round((computeBudgetBalance(budgetEntries, budget.id, today) * percent) / 100);
-    }, 0)
-  );
-}
-
 export function computeRunningBalances(
   rows: Omit<ForecastRow, "runningBalance">[],
   balances: { amount: number }[],
@@ -492,13 +461,17 @@ export function computeRunningBalances(
   const budgetsById = new Map(budgets.map((budget) => [budget.id, budget]));
   const budgetsWithLinkedAccount = budgetsWithLinkedAccountSet(budgetBalanceLinks);
 
-  // Every budget now carries its own `assumedSpendPercent` (0-100, DB
-  // default 100), "how much of this budget's money do you assume is already
-  // spoken for." Already-happened budget activity (real `budget_entries`
-  // rows dated today or earlier) is priced into the starting total here, at
-  // each budget's own percent - the *projected* future activity is priced in
-  // per-row, in the reduce below.
-  let runningBalance = computeAssumedAvailableStartingBalance(balances, budgets, budgetEntries, budgetBalanceLinks, today);
+  // User correction (2026-08-08): "nothing in the forecast should move the
+  // total current balance unless it's settled." The starting point is
+  // always the plain, real account sum - never discounted by an
+  // "assumed spend" assumption, no matter how much of it a budget's own
+  // ledger says is already earmarked. Only *rows* (below) carry the
+  // adjustment - a budget's already-happened, real, settled activity is
+  // exactly as real as any other money already sitting in an account, and
+  // an assumption slider has no business touching a fact. `assumedSpendPercent`
+  // only shapes the *projection* forward from here, both for still-unsettled
+  // past-due rows and genuinely future ones - see budgetLedgerDelta below.
+  let runningBalance = balances.reduce((sum, balance) => sum + balance.amount, 0);
 
   // A budget_replenish row's own "ledger delta" - how much this row moves
   // that budget's running ledger total (Σincoming−Σoutgoing, budgetLedger.ts)
