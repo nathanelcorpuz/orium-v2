@@ -2,7 +2,8 @@
 
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { formatCentavos } from "@/lib/money";
+import { useRouter } from "next/navigation";
+import { centavosToPesosString, formatCentavos } from "@/lib/money";
 import { formatFullDate, todayInManila } from "@/lib/date";
 import { daysBetween } from "@/lib/engine/date-utils";
 import { balanceRangeColorClass, balanceRangeTier, firstDangerLabel, lowestBalanceLabel } from "@/lib/balanceColor";
@@ -15,7 +16,11 @@ import {
 import { computeBudgetBalance } from "@/lib/engine/budgetLedger";
 import { computeRunningBalances } from "@/lib/engine/forecast";
 import { BudgetUsagePanel } from "@/components/BudgetUsagePanel";
+import { PreviewChangeBar } from "@/components/PreviewChangeBar";
 import { BalanceModal, type BalanceRow } from "@/app/(app)/accounts/BalanceModal";
+import { addAccountFunds, moveAccountFunds, takeAccountFunds } from "@/app/(app)/accounts/actions";
+import { PreviewFundsPanel } from "./PreviewFundsPanel";
+import { computePreviewBalances, describePreviewChange, type PreviewChange } from "@/lib/previewFundsMove";
 import { AmountRangeFilter, matchesAmountFilter, type ComparisonOp } from "@/components/AmountRangeFilter";
 import { MultiSelectChips } from "@/components/MultiSelectChips";
 import { accountFilterOptions, matchesAccountFilter } from "@/lib/accountFilter";
@@ -248,16 +253,75 @@ export function ForecastClient({
   // alongside `incomeAutoMoves` above via resolveAutoMoves.ts.
   incomeAutoMoveOverrides?: IncomeAutoMoveOverride[];
 }) {
+  const router = useRouter();
   const [editingBalance, setEditingBalance] = useState<BalanceRow | null>(null);
   const [selectedRow, setSelectedRow] = useState<ForecastRow | null>(null);
   const [insightsCollapsed, setInsightsCollapsed] = useState(false);
   const [scenariosPanelOpen, setScenariosPanelOpen] = useState(false);
+  // Feature (user request 2026-08-08): "see what will happen if I move
+  // certain funds between accounts in the forecast, then I can opt out from
+  // it as if it didn't happen, or I can apply that change permanently."
+  // `previewChange` holds one hypothetical Add/Take/Move at a time, applied
+  // to nothing but this page's own client-side computation -
+  // `previewBalances` below is the only thing downstream code needs to know
+  // about it.
+  const [previewFundsOpen, setPreviewFundsOpen] = useState(false);
+  const [previewChange, setPreviewChange] = useState<PreviewChange | null>(null);
+  const [applyingPreview, setApplyingPreview] = useState(false);
+  const [applyError, setApplyError] = useState<string | null>(null);
+  const previewBalances = useMemo(
+    () => (previewChange ? computePreviewBalances(balances, previewChange) : balances),
+    [balances, previewChange],
+  );
   // T190: Table/Calendar toggle, replacing the old standalone /calendar page
   // (T164) per user request - the calendar view is unfiltered (same as the
   // old page), so the Filter button/badge only make sense in table mode.
   const [viewMode, setViewMode] = useState<"table" | "calendar">("table");
   const activeScenarios = allScenarios.filter((s) => s.is_active);
   const today = todayInManila();
+
+  // "Apply for real" runs the exact same server actions the Accounts page
+  // already uses (accounts/actions.ts) - not a special "make it real" path
+  // of its own - so applying a previewed change behaves identically to
+  // opening the real Add/Take/Move funds modal and doing it directly.
+  // `router.refresh()` picks up the server's now-updated balances, since
+  // this call bypasses the `<form action>`/useActionState mechanism every
+  // other mutation on this page goes through.
+  async function handleApplyPreview() {
+    if (!previewChange) return;
+    setApplyingPreview(true);
+    setApplyError(null);
+
+    const formData = new FormData();
+    formData.set("entryDate", today);
+    formData.set("amountPesos", centavosToPesosString(previewChange.amount));
+
+    let result: { error: string | null };
+    if (previewChange.mode === "add") {
+      formData.set("balanceId", previewChange.balanceId);
+      formData.set("balanceName", previewChange.balanceName);
+      result = await addAccountFunds({ error: null }, formData);
+    } else if (previewChange.mode === "take") {
+      formData.set("balanceId", previewChange.balanceId);
+      formData.set("balanceName", previewChange.balanceName);
+      result = await takeAccountFunds({ error: null }, formData);
+    } else {
+      formData.set("fromBalanceId", previewChange.fromId);
+      formData.set("fromBalanceName", previewChange.fromName);
+      formData.set("toBalanceId", previewChange.toId);
+      formData.set("toBalanceName", previewChange.toName);
+      formData.set("feePaidBy", "sender");
+      result = await moveAccountFunds({ error: null }, formData);
+    }
+
+    setApplyingPreview(false);
+    if (result.error) {
+      setApplyError(result.error);
+      return;
+    }
+    setPreviewChange(null);
+    router.refresh();
+  }
   // T284 follow-up (SPEC.md Phase 49, user request 2026-08-08): replaces the
   // earlier binary "Exclude budgets" toggle - every budget now carries its
   // own "assumed spend" percent, adjustable live via the "Budget usage"
@@ -284,16 +348,19 @@ export function ForecastClient({
   // row's amount/sourceType/dueDate/sort order finalized; only the
   // assumed-spend math depends on `liveBudgets`.
   const liveForecast = useMemo(
-    () => computeRunningBalances(forecast, balances, liveBudgets, budgetEntries, budgetBalanceLinks, today),
-    [forecast, balances, liveBudgets, budgetEntries, budgetBalanceLinks, today],
+    () => computeRunningBalances(forecast, previewBalances, liveBudgets, budgetEntries, budgetBalanceLinks, today),
+    [forecast, previewBalances, liveBudgets, budgetEntries, budgetBalanceLinks, today],
   );
   const displayedForecast = liveForecast;
-  const displayedBalances = balances;
+  const displayedBalances = previewBalances;
   // User correction (2026-08-08): "nothing in the forecast should move the
-  // total current balance unless it's settled" - Total balance is always
-  // the plain, real account sum, never adjusted by a "Budget usage" slider.
-  // Only the projected rows above (and Peaks and Drops) move with it.
-  const displayedTotalBalance = balances.reduce((sum, balance) => sum + balance.amount, 0);
+  // total current balance unless it's settled" - Total balance is never
+  // adjusted by a "Budget usage" slider, since that's only an assumption
+  // about spending, not a real change. A previewed Add/Take/Move funds
+  // change is different - it's exactly the real money movement this figure
+  // should reflect, so `previewBalances` (real `balances` unless a preview
+  // is active) is the base here, same as everywhere else on this page.
+  const displayedTotalBalance = previewBalances.reduce((sum, balance) => sum + balance.amount, 0);
   // T284 follow-up (user request 2026-08-08): "always put a total remaining
   // budget number somewhere in the forecast page" - the same running-total
   // math the Budgets page's own "Total across all budgets" line uses
@@ -426,10 +493,12 @@ export function ForecastClient({
   // rendered/clicked instead of `forecast` directly, even with no slider
   // ever touched. A click's `selectedRow` was never a key in a map built
   // from the old objects, so the lookup silently always missed. Both now
-  // key against `liveForecast` - the array actually on screen.
+  // key against `liveForecast` - the array actually on screen. Also now
+  // over `previewBalances` rather than `balances` directly, so a previewed
+  // Add/Take/Move funds change ripples into these per-account stats too.
   const accountLowestPoints = useMemo(
-    () => findAccountLowestPoints(liveForecast, balances, todayInManila()),
-    [liveForecast, balances],
+    () => findAccountLowestPoints(liveForecast, previewBalances, todayInManila()),
+    [liveForecast, previewBalances],
   );
 
   // T294 (user request 2026-08-08): "i want to also know when the first
@@ -438,8 +507,8 @@ export function ForecastClient({
   // "when trouble starts" vs. "how bad it gets" distinction Bug #13 already
   // draws for the combined total, per account.
   const accountFirstDangerPoints = useMemo(
-    () => findAccountFirstDangerPoints(liveForecast, balances, balanceRanges[0], todayInManila()),
-    [liveForecast, balances, balanceRanges],
+    () => findAccountFirstDangerPoints(liveForecast, previewBalances, balanceRanges[0], todayInManila()),
+    [liveForecast, previewBalances, balanceRanges],
   );
 
   // T191 (user request): "if a forecasted transaction has an account
@@ -448,8 +517,8 @@ export function ForecastClient({
   // above) so opening the modal is an O(1) lookup by row identity, not a
   // fresh walk over the whole forecast per click.
   const accountBalanceAfterRow = useMemo(
-    () => computeAccountBalancesAfterEachRow(liveForecast, balances),
-    [liveForecast, balances],
+    () => computeAccountBalancesAfterEachRow(liveForecast, previewBalances),
+    [liveForecast, previewBalances],
   );
 
   // T199 (user request): a forecasted transaction's own recurrence
@@ -575,6 +644,18 @@ export function ForecastClient({
       {activeScenarios.length > 0 && (
         <ScenarioModeBar scenarioNames={activeScenarios.map((s) => s.name)} />
       )}
+      {previewChange && (
+        <PreviewChangeBar
+          description={describePreviewChange(previewChange, currency)}
+          applying={applyingPreview}
+          error={applyError}
+          onDiscard={() => {
+            setPreviewChange(null);
+            setApplyError(null);
+          }}
+          onApply={handleApplyPreview}
+        />
+      )}
       <div data-tour="forecast-content" className="flex min-h-0 flex-1">
         <div className="min-w-0 flex-1 p-4 md:p-8">
         <div className="mx-auto max-w-6xl">
@@ -636,7 +717,12 @@ export function ForecastClient({
                     key={balance.id}
                     type="button"
                     onClick={() => {
-                      if (!previewMode) setEditingBalance(balance);
+                      // `balance` here may be a hypothetical clone (from
+                      // `displayedBalances`/`previewBalances`) while a change
+                      // is being previewed - the real edit modal (Add/Take/
+                      // Move funds, name/fee) must always act on the real
+                      // account, never on the previewed amount.
+                      if (!previewMode) setEditingBalance(balances.find((b) => b.id === balance.id) ?? balance);
                     }}
                     className={`rounded-lg border border-notion-hairline bg-white px-3 py-1.5 text-left text-sm text-notion-text ${previewMode ? "" : "hover:bg-notion-hover"}`}
                   >
@@ -800,6 +886,22 @@ export function ForecastClient({
                   Budget usage
                 </button>
               )}
+              {/* Feature (user request 2026-08-08): "see what will happen if
+                  I move certain funds between accounts... then I can opt out
+                  from it, or apply it permanently." Hidden during sample-data
+                  preview mode (there's no real account to apply against) and
+                  while a change is already being previewed (the banner above
+                  takes over Discard/Apply - avoids stacking two hypotheticals
+                  at once). */}
+              {!previewMode && !previewChange && balances.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setPreviewFundsOpen(true)}
+                  className="rounded border border-notion-hairline bg-white px-3 py-1.5 text-xs text-notion-text hover:bg-notion-hover"
+                >
+                  Preview a change
+                </button>
+              )}
               {/* T183: independent per-scenario toggles, replacing the single
                   amber banner's own "Turn off" as the only control - a
                   scenario can now be switched on/off without leaving the
@@ -908,7 +1010,7 @@ export function ForecastClient({
             ) : (
               <CalendarGrid
                 forecast={displayedForecast}
-                balances={balances}
+                balances={previewBalances}
                 recurringItems={recurringItems}
                 budgets={budgets}
                 currency={currency}
@@ -1160,6 +1262,13 @@ export function ForecastClient({
           onChange={(budgetId, percent) =>
             setLocalPercentOverrides((prev) => ({ ...prev, [budgetId]: percent }))
           }
+        />
+      )}
+      {previewFundsOpen && (
+        <PreviewFundsPanel
+          balances={balances}
+          onPreview={(change) => setPreviewChange(change)}
+          onClose={() => setPreviewFundsOpen(false)}
         />
       )}
     </div>
