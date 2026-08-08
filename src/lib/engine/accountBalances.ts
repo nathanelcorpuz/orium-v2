@@ -67,6 +67,57 @@ export function findAccountLowestPoints(
   return lowest;
 }
 
+// T294 (user request 2026-08-08): "i want to also know when the first
+// negative instance of an account will be, on top of the lowest projected.
+// i want them to both show at the same time." Per-account version of
+// `findFirstDangerPoint` (lowestBalance.ts) - same "when does trouble start"
+// vs. "how bad does it get" distinction Bug #13's `dangerThreshold` already
+// draws for the *combined* total, just walked per-account using the exact
+// same attribution rule `findAccountLowestPoints` above already established.
+// Null means this account never crosses into danger anywhere in the
+// horizon - including today, which is a candidate the same way
+// findFirstDangerPoint treats the starting balance as one.
+export function findAccountFirstDangerPoints(
+  rows: ForecastRow[],
+  startingBalances: { id: string; amount: number }[],
+  dangerThreshold: number,
+  today: string,
+): Map<string, AccountLowestPoint | null> {
+  const current = new Map<string, number>();
+  const firstDanger = new Map<string, AccountLowestPoint | null>();
+  for (const balance of startingBalances) {
+    current.set(balance.id, balance.amount);
+    firstDanger.set(balance.id, balance.amount <= dangerThreshold ? { balance: balance.amount, date: today } : null);
+  }
+
+  function highestAccountId(): string | null {
+    let bestId: string | null = null;
+    let bestAmount = -Infinity;
+    for (const [id, amount] of current) {
+      if (amount > bestAmount) {
+        bestAmount = amount;
+        bestId = id;
+      }
+    }
+    return bestId;
+  }
+
+  for (const row of rows) {
+    const targetId = row.balanceId && current.has(row.balanceId) ? row.balanceId : highestAccountId();
+    if (targetId === null) continue; // no tracked accounts at all
+
+    const fee = row.feeAmount ?? 0;
+    const next = Math.round((current.get(targetId) ?? 0) + row.amount - fee);
+    current.set(targetId, next);
+
+    if (firstDanger.get(targetId) === null && next <= dangerThreshold) {
+      firstDanger.set(targetId, { balance: next, date: row.dueDate });
+    }
+  }
+
+  return firstDanger;
+}
+
 interface AccountBalanceAtRow {
   balance: number; // centavos, this row's own attributed account, after this row is applied
   targetId: string; // which account this row was actually attributed to (see the rule above)

@@ -38,10 +38,19 @@ export default function ForgotPasswordPage() {
           </button>
         </form>
       )}
-      <div className="mt-4 text-sm text-slate-600">
+      <div className="mt-4 space-y-2 text-sm text-slate-600">
         <Link href="/login" className="underline">
           Back to log in
         </Link>
+        {/* T269: this page's own reset only works for an account with a real
+            email - a username-only account has no email for a link to go
+            to, so it needs its own recovery-code path instead. */}
+        <p>
+          No email on this account?{" "}
+          <Link href="/recover-with-code" className="underline">
+            Reset with your recovery code
+          </Link>
+        </p>
       </div>
     </AuthCard>
   );

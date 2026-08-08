@@ -6,6 +6,10 @@ const PUBLIC_PATHS = [
   "/signup",
   "/forgot-password",
   "/reset-password",
+  // T269: the username-only recovery path - reached by a logged-out user
+  // who forgot their password (no email means no email-link reset), so it
+  // has to be public the same way /forgot-password already is.
+  "/recover-with-code",
   "/auth/callback",
   "/api/dev-login", // the route itself 404s outside development
   // T121 fix (found in T124's testing): creating a fresh account is
@@ -72,15 +76,26 @@ export async function updateSession(request: NextRequest) {
   // the saved round-trip yet. Excludes /verify-email itself - logout isn't
   // its own route (a server action bound to a form, redirecting to /login,
   // already public), so nothing else needs excluding here.
-  if (user && !isPublicPath && pathname !== "/verify-email") {
+  // T269: `pending_recovery_code_ack` mirrors `pending_email_verification`'s
+  // own gate shape exactly, for the same reason - a signed-in-but-not-yet-
+  // acknowledged account (just created via signupWithUsername(), or mid a
+  // resetPasswordWithRecoveryCode() reset) can't reach anywhere else until
+  // it's seen its one-time recovery code. Both flags checked in the same
+  // query since they're both read at the same gate points.
+  if (user && !isPublicPath && pathname !== "/verify-email" && pathname !== "/save-recovery-code") {
     const { data: prefs } = await supabase
       .from("preferences")
-      .select("pending_email_verification")
+      .select("pending_email_verification, pending_recovery_code_ack")
       .eq("user_id", user.id)
       .maybeSingle();
     if (prefs?.pending_email_verification) {
       const url = request.nextUrl.clone();
       url.pathname = "/verify-email";
+      return NextResponse.redirect(url);
+    }
+    if (prefs?.pending_recovery_code_ack) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/save-recovery-code";
       return NextResponse.redirect(url);
     }
   }
@@ -92,6 +107,19 @@ export async function updateSession(request: NextRequest) {
       .eq("user_id", user.id)
       .maybeSingle();
     if (!prefs?.pending_email_verification) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/";
+      return NextResponse.redirect(url);
+    }
+  }
+
+  if (user && pathname === "/save-recovery-code") {
+    const { data: prefs } = await supabase
+      .from("preferences")
+      .select("pending_recovery_code_ack")
+      .eq("user_id", user.id)
+      .maybeSingle();
+    if (!prefs?.pending_recovery_code_ack) {
       const url = request.nextUrl.clone();
       url.pathname = "/";
       return NextResponse.redirect(url);

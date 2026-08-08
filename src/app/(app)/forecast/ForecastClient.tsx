@@ -6,7 +6,12 @@ import { formatCentavos } from "@/lib/money";
 import { formatFullDate, todayInManila } from "@/lib/date";
 import { daysBetween } from "@/lib/engine/date-utils";
 import { balanceRangeColorClass, balanceRangeTier, firstDangerLabel, lowestBalanceLabel } from "@/lib/balanceColor";
-import { accountBalanceForRow, computeAccountBalancesAfterEachRow, findAccountLowestPoints } from "@/lib/engine/accountBalances";
+import {
+  accountBalanceForRow,
+  computeAccountBalancesAfterEachRow,
+  findAccountFirstDangerPoints,
+  findAccountLowestPoints,
+} from "@/lib/engine/accountBalances";
 import { computeBudgetBalance } from "@/lib/engine/budgetLedger";
 import { computeRunningBalances } from "@/lib/engine/forecast";
 import { BudgetUsagePanel } from "@/components/BudgetUsagePanel";
@@ -427,6 +432,16 @@ export function ForecastClient({
     [liveForecast, balances],
   );
 
+  // T294 (user request 2026-08-08): "i want to also know when the first
+  // negative instance of an account will be, on top of the lowest
+  // projected. i want them to both show at the same time." Same
+  // "when trouble starts" vs. "how bad it gets" distinction Bug #13 already
+  // draws for the combined total, per account.
+  const accountFirstDangerPoints = useMemo(
+    () => findAccountFirstDangerPoints(liveForecast, balances, balanceRanges[0], todayInManila()),
+    [liveForecast, balances, balanceRanges],
+  );
+
   // T191 (user request): "if a forecasted transaction has an account
   // connected to it, show me what that account's balance will be at that
   // point in time" - computed once per data load (like the lowest-point map
@@ -605,6 +620,17 @@ export function ForecastClient({
                     : lowest
                       ? `Not projected to dip below ${formatCentavos(lowest.balance, currency)}`
                       : null;
+                // T294 (user request 2026-08-08): shown alongside the line
+                // above, not instead of it - "i want them to both show at
+                // the same time." Omitted (not a redundant line) when this
+                // account never actually crosses into danger, or when today
+                // already is that point (same "today" special-case the
+                // combined Forecast Insights card already uses).
+                const firstDanger = accountFirstDangerPoints.get(balance.id);
+                const dangerLine =
+                  firstDanger && firstDanger.date !== todayInManila()
+                    ? `${firstDangerLabel(firstDanger.balance)} ${formatCentavos(firstDanger.balance, currency)} on ${formatFullDate(firstDanger.date)}`
+                    : null;
                 return (
                   <button
                     key={balance.id}
@@ -625,6 +651,7 @@ export function ForecastClient({
                       )}
                     </span>
                     {projectionLine && <span className="block text-xs text-slate-400">{projectionLine}</span>}
+                    {dangerLine && <span className="block text-xs text-red-500">{dangerLine}</span>}
                   </button>
                 );
               })}

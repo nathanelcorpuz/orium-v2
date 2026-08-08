@@ -47,6 +47,7 @@ export function PreferencesForm({
   emailNotificationsEnabled,
   notificationTime,
   notificationTimezone,
+  isUsernameOnlyAccount,
 }: {
   currency: string;
   balanceRanges: number[];
@@ -54,6 +55,11 @@ export function PreferencesForm({
   emailNotificationsEnabled: boolean;
   notificationTime: string;
   notificationTimezone: string | null;
+  // T269: a username-only account has no real email, so there's nowhere for
+  // notifications to be sent - the whole section is disabled rather than
+  // just hidden, so it's clear *why* rather than looking like a missing
+  // feature.
+  isUsernameOnlyAccount: boolean;
 }) {
   const [state, formAction, pending] = useActionState(updatePreferences, initialState);
   const browserTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -145,47 +151,59 @@ export function PreferencesForm({
           time against the current time in their chosen zone. */}
       <div id="email-notifications" className="rounded-lg border border-notion-hairline bg-white p-4">
         <h2 className="mb-3 text-sm font-semibold text-notion-text">Email notifications</h2>
-        <label className="flex items-center gap-2 text-sm text-notion-text">
-          <input
-            type="checkbox"
-            name="emailNotificationsEnabled"
-            defaultChecked={emailNotificationsEnabled}
-            className="h-4 w-4 rounded border-notion-hairline"
-          />
-          Email me a list of transactions due that day
-        </label>
-        <div className="mt-3 flex flex-col gap-3 sm:flex-row">
-          <div>
-            <label className="block text-sm text-slate-600" htmlFor="notificationTime">
-              Time of day
+        {/* T269: a username-only account has no real email on file - the
+            whole section is disabled rather than hidden, so it reads as
+            "not available for this account" rather than a missing feature. */}
+        {isUsernameOnlyAccount ? (
+          <p className="text-sm text-slate-500">
+            Not available - this account was created with just a username, so there&apos;s no
+            email to send to.
+          </p>
+        ) : (
+          <>
+            <label className="flex items-center gap-2 text-sm text-notion-text">
+              <input
+                type="checkbox"
+                name="emailNotificationsEnabled"
+                defaultChecked={emailNotificationsEnabled}
+                className="h-4 w-4 rounded border-notion-hairline"
+              />
+              Email me a list of transactions due that day
             </label>
-            <input
-              id="notificationTime"
-              name="notificationTime"
-              type="time"
-              required
-              defaultValue={notificationTime}
-              className="mt-1 rounded border border-notion-hairline p-2 text-notion-text focus:border-notion-accent focus:outline-none"
-            />
-          </div>
-          <div className="flex-1">
-            <label className="block text-sm text-slate-600" htmlFor="notificationTimezone">
-              Timezone
-            </label>
-            <select
-              id="notificationTimezone"
-              name="notificationTimezone"
-              defaultValue={notificationTimezone ?? browserTimezone}
-              className="mt-1 w-full rounded border border-notion-hairline p-2 text-notion-text focus:border-notion-accent focus:outline-none"
-            >
-              {timezoneOptions().map((tz) => (
-                <option key={tz} value={tz}>
-                  {tz}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
+            <div className="mt-3 flex flex-col gap-3 sm:flex-row">
+              <div>
+                <label className="block text-sm text-slate-600" htmlFor="notificationTime">
+                  Time of day
+                </label>
+                <input
+                  id="notificationTime"
+                  name="notificationTime"
+                  type="time"
+                  required
+                  defaultValue={notificationTime}
+                  className="mt-1 rounded border border-notion-hairline p-2 text-notion-text focus:border-notion-accent focus:outline-none"
+                />
+              </div>
+              <div className="flex-1">
+                <label className="block text-sm text-slate-600" htmlFor="notificationTimezone">
+                  Timezone
+                </label>
+                <select
+                  id="notificationTimezone"
+                  name="notificationTimezone"
+                  defaultValue={notificationTimezone ?? browserTimezone}
+                  className="mt-1 w-full rounded border border-notion-hairline p-2 text-notion-text focus:border-notion-accent focus:outline-none"
+                >
+                  {timezoneOptions().map((tz) => (
+                    <option key={tz} value={tz}>
+                      {tz}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          </>
+        )}
       </div>
 
       <div className="flex flex-col gap-3">

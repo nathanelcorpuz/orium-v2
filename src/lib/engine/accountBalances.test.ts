@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { accountBalanceForRow, computeAccountBalancesAfterEachRow, findAccountLowestPoints } from "./accountBalances";
+import {
+  accountBalanceForRow,
+  computeAccountBalancesAfterEachRow,
+  findAccountFirstDangerPoints,
+  findAccountLowestPoints,
+} from "./accountBalances";
 import type { ForecastRow } from "./types";
 
 function row(
@@ -194,5 +199,41 @@ describe("computeAccountBalancesAfterEachRow / accountBalanceForRow", () => {
     };
     const timeline = computeAccountBalancesAfterEachRow([plainIncome], accounts);
     expect(accountBalanceForRow(plainIncome, timeline)).toBe(120000);
+  });
+});
+
+describe("findAccountFirstDangerPoints (T294)", () => {
+  it("returns null for an account that never crosses the danger threshold", () => {
+    const rows = [row("2026-01-05", -1000, { balanceId: "a" })];
+    const result = findAccountFirstDangerPoints(rows, accounts, 0, "2026-01-01");
+    expect(result.get("a")).toBeNull();
+  });
+
+  it("finds the first (not lowest) crossing, distinct from findAccountLowestPoints' own answer", () => {
+    // Dips to -50000 on the 5th, recovers a bit (still negative) on the
+    // 7th, dips further to -80000 on the 10th - the *first* crossing is the
+    // 5th, even though the 10th is the actual lowest point.
+    const rows = [
+      row("2026-01-05", -150000, { balanceId: "a" }),
+      row("2026-01-07", 40000, { balanceId: "a" }),
+      row("2026-01-10", -70000, { balanceId: "a" }),
+    ];
+    const firstDanger = findAccountFirstDangerPoints(rows, accounts, 0, "2026-01-01");
+    expect(firstDanger.get("a")).toEqual({ balance: -50000, date: "2026-01-05" });
+
+    const lowest = findAccountLowestPoints(rows, accounts, "2026-01-01");
+    expect(lowest.get("a")).toEqual({ balance: -80000, date: "2026-01-10" });
+  });
+
+  it("treats the starting balance as a candidate, same as findFirstDangerPoint does for the combined total", () => {
+    const result = findAccountFirstDangerPoints([], [{ id: "a", amount: -500 }], 0, "2026-01-01");
+    expect(result.get("a")).toEqual({ balance: -500, date: "2026-01-01" });
+  });
+
+  it("respects a non-zero danger threshold, matching Bug #13's own convention", () => {
+    const rows = [row("2026-01-05", -5000, { balanceId: "a" })];
+    // Starting 100000, threshold 96000 - not yet crossed until this row.
+    const result = findAccountFirstDangerPoints(rows, accounts, 96000, "2026-01-01");
+    expect(result.get("a")).toEqual({ balance: 95000, date: "2026-01-05" });
   });
 });

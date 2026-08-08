@@ -19,7 +19,7 @@ export default async function SettingsPage() {
     supabase
       .from("preferences")
       .select(
-        "currency, balance_ranges, balance_tier_labels, email_notifications_enabled, notification_time, notification_timezone",
+        "currency, balance_ranges, balance_tier_labels, email_notifications_enabled, notification_time, notification_timezone, username",
       )
       .single(),
   ]);
@@ -30,6 +30,9 @@ export default async function SettingsPage() {
   const balanceRanges = preferencesRes.data?.balance_ranges ?? DEFAULT_BALANCE_RANGES;
   const tierLabels = preferencesRes.data?.balance_tier_labels ?? DEFAULT_TIER_LABELS;
   const emailNotificationsEnabled = preferencesRes.data?.email_notifications_enabled ?? false;
+  // T269: a username-only account has no real email - nothing for
+  // notifications to be sent to at all.
+  const isUsernameOnlyAccount = preferencesRes.data?.username != null;
   // Postgres `time` comes back as "HH:MM:SS" - trim to "HH:MM" to match
   // input[type=time]'s own value format.
   const notificationTime = (preferencesRes.data?.notification_time ?? "08:00:00").slice(0, 5);
@@ -49,6 +52,7 @@ export default async function SettingsPage() {
             emailNotificationsEnabled={emailNotificationsEnabled}
             notificationTime={notificationTime}
             notificationTimezone={notificationTimezone}
+            isUsernameOnlyAccount={isUsernameOnlyAccount}
           />
 
           <div id="sample-data" className="rounded-lg border border-notion-hairline bg-white p-4">

@@ -14,13 +14,16 @@ export default function LoginPage() {
     <AuthCard title="Log in">
       <form action={formAction} className="space-y-4">
         <div>
+          {/* T269: doubles as a username field - login() resolves whichever
+              was typed (an "@" means email, anything else is treated as a
+              username-only account's own identity). */}
           <label className="block text-sm text-slate-600" htmlFor="email">
-            Email
+            Email or username
           </label>
           <input
             id="email"
             name="email"
-            type="email"
+            type="text"
             required
             className="mt-1 w-full rounded border border-notion-hairline p-2 text-notion-text focus:border-notion-accent focus:outline-none"
           />
