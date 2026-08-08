@@ -413,9 +413,18 @@ export function ForecastClient({
   // filters narrow what's displayed, not what's real). Cheap enough (one
   // pass over the same rows) to compute directly here rather than threading
   // a new prop through forecast/page.tsx.
+  // Bug report (2026-08-08): "the projected balance per account when
+  // clicking any transaction in the future disappeared." Root cause: these
+  // two maps used to be keyed against `forecast` (the server prop) by row
+  // *object identity*, but the T284-follow-up slider feature introduced
+  // `liveForecast` - a `.map()`-produced array of brand-new row objects,
+  // rendered/clicked instead of `forecast` directly, even with no slider
+  // ever touched. A click's `selectedRow` was never a key in a map built
+  // from the old objects, so the lookup silently always missed. Both now
+  // key against `liveForecast` - the array actually on screen.
   const accountLowestPoints = useMemo(
-    () => findAccountLowestPoints(forecast, balances, todayInManila()),
-    [forecast, balances],
+    () => findAccountLowestPoints(liveForecast, balances, todayInManila()),
+    [liveForecast, balances],
   );
 
   // T191 (user request): "if a forecasted transaction has an account
@@ -424,8 +433,8 @@ export function ForecastClient({
   // above) so opening the modal is an O(1) lookup by row identity, not a
   // fresh walk over the whole forecast per click.
   const accountBalanceAfterRow = useMemo(
-    () => computeAccountBalancesAfterEachRow(forecast, balances),
-    [forecast, balances],
+    () => computeAccountBalancesAfterEachRow(liveForecast, balances),
+    [liveForecast, balances],
   );
 
   // T199 (user request): a forecasted transaction's own recurrence
