@@ -8,7 +8,7 @@ import { formatFullDate } from "@/lib/date";
 import { EditSettleModal } from "@/app/(app)/forecast/EditSettleModal";
 import { resolveAutoMoves } from "@/app/(app)/forecast/resolveAutoMoves";
 import { getItemTransactions, type ItemSettlementRow } from "@/lib/itemTransactions";
-import type { ForecastRow, IncomeAutoMoveOverride, RecurringItemType } from "@/lib/engine/types";
+import type { ForecastRow, IncomeAutoMoveManualEntry, IncomeAutoMoveOverride, RecurringItemType } from "@/lib/engine/types";
 
 export type SettlementRow = ItemSettlementRow;
 
@@ -47,6 +47,7 @@ export function ItemTransactionsModal({
   // here too, and vice versa.
   autoMoveRulesByIncomeId = new Map(),
   autoMoveOverrideByKey = new Map(),
+  manualAutoMovesByKey = new Map(),
   onClose,
 }: {
   name: string;
@@ -56,6 +57,9 @@ export function ItemTransactionsModal({
   balances: { id: string; name: string }[];
   autoMoveRulesByIncomeId?: Map<string, { id: string; destinationBalanceId: string; amount: number }[]>;
   autoMoveOverrideByKey?: Map<string, IncomeAutoMoveOverride>;
+  // T243: manual, rule-less one-off entries - resolved into this same
+  // "Upcoming" occurrence's auto-moves list alongside the rule-based ones.
+  manualAutoMovesByKey?: Map<string, IncomeAutoMoveManualEntry[]>;
   onClose: () => void;
 }) {
   const [tab, setTab] = useState<"upcoming" | "paid">("upcoming");
@@ -95,6 +99,7 @@ export function ItemTransactionsModal({
                 autoMoveRulesByIncomeId,
                 autoMoveOverrideByKey,
                 balanceNameById,
+                manualAutoMovesByKey,
               )
             : null
         }

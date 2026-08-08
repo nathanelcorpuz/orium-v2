@@ -214,6 +214,21 @@ export interface IncomeAutoMoveOverride {
   newAmount?: number | null; // positive magnitude, like IncomeAutoMove.amount
 }
 
+// SPEC.md T243 (user request 2026-08-08): "allow me to add an auto move
+// manually in any future income transaction, even if it is not set in
+// income page" - a one-off transfer scoped to exactly one occurrence, with
+// no standing IncomeAutoMove rule behind it at all (distinct from
+// IncomeAutoMoveOverride above, which can only ever edit an *existing*
+// rule's occurrence). Same shape IncomeAutoMove itself has, plus the one
+// field a rule doesn't need: which occurrence this applies to.
+export interface IncomeAutoMoveManualEntry {
+  id: string;
+  incomeId: string;
+  originalDate: string; // YYYY-MM-DD, the one occurrence this applies to
+  destinationBalanceId: string;
+  amount: number; // centavos, positive magnitude
+}
+
 export interface BudgetEntry {
   id: string;
   budgetId: string;
@@ -369,6 +384,7 @@ export interface GenerateForecastInput {
   budgetBalanceLinks?: BudgetBalanceLink[];
   incomeAutoMoves?: IncomeAutoMove[];
   incomeAutoMoveOverrides?: IncomeAutoMoveOverride[];
+  incomeAutoMoveManualEntries?: IncomeAutoMoveManualEntry[];
   today: string; // YYYY-MM-DD
   horizon: string; // YYYY-MM-DD
 }

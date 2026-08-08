@@ -4,7 +4,12 @@ import { useActionState, useEffect, useRef, useState } from "react";
 import { DatePicker } from "@/components/DatePicker";
 import { blockNegativeKey, centavosToPesosString, formatCentavos } from "@/lib/money";
 import { todayInManila } from "@/lib/date";
-import { editIncomeAutoMove, resetIncomeAutoMove, type ForecastActionState } from "./actions";
+import {
+  deleteManualIncomeAutoMove,
+  editIncomeAutoMove,
+  resetIncomeAutoMove,
+  type ForecastActionState,
+} from "./actions";
 import type { ResolvedAutoMove } from "./resolveAutoMoves";
 
 const initialState: ForecastActionState = { error: null };
@@ -27,6 +32,10 @@ export function AutoMoveRow({
   const [editing, setEditing] = useState(false);
   const [editState, editFormAction, editPending] = useActionState(editIncomeAutoMove, initialState);
   const [resetState, resetFormAction, resetPending] = useActionState(resetIncomeAutoMove, initialState);
+  // T243: always called (rules of hooks), only ever actually used below when
+  // `autoMove.manual` is true - a manual entry has no rule to edit/reset, so
+  // its own row is delete-only.
+  const [deleteState, deleteFormAction, deletePending] = useActionState(deleteManualIncomeAutoMove, initialState);
   const submitted = useRef(false);
 
   useEffect(() => {
@@ -35,6 +44,39 @@ export function AutoMoveRow({
       setEditing(false);
     }
   }, [editPending, resetPending, editState, resetState]);
+
+  // T243: a manual one-off entry - no rule behind it, so no Edit/skip form,
+  // just what it is and a way to undo it entirely.
+  if (autoMove.manual) {
+    return (
+      <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
+        <span>
+          {formatCentavos(autoMove.amount, currency)} to{" "}
+          <span className="font-medium text-notion-text">{autoMove.destinationName}</span>
+          <span className="ml-1 rounded-full bg-notion-hover px-1.5 py-0.5 text-[10px] font-medium text-notion-accent">
+            manual
+          </span>
+        </span>
+        <form
+          action={deleteFormAction}
+          onSubmit={() => {
+            submitted.current = true;
+          }}
+          className="flex shrink-0 items-center gap-2"
+        >
+          <input type="hidden" name="id" value={autoMove.id} />
+          {deleteState.error && <span className="text-xs text-red-600">{deleteState.error}</span>}
+          <button
+            type="submit"
+            disabled={deletePending}
+            className="text-xs text-red-600 underline hover:text-red-700 disabled:opacity-50"
+          >
+            {deletePending ? "Removing..." : "Remove"}
+          </button>
+        </form>
+      </div>
+    );
+  }
 
   if (!editing) {
     return (

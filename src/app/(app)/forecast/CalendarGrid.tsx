@@ -10,10 +10,22 @@ import { summarizeRecurrence, budgetReplenishRuleSummary } from "@/lib/recurrenc
 import { ChevronIcon } from "@/components/navIcons";
 import { Modal } from "@/components/Modal";
 import { EditSettleModal } from "./EditSettleModal";
-import type { ForecastRow, Budget, IncomeAutoMove, IncomeAutoMoveOverride, RecurringItem } from "@/lib/engine/types";
+import type {
+  ForecastRow,
+  Budget,
+  IncomeAutoMove,
+  IncomeAutoMoveManualEntry,
+  IncomeAutoMoveOverride,
+  RecurringItem,
+} from "@/lib/engine/types";
 import type { BalanceRow } from "@/app/(app)/accounts/BalanceModal";
 import type { ReminderRow } from "./RemindersPanel";
-import { buildAutoMoveOverrideByKey, buildAutoMoveRulesByIncomeId, resolveAutoMoves } from "./resolveAutoMoves";
+import {
+  buildAutoMoveOverrideByKey,
+  buildAutoMoveRulesByIncomeId,
+  buildManualAutoMovesByKey,
+  resolveAutoMoves,
+} from "./resolveAutoMoves";
 
 const WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -48,6 +60,7 @@ export function CalendarGrid({
   previewMode = false,
   incomeAutoMoves = [],
   incomeAutoMoveOverrides = [],
+  incomeAutoMoveManualEntries = [],
 }: {
   forecast: ForecastRow[];
   balances: BalanceRow[];
@@ -63,6 +76,8 @@ export function CalendarGrid({
   incomeAutoMoves?: IncomeAutoMove[];
   // T224: this occurrence's own per-instance edits, if any.
   incomeAutoMoveOverrides?: IncomeAutoMoveOverride[];
+  // T243: manual, rule-less one-off entries - resolved the same way.
+  incomeAutoMoveManualEntries?: IncomeAutoMoveManualEntry[];
 }) {
   const today = todayInManila();
   const [viewMonth, setViewMonth] = useState(() => monthKey(today));
@@ -79,9 +94,20 @@ export function CalendarGrid({
     () => buildAutoMoveOverrideByKey(incomeAutoMoveOverrides),
     [incomeAutoMoveOverrides],
   );
+  const manualAutoMovesByKey = useMemo(
+    () => buildManualAutoMovesByKey(incomeAutoMoveManualEntries),
+    [incomeAutoMoveManualEntries],
+  );
   function autoMovesForRow(row: ForecastRow) {
     if (row.sourceType !== "recurring" || row.type !== "income") return [];
-    return resolveAutoMoves(row.sourceId, row.originalDate, autoMoveRulesByIncomeId, autoMoveOverrideByKey, balanceNameById);
+    return resolveAutoMoves(
+      row.sourceId,
+      row.originalDate,
+      autoMoveRulesByIncomeId,
+      autoMoveOverrideByKey,
+      balanceNameById,
+      manualAutoMovesByKey,
+    );
   }
   function frequencyForRow(row: ForecastRow): string | null {
     if (row.sourceType === "recurring") {

@@ -1789,6 +1789,168 @@ describe("generateForecast income auto-move overrides (SPEC.md T224)", () => {
   });
 });
 
+// SPEC.md T243 (user request 2026-08-08): "allow me to add an auto move
+// manually in any future income transaction, even if it is not set in
+// income page" - a one-off transfer scoped to exactly one occurrence, with
+// no standing IncomeAutoMove rule behind it at all.
+describe("generateForecast income auto-move manual entries (SPEC.md T243)", () => {
+  it("generates a paired debit/credit row on exactly the named occurrence", () => {
+    const result = generateForecast({
+      balances: [
+        { id: "wise", name: "Wise Nanay", amount: 1000000 },
+        { id: "cash", name: "Cash", amount: 50000 },
+      ],
+      recurringItems: [
+        monthlyItem({
+          id: "income-1",
+          name: "TNIT",
+          type: "income",
+          amount: 500000,
+          daysOfMonth: [5, 12],
+          balanceId: "wise",
+        }),
+      ],
+      overrides: [],
+      oneOffs: [],
+      incomeAutoMoveManualEntries: [
+        { id: "manual-1", incomeId: "income-1", originalDate: "2026-01-05", destinationBalanceId: "cash", amount: 30000 },
+      ],
+      today: "2026-01-01",
+      horizon: "2026-01-31",
+    });
+
+    const manualRows = result.filter((row) => row.sourceType === "income_auto_move");
+    expect(manualRows).toHaveLength(2);
+    expect(manualRows.every((row) => row.originalDate === "2026-01-05" && row.hidden === true)).toBe(true);
+    const debit = manualRows.find((row) => row.amount < 0)!;
+    const credit = manualRows.find((row) => row.amount > 0)!;
+    expect(debit.balanceId).toBe("wise");
+    expect(Math.abs(debit.amount)).toBe(30000);
+    expect(credit.balanceId).toBe("cash");
+    expect(credit.amount).toBe(30000);
+  });
+
+  it("doesn't touch a different occurrence of the same income", () => {
+    const result = generateForecast({
+      balances: [
+        { id: "wise", name: "Wise Nanay", amount: 1000000 },
+        { id: "cash", name: "Cash", amount: 50000 },
+      ],
+      recurringItems: [
+        monthlyItem({
+          id: "income-1",
+          name: "TNIT",
+          type: "income",
+          amount: 500000,
+          daysOfMonth: [5, 12],
+          balanceId: "wise",
+        }),
+      ],
+      overrides: [],
+      oneOffs: [],
+      incomeAutoMoveManualEntries: [
+        { id: "manual-1", incomeId: "income-1", originalDate: "2026-01-05", destinationBalanceId: "cash", amount: 30000 },
+      ],
+      today: "2026-01-01",
+      horizon: "2026-01-31",
+    });
+
+    const manualRows = result.filter((row) => row.sourceType === "income_auto_move");
+    expect(manualRows.every((row) => row.originalDate !== "2026-01-12")).toBe(true);
+  });
+
+  it("stays dormant when the income has no connected account, same gate as a standing rule", () => {
+    const result = generateForecast({
+      balances: [{ id: "cash", name: "Cash", amount: 50000 }],
+      recurringItems: [
+        monthlyItem({
+          id: "income-1",
+          name: "TNIT",
+          type: "income",
+          amount: 500000,
+          daysOfMonth: [5],
+          balanceId: null,
+        }),
+      ],
+      overrides: [],
+      oneOffs: [],
+      incomeAutoMoveManualEntries: [
+        { id: "manual-1", incomeId: "income-1", originalDate: "2026-01-05", destinationBalanceId: "cash", amount: 30000 },
+      ],
+      today: "2026-01-01",
+      horizon: "2026-01-31",
+    });
+
+    expect(result.some((row) => row.sourceType === "income_auto_move")).toBe(false);
+  });
+
+  it("stays dormant when its originalDate doesn't match any real occurrence of the income", () => {
+    const result = generateForecast({
+      balances: [
+        { id: "wise", name: "Wise Nanay", amount: 1000000 },
+        { id: "cash", name: "Cash", amount: 50000 },
+      ],
+      recurringItems: [
+        monthlyItem({
+          id: "income-1",
+          name: "TNIT",
+          type: "income",
+          amount: 500000,
+          daysOfMonth: [5],
+          balanceId: "wise",
+        }),
+      ],
+      overrides: [],
+      oneOffs: [],
+      // No income occurrence actually falls on the 20th - a stale/deleted
+      // entry (e.g. from an income whose schedule changed after this was
+      // added) should be silently ignored, not crash or fabricate a row.
+      incomeAutoMoveManualEntries: [
+        { id: "manual-1", incomeId: "income-1", originalDate: "2026-01-20", destinationBalanceId: "cash", amount: 30000 },
+      ],
+      today: "2026-01-01",
+      horizon: "2026-01-31",
+    });
+
+    expect(result.some((row) => row.sourceType === "income_auto_move")).toBe(false);
+  });
+
+  it("combines with a standing rule on the same occurrence, both applying independently", () => {
+    const result = generateForecast({
+      balances: [
+        { id: "wise", name: "Wise Nanay", amount: 1000000 },
+        { id: "bdo", name: "BDO Tatay", amount: 200000 },
+        { id: "cash", name: "Cash", amount: 50000 },
+      ],
+      recurringItems: [
+        monthlyItem({
+          id: "income-1",
+          name: "TNIT",
+          type: "income",
+          amount: 500000,
+          daysOfMonth: [5],
+          balanceId: "wise",
+        }),
+      ],
+      overrides: [],
+      oneOffs: [],
+      incomeAutoMoves: [{ id: "move-1", incomeId: "income-1", destinationBalanceId: "bdo", amount: 100000 }],
+      incomeAutoMoveManualEntries: [
+        { id: "manual-1", incomeId: "income-1", originalDate: "2026-01-05", destinationBalanceId: "cash", amount: 30000 },
+      ],
+      today: "2026-01-01",
+      horizon: "2026-01-31",
+    });
+
+    const autoMoveRows = result.filter((row) => row.sourceType === "income_auto_move");
+    expect(autoMoveRows).toHaveLength(4);
+    // Two internal transfers never change the combined total: 1,250,000
+    // (starting: 1,000,000 + 200,000 + 50,000) + 500,000 (income) =
+    // 1,750,000.
+    expect(result[result.length - 1].runningBalance).toBe(1750000);
+  });
+});
+
 // T174 ("run possible scenario"): scenario-sourced items pass a `fromScenario`
 // flag through to their forecast rows unchanged, so the UI can badge them
 // distinctly from real data. The engine itself doesn't know or care where a

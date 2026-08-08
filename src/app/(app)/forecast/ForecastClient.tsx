@@ -39,12 +39,14 @@ import type {
   BudgetBalanceLink,
   BudgetEntry,
   IncomeAutoMove,
+  IncomeAutoMoveManualEntry,
   IncomeAutoMoveOverride,
   RecurringItem,
 } from "@/lib/engine/types";
 import {
   buildAutoMoveOverrideByKey,
   buildAutoMoveRulesByIncomeId,
+  buildManualAutoMovesByKey,
   resolveAutoMoves,
 } from "./resolveAutoMoves";
 import type { ConnectedItem } from "@/lib/connectedItems";
@@ -193,6 +195,7 @@ export function ForecastClient({
   allScenarios,
   incomeAutoMoves = [],
   incomeAutoMoveOverrides = [],
+  incomeAutoMoveManualEntries = [],
 }: {
   forecast: ForecastRow[];
   balances: BalanceRow[];
@@ -252,6 +255,9 @@ export function ForecastClient({
   // T224: this occurrence's own per-instance edits, if any - resolved
   // alongside `incomeAutoMoves` above via resolveAutoMoves.ts.
   incomeAutoMoveOverrides?: IncomeAutoMoveOverride[];
+  // T243: manual, rule-less one-off entries - resolved the same way,
+  // merged in by resolveAutoMoves.ts alongside the rule-based ones above.
+  incomeAutoMoveManualEntries?: IncomeAutoMoveManualEntry[];
 }) {
   const router = useRouter();
   const [editingBalance, setEditingBalance] = useState<BalanceRow | null>(null);
@@ -474,9 +480,22 @@ export function ForecastClient({
     () => buildAutoMoveOverrideByKey(incomeAutoMoveOverrides),
     [incomeAutoMoveOverrides],
   );
+  // T243: manual one-off entries, merged into resolveAutoMoves' own output
+  // alongside the rule-based ones above.
+  const manualAutoMovesByKey = useMemo(
+    () => buildManualAutoMovesByKey(incomeAutoMoveManualEntries),
+    [incomeAutoMoveManualEntries],
+  );
   function autoMovesForRow(row: ForecastRow) {
     if (row.sourceType !== "recurring" || row.type !== "income") return [];
-    return resolveAutoMoves(row.sourceId, row.originalDate, autoMoveRulesByIncomeId, autoMoveOverrideByKey, balanceNameById);
+    return resolveAutoMoves(
+      row.sourceId,
+      row.originalDate,
+      autoMoveRulesByIncomeId,
+      autoMoveOverrideByKey,
+      balanceNameById,
+      manualAutoMovesByKey,
+    );
   }
 
   // T180: per-account forecasted balance, resolving the "Before MVP launch"
@@ -1018,6 +1037,7 @@ export function ForecastClient({
                 previewMode={previewMode}
                 incomeAutoMoves={incomeAutoMoves}
                 incomeAutoMoveOverrides={incomeAutoMoveOverrides}
+                incomeAutoMoveManualEntries={incomeAutoMoveManualEntries}
               />
             )
           ) : displayedForecast.length === 0 ? (

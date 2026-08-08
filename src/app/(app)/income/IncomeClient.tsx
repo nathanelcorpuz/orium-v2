@@ -17,10 +17,10 @@ import { RowIconActions } from "@/components/RowIconActions";
 import { SubmitButton } from "@/components/SubmitButton";
 import { ActiveToggle } from "@/components/ActiveToggle";
 import { isActive } from "@/lib/isActive";
-import type { IncomeAutoMoveOverride, RecurrenceUnit } from "@/lib/engine/types";
+import type { IncomeAutoMoveManualEntry, IncomeAutoMoveOverride, RecurrenceUnit } from "@/lib/engine/types";
 import { useOrderedList } from "@/lib/useOrderedList";
 import { ItemTransactionsModal } from "@/components/recurring/ItemTransactionsModal";
-import { buildAutoMoveOverrideByKey } from "@/app/(app)/forecast/resolveAutoMoves";
+import { buildAutoMoveOverrideByKey, buildManualAutoMovesByKey } from "@/app/(app)/forecast/resolveAutoMoves";
 import { deleteIncome } from "./actions";
 import { IncomeModal, type BalanceOption, type IncomeAutoMoveRow, type IncomeRow } from "./IncomeModal";
 
@@ -65,6 +65,7 @@ export function IncomeClient({
   linkedBudgets,
   autoMovesByIncomeId = new Map(),
   incomeAutoMoveOverrides = [],
+  incomeAutoMoveManualEntries = [],
   currency,
 }: {
   incomes: IncomeRow[];
@@ -78,6 +79,9 @@ export function IncomeClient({
   // "Upcoming" modal's EditSettleModal resolve the same effective amount/
   // skip state a given date shows on the Forecast page itself.
   incomeAutoMoveOverrides?: IncomeAutoMoveOverride[];
+  // T243: manual, rule-less one-off entries - resolved into the "Upcoming"
+  // modal's own auto-moves list the same way as the two props above.
+  incomeAutoMoveManualEntries?: IncomeAutoMoveManualEntry[];
   currency: string;
 }) {
   // T212: a link from elsewhere (the Accounts page's own "Receives ₱X from
@@ -183,6 +187,12 @@ export function IncomeClient({
   const autoMoveOverrideByKey = useMemo(
     () => buildAutoMoveOverrideByKey(incomeAutoMoveOverrides),
     [incomeAutoMoveOverrides],
+  );
+  // T243: same "Upcoming" modal resolution as the two maps above, for
+  // manual one-off entries.
+  const manualAutoMovesByKey = useMemo(
+    () => buildManualAutoMovesByKey(incomeAutoMoveManualEntries),
+    [incomeAutoMoveManualEntries],
   );
   // T245 (user request 2026-08-08): "i need to be able to quickly see the
   // total amount of the budget funds a certain income funds... based on the
@@ -471,6 +481,7 @@ export function IncomeClient({
             balances={balances}
             autoMoveRulesByIncomeId={autoMoveRulesByIncomeId}
             autoMoveOverrideByKey={autoMoveOverrideByKey}
+            manualAutoMovesByKey={manualAutoMovesByKey}
             onClose={() => setViewingItem(null)}
           />
         )}

@@ -13,6 +13,7 @@ import type {
   ForecastRow,
   GenerateForecastInput,
   IncomeAutoMove,
+  IncomeAutoMoveManualEntry,
   IncomeAutoMoveOverride,
   OccurrenceOverride,
   OneOffItem,
@@ -60,6 +61,7 @@ export type ForecastData = {
   budgetBalanceLinks: BudgetBalanceLink[];
   incomeAutoMoves: IncomeAutoMove[];
   incomeAutoMoveOverrides: IncomeAutoMoveOverride[];
+  incomeAutoMoveManualEntries: IncomeAutoMoveManualEntry[];
   currency: string;
   balanceRanges: number[];
   tierLabels: string[];
@@ -94,6 +96,7 @@ export async function loadForecast(): Promise<ForecastData> {
     budgetBalanceLinksRes,
     autoMovesRes,
     autoMoveOverridesRes,
+    manualAutoMovesRes,
     preferencesRes,
     activeScenariosRes,
   ] = await Promise.all([
@@ -134,6 +137,12 @@ export async function loadForecast(): Promise<ForecastData> {
     supabase
       .from("income_auto_move_overrides")
       .select("id, income_auto_move_id, original_date, skipped, new_date, new_amount"),
+    // T243: every one-off manual entry, same "let the engine decide which
+    // ones are still relevant" reasoning as the two queries just above -
+    // each one only ever matches exactly one occurrence anyway.
+    supabase
+      .from("income_manual_auto_moves")
+      .select("id, income_id, original_date, destination_balance_id, amount"),
     supabase
       .from("preferences")
       .select("currency, balance_ranges, balance_tier_labels, sample_data_seeded_at")
@@ -158,7 +167,8 @@ export async function loadForecast(): Promise<ForecastData> {
     replenishOverridesRes.error ??
     budgetBalanceLinksRes.error ??
     autoMovesRes.error ??
-    autoMoveOverridesRes.error;
+    autoMoveOverridesRes.error ??
+    manualAutoMovesRes.error;
   if (criticalError) {
     throw new Error(`Failed to load forecast data: ${criticalError.message}`);
   }
@@ -283,6 +293,14 @@ export async function loadForecast(): Promise<ForecastData> {
     skipped: row.skipped,
     newDate: row.new_date,
     newAmount: row.new_amount,
+  }));
+
+  const incomeAutoMoveManualEntries: IncomeAutoMoveManualEntry[] = (manualAutoMovesRes.data ?? []).map((row) => ({
+    id: row.id,
+    incomeId: row.income_id,
+    originalDate: row.original_date,
+    destinationBalanceId: row.destination_balance_id,
+    amount: row.amount,
   }));
 
   // T174 ("run possible scenario"), extended by T183 to any number of
@@ -421,6 +439,7 @@ export async function loadForecast(): Promise<ForecastData> {
     budgetBalanceLinks,
     incomeAutoMoves,
     incomeAutoMoveOverrides,
+    incomeAutoMoveManualEntries,
     today,
     horizon,
   };
@@ -438,6 +457,7 @@ export async function loadForecast(): Promise<ForecastData> {
     budgetBalanceLinks,
     incomeAutoMoves,
     incomeAutoMoveOverrides,
+    incomeAutoMoveManualEntries,
     currency: preferencesRes.data?.currency ?? DEFAULT_CURRENCY,
     balanceRanges: preferencesRes.data?.balance_ranges ?? DEFAULT_BALANCE_RANGES,
     tierLabels: preferencesRes.data?.balance_tier_labels ?? DEFAULT_TIER_LABELS,

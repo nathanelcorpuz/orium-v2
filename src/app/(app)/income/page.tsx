@@ -9,8 +9,16 @@ export default async function IncomePage() {
   // Lazy loading (user request 2026-08-01): each income's own upcoming/paid
   // transactions moved to an on-demand fetch (itemTransactions.ts), fired
   // only when a specific income's "view transactions" modal actually opens.
-  const [{ data: incomes, error }, overridesRes, balancesRes, budgetsRes, autoMovesRes, autoMoveOverridesRes, currency] =
-    await Promise.all([
+  const [
+    { data: incomes, error },
+    overridesRes,
+    balancesRes,
+    budgetsRes,
+    autoMovesRes,
+    autoMoveOverridesRes,
+    manualAutoMovesRes,
+    currency,
+  ] = await Promise.all([
       supabase
         .from("recurring_items")
         .select(
@@ -39,6 +47,11 @@ export default async function IncomePage() {
       supabase
         .from("income_auto_move_overrides")
         .select("id, income_auto_move_id, original_date, skipped, new_date, new_amount"),
+      // T243: every one-off manual entry, for the same "Upcoming" modal
+      // resolution ForecastData.ts/generateForecast already does.
+      supabase
+        .from("income_manual_auto_moves")
+        .select("id, income_id, original_date, destination_balance_id, amount"),
       getCurrency(),
     ]);
 
@@ -56,6 +69,13 @@ export default async function IncomePage() {
     newDate: row.new_date,
     newAmount: row.new_amount,
   }));
+  const incomeAutoMoveManualEntries = (manualAutoMovesRes.data ?? []).map((row) => ({
+    id: row.id,
+    incomeId: row.income_id,
+    originalDate: row.original_date,
+    destinationBalanceId: row.destination_balance_id,
+    amount: row.amount,
+  }));
 
   return (
     <IncomeClient
@@ -65,6 +85,7 @@ export default async function IncomePage() {
       linkedBudgets={budgetsRes.data ?? []}
       autoMovesByIncomeId={autoMovesByIncomeId}
       incomeAutoMoveOverrides={incomeAutoMoveOverrides}
+      incomeAutoMoveManualEntries={incomeAutoMoveManualEntries}
       currency={currency}
     />
   );

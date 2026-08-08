@@ -1,4 +1,4 @@
-import type { IncomeAutoMove, IncomeAutoMoveOverride } from "@/lib/engine/types";
+import type { IncomeAutoMove, IncomeAutoMoveManualEntry, IncomeAutoMoveOverride } from "@/lib/engine/types";
 
 // SPEC.md T224: shared between ForecastClient.tsx and CalendarGrid.tsx (both
 // need the exact same per-occurrence resolution for the income row's
@@ -46,18 +46,43 @@ export interface ResolvedAutoMove {
   // True when a non-skip override changed this occurrence's amount or date.
   edited: boolean;
   newDate: string | null;
+  // T243: true for a one-off entry with no standing rule behind it at all -
+  // AutoMoveRow.tsx uses this to show a "Manual"/delete treatment instead of
+  // the rule-based edit/skip/reset one, since there's no rule to reset to.
+  manual?: true;
 }
 
-/** Resolves every auto-move rule attached to `incomeId` for one specific occurrence (`originalDate`), applying any per-instance override (T224). */
+function manualKey(incomeId: string, originalDate: string): string {
+  return `${incomeId}|${originalDate}`;
+}
+
+// T243: grouped by (incomeId, originalDate) since - unlike a rule, which
+// applies to every occurrence - a manual entry only ever names the one
+// occurrence it was added for.
+export function buildManualAutoMovesByKey(
+  manualEntries: IncomeAutoMoveManualEntry[],
+): Map<string, IncomeAutoMoveManualEntry[]> {
+  const map = new Map<string, IncomeAutoMoveManualEntry[]>();
+  for (const entry of manualEntries) {
+    const key = manualKey(entry.incomeId, entry.originalDate);
+    const list = map.get(key) ?? [];
+    list.push(entry);
+    map.set(key, list);
+  }
+  return map;
+}
+
+/** Resolves every auto-move rule attached to `incomeId` for one specific occurrence (`originalDate`), applying any per-instance override (T224), plus any manual one-off entries added for that exact occurrence (T243). */
 export function resolveAutoMoves(
   incomeId: string,
   originalDate: string,
   rulesByIncomeId: Map<string, AutoMoveRule[]>,
   overrideByKey: Map<string, IncomeAutoMoveOverride>,
   balanceNameById: Map<string, string>,
+  manualByKey: Map<string, IncomeAutoMoveManualEntry[]> = new Map(),
 ): ResolvedAutoMove[] {
   const rules = rulesByIncomeId.get(incomeId) ?? [];
-  return rules.map((rule) => {
+  const resolvedRules = rules.map((rule) => {
     const override = overrideByKey.get(overrideKey(rule.id, originalDate));
     const skipped = override?.skipped ?? false;
     return {
@@ -69,4 +94,14 @@ export function resolveAutoMoves(
       newDate: override?.newDate ?? null,
     };
   });
+  const resolvedManual = (manualByKey.get(manualKey(incomeId, originalDate)) ?? []).map((entry) => ({
+    id: entry.id,
+    destinationName: balanceNameById.get(entry.destinationBalanceId) ?? "another account",
+    amount: entry.amount,
+    skipped: false,
+    edited: false,
+    newDate: null,
+    manual: true as const,
+  }));
+  return [...resolvedRules, ...resolvedManual];
 }

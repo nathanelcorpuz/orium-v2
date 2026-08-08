@@ -456,7 +456,26 @@ export async function settleOccurrence(
     return override?.newAmount ?? autoMove.amount;
   }
 
-  const totalAutoMove = autoMoves.reduce((sum, autoMove) => sum + (autoMoveAmountFor(autoMove) ?? 0), 0);
+  // T243: a manual one-off entry for this exact occurrence - same "fetch
+  // before the cash side is touched, net it into one write" reasoning as
+  // `autoMoves` above. No override/skip lookup needed - a manual entry has
+  // no rule to override, and is deleted outright below once settled rather
+  // than needing a "skip" state.
+  type ManualAutoMove = { id: string; destination_balance_id: string; amount: number };
+  let manualAutoMoves: ManualAutoMove[] = [];
+  if (sourceType === "recurring" && type === "income") {
+    const { data, error: manualError } = await supabase
+      .from("income_manual_auto_moves")
+      .select("id, destination_balance_id, amount")
+      .eq("income_id", sourceId)
+      .eq("original_date", originalDate);
+    if (manualError) return { error: manualError.message };
+    manualAutoMoves = data ?? [];
+  }
+
+  const totalAutoMove =
+    autoMoves.reduce((sum, autoMove) => sum + (autoMoveAmountFor(autoMove) ?? 0), 0) +
+    manualAutoMoves.reduce((sum, manual) => sum + manual.amount, 0);
 
   // T71 (SPEC.md Phase 12): if an account is selected (pre-filled from the
   // item's own linked balance, but overridable per-settlement), apply the
@@ -498,7 +517,7 @@ export async function settleOccurrence(
   // each destination account and logs both legs to balance_transactions, the
   // same two-leg shape a manual Move funds (T186) already writes, so both
   // accounts' own History view shows where the money came from/went.
-  if (fields.balanceId && autoMoves.length > 0) {
+  if (fields.balanceId && (autoMoves.length > 0 || manualAutoMoves.length > 0)) {
     const { data: sourceBalance, error: sourceBalanceError } = await supabase
       .from("balances")
       .select("name")
@@ -545,6 +564,48 @@ export async function settleOccurrence(
         note: `Auto-moved from ${sourceBalance.name} (${name} settling)`,
       });
       if (inLegError) return { error: inLegError.message };
+    }
+
+    // T243: same credit + two-leg ledger shape as a rule-based auto-move
+    // just above, then the entry itself is deleted - it was a one-off for
+    // exactly this occurrence, now settled, so there's nothing left for it
+    // to apply to again.
+    for (const manual of manualAutoMoves) {
+      const { data: destBalance, error: destFetchError } = await supabase
+        .from("balances")
+        .select("amount, name")
+        .eq("id", manual.destination_balance_id)
+        .single();
+      if (destFetchError) return { error: destFetchError.message };
+
+      const { error: destUpdateError } = await supabase
+        .from("balances")
+        .update({ amount: destBalance.amount + manual.amount })
+        .eq("id", manual.destination_balance_id);
+      if (destUpdateError) return { error: destUpdateError.message };
+
+      const { error: outLegError } = await supabase.from("balance_transactions").insert({
+        user_id: user.id,
+        balance_id: fields.balanceId,
+        entry_date: fields.actualDate,
+        amount: manual.amount,
+        direction: "outgoing",
+        note: `Auto-moved to ${destBalance.name} (one-off)`,
+      });
+      if (outLegError) return { error: outLegError.message };
+
+      const { error: inLegError } = await supabase.from("balance_transactions").insert({
+        user_id: user.id,
+        balance_id: manual.destination_balance_id,
+        entry_date: fields.actualDate,
+        amount: manual.amount,
+        direction: "incoming",
+        note: `Auto-moved from ${sourceBalance.name} (${name} settling, one-off)`,
+      });
+      if (inLegError) return { error: inLegError.message };
+
+      const { error: deleteError } = await supabase.from("income_manual_auto_moves").delete().eq("id", manual.id);
+      if (deleteError) return { error: deleteError.message };
     }
 
     // T224: no log line at all when every auto-move for this occurrence was
@@ -883,6 +944,90 @@ export async function resetIncomeAutoMove(
   });
 
   revalidatePath("/forecast");
+  revalidatePath("/");
+  return { error: null };
+}
+
+// SPEC.md T243 (user request 2026-08-08): "allow me to add an auto move
+// manually in any future income transaction, even if it is not set in
+// income page... a manual auto move to a different account not connected to
+// the original setup of the income, only for that certain instance." Same
+// gate income_auto_moves rules already respect (T212): only takes effect
+// once the income itself has a connected account, since that's where the
+// money would actually come from - checked here rather than left to fail
+// silently at settle time, so a doomed entry never gets created in the
+// first place.
+export async function addManualIncomeAutoMove(
+  _prevState: ForecastActionState,
+  formData: FormData,
+): Promise<ForecastActionState> {
+  const incomeId = formData.get("incomeId") as string;
+  const incomeName = formData.get("incomeName") as string;
+  const originalDate = formData.get("originalDate") as string;
+  const destinationBalanceId = formData.get("destinationBalanceId") as string;
+  const amount = parseCentavos(formData.get("amountPesos") as string);
+
+  if (amount === null || amount <= 0) return { error: "Enter a valid amount." };
+  if (!destinationBalanceId) return { error: "Choose an account to move funds to." };
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Not signed in." };
+
+  const { data: income, error: incomeError } = await supabase
+    .from("recurring_items")
+    .select("balance_id")
+    .eq("id", incomeId)
+    .single();
+  if (incomeError) return { error: incomeError.message };
+  if (!income.balance_id) return { error: `${incomeName} has no connected account to move funds from yet.` };
+  if (income.balance_id === destinationBalanceId) return { error: "Choose a different account to move funds to." };
+
+  const { error } = await supabase.from("income_manual_auto_moves").insert({
+    user_id: user.id,
+    income_id: incomeId,
+    original_date: originalDate,
+    destination_balance_id: destinationBalanceId,
+    amount,
+  });
+  if (error) return { error: error.message };
+
+  const { data: destination } = await supabase.from("balances").select("name").eq("id", destinationBalanceId).single();
+
+  await logActivity(supabase, user.id, {
+    action: "update",
+    entityType: "income",
+    entityName: incomeName,
+    detail: `Added a one-off auto-move: ${formatCentavos(amount)} to ${destination?.name ?? "another account"} on ${formatFullDate(originalDate)}`,
+  });
+
+  revalidatePath("/forecast");
+  revalidatePath("/income");
+  revalidatePath("/");
+  return { error: null };
+}
+
+// T243: deleting is the only way to undo a manual entry - there's no rule
+// underneath it to "reset" back to, unlike resetIncomeAutoMove above.
+export async function deleteManualIncomeAutoMove(
+  _prevState: ForecastActionState,
+  formData: FormData,
+): Promise<ForecastActionState> {
+  const id = formData.get("id") as string;
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Not signed in." };
+
+  const { error } = await supabase.from("income_manual_auto_moves").delete().eq("id", id);
+  if (error) return { error: error.message };
+
+  revalidatePath("/forecast");
+  revalidatePath("/income");
   revalidatePath("/");
   return { error: null };
 }

@@ -416,6 +416,55 @@ export function generateForecast(input: GenerateForecastInput): ForecastRow[] {
     }
   }
 
+  // SPEC.md T243 (user request 2026-08-08): "allow me to add an auto move
+  // manually in any future income transaction, even if it is not set in
+  // income page." Same hidden-paired-row shape as the rule-based loop just
+  // above, but each entry only ever applies to the one occurrence it names
+  // (`originalDate`) - found directly in `incomeEffectiveOccurrences` rather
+  // than walked across every occurrence of the income, since there's no
+  // recurring rule here to apply repeatedly. No override/skip concept either
+  // (nothing to override - deleting the entry itself is how a mistake gets
+  // undone), and no `edited` tag - this was never "the usual" in the first
+  // place.
+  for (const manual of input.incomeAutoMoveManualEntries ?? []) {
+    const sourceBalanceId = balanceIdByRecurringItemId.get(manual.incomeId);
+    if (!sourceBalanceId) continue;
+    const destination = balanceById.get(manual.destinationBalanceId);
+    if (!destination) continue;
+    const source = balanceById.get(sourceBalanceId);
+
+    const occurrence = (incomeEffectiveOccurrences.get(manual.incomeId) ?? []).find(
+      (o) => o.originalDate === manual.originalDate,
+    );
+    if (!occurrence) continue;
+
+    rows.push({
+      sourceType: "income_auto_move",
+      sourceId: manual.id,
+      originalDate: manual.originalDate,
+      name: `Auto-move to ${destination.name}`,
+      amount: -manual.amount,
+      dueDate: occurrence.effectiveDate,
+      type: "auto_move",
+      balanceId: sourceBalanceId,
+      linkedIncomeId: manual.incomeId,
+      hidden: true,
+      feeAmount: feeByBalanceId.get(sourceBalanceId),
+    });
+    rows.push({
+      sourceType: "income_auto_move",
+      sourceId: manual.id,
+      originalDate: manual.originalDate,
+      name: `Auto-move from ${source?.name ?? "account"}`,
+      amount: manual.amount,
+      dueDate: occurrence.effectiveDate,
+      type: "auto_move",
+      balanceId: manual.destinationBalanceId,
+      linkedIncomeId: manual.incomeId,
+      hidden: true,
+    });
+  }
+
   // Array.prototype.sort is stable (ES2019+), so equal due-date-and-sign rows keep
   // their insertion order. Same-day rows put incoming amounts (income, refunds) before
   // outgoing ones so the running balance reflects money landing before it's spent.

@@ -10,6 +10,7 @@ import { TYPE_COLOR, TYPE_LABEL } from "@/lib/forecastLabels";
 import type { ForecastRow } from "@/lib/engine/types";
 import type { ResolvedAutoMove } from "./resolveAutoMoves";
 import { AutoMoveRow } from "./AutoMoveRow";
+import { AddManualAutoMoveForm } from "./AddManualAutoMoveForm";
 import { deleteBudgetEntry, updateBudgetEntry, type BudgetActionState } from "@/app/(app)/budgets/actions";
 import {
   editBudgetReplenish,
@@ -88,6 +89,13 @@ export function EditSettleModal({
   // toggle - you can change what it will transfer, not declare it done.
   const isBudgetReplenish = row.sourceType === "budget_replenish";
   const canSettleReplenish = isBudgetReplenish && row.budgetSettleable === true;
+  // T243 (user request 2026-08-08): "allow me to add an auto move manually
+  // in any future income transaction, even if it is not set in income page"
+  // - offered on every income row reachable here (this modal only ever
+  // opens on a still-forecasted, not-yet-settled occurrence to begin with),
+  // not only ones that already have a standing income_auto_moves rule.
+  const isIncomeRow = row.sourceType === "recurring" && row.type === "income";
+  const [addingManualMove, setAddingManualMove] = useState(false);
   // User request 2026-07-24: the amount field shouldn't require typing a
   // minus sign for outflow types - only "extra" genuinely goes either way
   // (no fixed direction), so it's the one type that keeps manual sign entry.
@@ -181,7 +189,8 @@ export function EditSettleModal({
       {((connectedAccountName && accountBalanceAtRow !== null) ||
         row.budgetName ||
         frequencySummary ||
-        (autoMoves && autoMoves.length > 0)) && (
+        (autoMoves && autoMoves.length > 0) ||
+        isIncomeRow) && (
         <div className="mb-4 space-y-1 rounded border border-notion-hairline bg-notion-hover/40 p-2 text-sm text-slate-600">
           {connectedAccountName && accountBalanceAtRow !== null && (
             <p>
@@ -214,14 +223,46 @@ export function EditSettleModal({
               one is now its own editable line (AutoMoveRow) rather than a
               flat read-only sentence - "adjust just this date, don't touch
               the rule for the rest of time". */}
-          {autoMoves && autoMoves.length > 0 && (
+          {isIncomeRow && (
             <div>
-              <p className="mb-1">Auto-moves:</p>
-              <div className="space-y-1.5">
-                {autoMoves.map((autoMove) => (
-                  <AutoMoveRow key={autoMove.id} autoMove={autoMove} originalDate={row.originalDate} currency={currency} />
-                ))}
-              </div>
+              {autoMoves && autoMoves.length > 0 && (
+                <>
+                  <p className="mb-1">Auto-moves:</p>
+                  <div className="space-y-1.5">
+                    {autoMoves.map((autoMove) => (
+                      <AutoMoveRow
+                        key={autoMove.id}
+                        autoMove={autoMove}
+                        originalDate={row.originalDate}
+                        currency={currency}
+                      />
+                    ))}
+                  </div>
+                </>
+              )}
+              {/* T243: reachable whether or not this income has any standing
+                  auto-move rules at all - "even if it is not set in income
+                  page." */}
+              {addingManualMove ? (
+                <div className={autoMoves && autoMoves.length > 0 ? "mt-2" : ""}>
+                  <AddManualAutoMoveForm
+                    incomeId={row.sourceId}
+                    incomeName={row.name}
+                    originalDate={row.originalDate}
+                    balances={balances}
+                    excludeBalanceId={row.balanceId}
+                    onClose={() => setAddingManualMove(false)}
+                  />
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setAddingManualMove(true)}
+                  className={`text-xs text-notion-accent underline hover:text-notion-text ${autoMoves && autoMoves.length > 0 ? "mt-2" : ""}`}
+                >
+                  + Add a one-off auto-move
+                </button>
+              )}
             </div>
           )}
         </div>

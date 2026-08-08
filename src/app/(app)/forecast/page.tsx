@@ -55,6 +55,7 @@ export default async function ForecastPage({
     budgetBalanceLinks,
     incomeAutoMoves,
     incomeAutoMoveOverrides,
+    incomeAutoMoveManualEntries,
     currency,
     balanceRanges,
     tierLabels,
@@ -96,6 +97,7 @@ export default async function ForecastPage({
       allScenarios={allScenarios}
       incomeAutoMoves={incomeAutoMoves}
       incomeAutoMoveOverrides={incomeAutoMoveOverrides}
+      incomeAutoMoveManualEntries={incomeAutoMoveManualEntries}
     />
   );
 }

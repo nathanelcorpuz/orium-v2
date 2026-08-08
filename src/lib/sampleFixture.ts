@@ -199,6 +199,7 @@ export function getSampleFixtureData(): ForecastData {
     budgetReplenishOverrides: [],
     incomeAutoMoves: [],
     incomeAutoMoveOverrides: [],
+    incomeAutoMoveManualEntries: [],
     today,
     horizon,
   };
@@ -225,6 +226,7 @@ export function getSampleFixtureData(): ForecastData {
     budgetBalanceLinks: [],
     incomeAutoMoves: [],
     incomeAutoMoveOverrides: [],
+    incomeAutoMoveManualEntries: [],
     currency: "₱",
     balanceRanges: DEFAULT_BALANCE_RANGES,
     tierLabels: DEFAULT_TIER_LABELS,
