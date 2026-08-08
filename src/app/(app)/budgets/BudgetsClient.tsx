@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { AmountRangeFilter, matchesAmountFilter, type ComparisonOp } from "@/components/AmountRangeFilter";
 import { AmountSortControl, sortByAmount, type SortOrder } from "@/components/AmountSortControl";
 import { CollapsibleFilters } from "@/components/CollapsibleFilters";
+import { FormTip } from "@/components/FormTip";
 import { MultiSelectChips } from "@/components/MultiSelectChips";
 import { ReorderButtons } from "@/components/ReorderButtons";
 import { useOrderedList } from "@/lib/useOrderedList";
@@ -173,10 +174,9 @@ export function BudgetsClient({
           <div>
             <h1 className="text-xl font-semibold text-notion-text">Budgets</h1>
             <p className="text-slate-500">A running total for variable spending.</p>
-            {/* T165: budgets are a second layer of money, deliberately kept
-                out of Total Balance/the cash-flow forecast (spending here is
-                unpredictable) - but with no single figure of their own, there
-                was nowhere to see "how much do I have set aside, in total". */}
+            {/* T165: budgets are a second layer of money - with no single
+                figure of their own, there was nowhere to see "how much do I
+                have set aside, in total". */}
             {budgets.length > 0 && (
               <p className="mt-1 text-sm font-medium text-notion-text">
                 Total across all budgets:{" "}
@@ -201,6 +201,24 @@ export function BudgetsClient({
           >
             Add budget
           </button>
+        </div>
+
+        {/* T240 (raised 2026-08-04, rewritten 2026-08-08): originally asked
+            for a note saying budget amounts are excluded from the Forecast -
+            true before T284, no longer true since. A budget's money still
+            lives in a real account and counts in Total Balance ("of which
+            ₱X is budgets"); what changed is how much of it the Forecast
+            *projection* assumes is already spent, per-budget, via the
+            "Budget usage" sliders on Forecast/Peaks and Drops (T284
+            follow-up). Confirmed with the user (AskUserQuestion) to rewrite
+            accurately rather than build the original, now-wrong wording. */}
+        <div className="mb-6">
+          <FormTip tipKey="budgets-forecast-model" variant="panel">
+            Budget money isn&apos;t set aside separately - it&apos;s still part of your real account
+            balances (see &ldquo;of which&rdquo; on Total Balance). How much of it the Forecast
+            projection assumes you&apos;ve already spent is set per budget, with the sliders in
+            &ldquo;Budget usage&rdquo; on the Forecast and Peaks and Drops pages.
+          </FormTip>
         </div>
 
         {budgets.length > 0 && (
