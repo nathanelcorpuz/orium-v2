@@ -166,8 +166,12 @@ export function OnboardingWizard({
   incomeOptions: BalanceOption[];
 }) {
   const router = useRouter();
-  const [pendingKey, setPendingKey] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
+  // T241 (user request 2026-08-08): visible feedback while Back/Forward are
+  // awaiting a server round-trip (clearing the post-save prompt, or marking
+  // a skipped step) - the original "Continue"/"Skip" buttons gave none,
+  // which read as an unindicated jump straight to the next step.
+  const [navPending, setNavPending] = useState(false);
   // T115 follow-up: "edit" from the preview list. Plain client state is fine
   // here (unlike wizardState) - a save-triggered remount resetting this to
   // null closes the edit view, which is exactly the wanted outcome.
@@ -217,27 +221,45 @@ export function OnboardingWizard({
     (step) => !hasByKey[step.key] && !skippedSteps.includes(step.key),
   );
 
+  // T241 (user request 2026-08-08): `viewIndex` can now also hold
+  // `STEPS.length` - "past the last step," i.e. finished - alongside every
+  // real index, so Forward from the last step lands on the same "You're all
+  // set" screen the natural derivation already produces once every step is
+  // resolved (see the invariant note on `handleForward` below for why the
+  // two always agree).
   const displayKey: StepKey | null =
     justSaved ??
     reopenKey ??
-    (viewIndex !== null ? STEPS[viewIndex].key : stepIndex === -1 ? null : STEPS[stepIndex].key);
+    (viewIndex !== null
+      ? viewIndex < STEPS.length
+        ? STEPS[viewIndex].key
+        : null
+      : stepIndex === -1
+        ? null
+        : STEPS[stepIndex].key);
   const step = STEPS.find((s) => s.key === displayKey);
   const displayIndex = step ? STEPS.findIndex((s) => s.key === step.key) : -1;
-  // Back/Forward only make sense while looking at a step's ordinary panel -
-  // hidden during the post-save interstitial or an open add form, so they
-  // never fight `justSaved`/`reopenKey`'s own precedence above.
-  const showStepNav = justSaved === null && reopenKey === null && !adding && displayIndex !== -1;
+  // Bug report (2026-08-08): "guided setup after setting a misc and clicking
+  // on skip it goes back to step 5" - root cause was that the old "Skip this
+  // step" button only ever resolved the step *currently being viewed*, but
+  // Forward previously let you view a step further ahead than the last one
+  // actually resolved (e.g. jump straight to Misc while Budgets, upstream,
+  // was still neither completed nor skipped). Skipping Misc there returned
+  // to the natural "first unresolved step" derivation, which found Budgets
+  // again - reading as an unrelated jump backward. Fixed structurally, not
+  // by patching that one path: `handleForward` below now always resolves
+  // (adds, or - for an optional step - implicitly skips) the step it's
+  // leaving before moving to the very next index, one step at a time, never
+  // further. By induction, every index the user can ever reach was already
+  // fully resolved on the way there, so this exact class of "resolve a late
+  // step, snap back to an unrelated early one" can no longer happen.
+  const addFormOpen = adding || reopenKey !== null;
+  const showStepNav = displayIndex !== -1 && !addFormOpen;
 
   async function handleAddAnother() {
     if (!justSaved) return;
     await setWizardReopen(justSaved);
     setAdding(true);
-    router.refresh();
-  }
-
-  async function handleContinue() {
-    await clearWizardState();
-    setAdding(false);
     router.refresh();
   }
 
@@ -247,9 +269,9 @@ export function OnboardingWizard({
   // whenever the modal was opened via "Add another" rather than the initial
   // "Add a bill" button, Cancel/Close did nothing: the modal stayed open
   // (still driven by the untouched `reopenKey`), and Back/Forward stayed
-  // hidden (`showStepNav` requires `reopenKey === null`) with no visible way
-  // out. Every create-modal's `onClose` now goes through this instead of a
-  // bare `setAdding(false)`, so closing always actually closes.
+  // hidden with no visible way out. Every create-modal's `onClose` now goes
+  // through this instead of a bare `setAdding(false)`, so closing always
+  // actually closes.
   async function handleCloseAddForm() {
     setAdding(false);
     if (reopenKey !== null) {
@@ -258,21 +280,25 @@ export function OnboardingWizard({
     }
   }
 
-  async function handleSkip(key: string) {
-    setPendingKey(key);
-    await skipOnboardingStep(key);
-    setAdding(false);
-    // Skipping is a forward-moving action just like completing the step, so
-    // it returns to the natural flow rather than leaving the view pinned on
-    // the now-skipped step.
-    setViewIndex(null);
-    router.refresh();
-  }
-
   function goToStepIndex(index: number) {
     setDeletingId(null);
     setEditing(null);
-    setViewIndex(Math.max(0, Math.min(STEPS.length - 1, index)));
+    setViewIndex(Math.max(0, Math.min(STEPS.length, index)));
+  }
+
+  // T241: replaces the old separate "Continue" button - Back is now always
+  // available (including while the post-save prompt is showing), one step
+  // at a time. Doesn't require or change anything about the step it's
+  // leaving; reviewing an earlier, already-resolved step is always safe.
+  async function handleBack() {
+    if (navPending || displayIndex <= 0) return;
+    setNavPending(true);
+    setAdding(false);
+    const hadPrompt = justSaved !== null || reopenKey !== null;
+    if (hadPrompt) await clearWizardState();
+    goToStepIndex(displayIndex - 1);
+    setNavPending(false);
+    if (hadPrompt) router.refresh();
   }
 
   // T123: replaces the old auto-complete effect, which fired
@@ -314,8 +340,33 @@ export function OnboardingWizard({
     editing && editing.step === step.key ? previewItems.find((i) => i.id === editing.id) : undefined;
   // The add-form shows when explicitly opened, or when "Add another" set the
   // reopen state. Never forced open otherwise - the panel comes first, so
-  // this page always has a visible way out.
-  const addFormOpen = adding || reopenKey !== null;
+  // this page always has a visible way out. (`addFormOpen` itself is
+  // declared earlier, before the "You're all set" early return - `showStepNav`
+  // needs it there too.)
+
+  // T241: replaces the old separate "Continue"/"Skip this step" buttons with
+  // one persistent action. Disabled (greyed out) only while looking at a
+  // required step's ordinary panel with nothing added yet - an optional
+  // step with nothing added is implicitly skipped on the way past, rather
+  // than needing its own button.
+  async function handleForward() {
+    if (navPending || !step) return;
+    if (justSaved === null && step.required && previewItems.length === 0) return;
+    setNavPending(true);
+    setAdding(false);
+    let needsRefresh = false;
+    if (justSaved !== null || reopenKey !== null) {
+      await clearWizardState();
+      needsRefresh = true;
+    }
+    if (justSaved === null && !step.required && previewItems.length === 0 && !skippedSteps.includes(step.key)) {
+      await skipOnboardingStep(step.key);
+      needsRefresh = true;
+    }
+    goToStepIndex(displayIndex + 1);
+    setNavPending(false);
+    if (needsRefresh) router.refresh();
+  }
 
   const createModal = (
     <>
@@ -455,29 +506,36 @@ export function OnboardingWizard({
           </Link>
         </div>
 
-        {/* REMINDER (user request 2026-07-26): the step shown used to be
-            purely derived from what's left to do, with no way to look back at
-            a step already passed. These free-browse any of the 7 steps via
-            `viewIndex`, independent of completion - hidden during the
-            post-save interstitial or an open add form, since neither is "a
-            step's ordinary panel" to navigate away from mid-flow. */}
+        {/* T241 (user request 2026-08-08): persistent Back/Forward,
+            replacing the old separate "Continue" and "Skip this step"
+            buttons - "it shouldn't be a button anymore, there should just
+            be a persistent back and forward." Now shown even during the
+            post-save prompt (only hidden while a form is actually open,
+            since it would sit uselessly behind the modal) - Forward itself
+            handles moving past that prompt, an optional step's implicit
+            skip, and finishing after the last step, all in one place. */}
         {showStepNav && (
           <div className="mb-2 flex justify-end gap-2">
             <button
               type="button"
-              onClick={() => goToStepIndex(displayIndex - 1)}
-              disabled={displayIndex <= 0}
+              onClick={handleBack}
+              disabled={navPending || displayIndex <= 0}
               className="rounded border border-notion-hairline px-3 py-1 text-xs text-notion-text hover:bg-notion-hover disabled:opacity-40"
             >
               Back
             </button>
             <button
               type="button"
-              onClick={() => goToStepIndex(displayIndex + 1)}
-              disabled={displayIndex >= STEPS.length - 1}
+              onClick={handleForward}
+              disabled={navPending || (justSaved === null && step.required && previewItems.length === 0)}
+              title={
+                justSaved === null && step.required && previewItems.length === 0
+                  ? `Add at least one ${step.noun.toLowerCase()} to continue`
+                  : undefined
+              }
               className="rounded border border-notion-hairline px-3 py-1 text-xs text-notion-text hover:bg-notion-hover disabled:opacity-40"
             >
-              Forward
+              {navPending ? "Working…" : "Forward"}
             </button>
           </div>
         )}
@@ -488,7 +546,7 @@ export function OnboardingWizard({
 
           {justSaved !== null && (
             <p className="mt-3 rounded bg-notion-hover px-3 py-2 text-sm text-notion-text">
-              {step.noun} added. Add another, or continue.
+              {step.noun} added. Add another, or use Forward above to move on.
             </p>
           )}
 
@@ -560,6 +618,9 @@ export function OnboardingWizard({
             </ul>
           )}
 
+          {/* T241: this used to be joined by separate "Continue"/"Skip this
+              step" buttons - both folded into the persistent Forward button
+              above ("There should just be an add button on the form"). */}
           <div className="mt-4 flex flex-wrap items-center gap-2">
             <button
               type="button"
@@ -568,25 +629,6 @@ export function OnboardingWizard({
             >
               {previewItems.length > 0 ? `Add another ${step.noun.toLowerCase()}` : step.label.replace(" (optional)", "")}
             </button>
-            {justSaved !== null && (
-              <button
-                type="button"
-                onClick={handleContinue}
-                className="rounded border border-notion-hairline px-4 py-2 text-sm text-notion-text hover:bg-notion-hover"
-              >
-                Continue
-              </button>
-            )}
-            {justSaved === null && !step.required && (
-              <button
-                type="button"
-                onClick={() => handleSkip(step.key)}
-                disabled={pendingKey === step.key}
-                className="rounded border border-notion-hairline px-4 py-2 text-sm text-notion-text hover:bg-notion-hover disabled:opacity-50"
-              >
-                {pendingKey === step.key ? "Skipping…" : "Skip this step"}
-              </button>
-            )}
           </div>
         </div>
       </div>
